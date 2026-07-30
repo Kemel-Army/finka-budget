@@ -37,5 +37,16 @@ desktop.ini
 # Vercel
 .vercel
 
+# Секреты — НИКОГДА не коммитить
+.env
+.env.*
+!.env.example
+*.local.md
+
+# Пароли быстрого входа для локальной разработки
+dev-logins.js
+!dev-logins.example.js
+
 # PowerShell скрипты для разработки (опционально, можно закоммитить)
 # *.ps1
+tests/sheets.json

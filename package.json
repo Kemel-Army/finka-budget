@@ -6,11 +6,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "node tests/unit.mjs && node tests/run.mjs && node tests/import.mjs && node tests/import-all.mjs && node tests/pages.mjs && node tests/sheet-edit.mjs && node tests/db-sync.mjs && node tests/derive.mjs",
     "lint": "htmlhint *.html",
-    "lint:fix": "htmlhint *.html --format compact"
+    "lint:fix": "htmlhint *.html --format compact",
+    "test:rls": "node tests/rls-live.mjs",
+    "test:e2e": "node tests/e2e.mjs && node tests/e2e-import.mjs",
+    "test:all": "npm test && npm run test:rls && npm run test:e2e"
   },
   "devDependencies": {
     "htmlhint": "^1.9.2",
+    "jsdom": "^30.0.1",
+    "playwright-core": "^1.62.1",
     "vite": "^6.2.0"
   }
 }

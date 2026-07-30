@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>Штатное расписание</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+        <style>
+            /* Таблица широкая — колонки не должны сжиматься до нечитаемых */
+            #shTable th {
+                font-size: 10.5px;
+                line-height: 1.25;
+                white-space: normal;
+                min-width: 84px;
+            }
+            #shTable td input[type="text"],
+            #shTable td input[type="date"] {
+                min-width: 100px;
+            }
+            #shTable td.col-name input {
+                min-width: 230px;
+            }
+            .sh-period-tabs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                align-items: center;
+            }
+            .sh-settings {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 14px;
+                align-items: center;
+            }
+            .sh-settings label {
+                font-size: 12px;
+                color: var(--c-gray-600);
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+            .sh-settings input {
+                width: 110px;
+            }
+        </style>
+    </head>
+    <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+
+        <div class="header">
+            <h1>🧾 Штатное расписание</h1>
+            <p>
+                НАО «РФМШ» • по месяцам • оклады, доплаты, налоги и ФОТ
+                считаются по строке
+            </p>
+
+            <div class="branch-selector" id="shBranches">
+                <button class="branch-btn" data-branch="nao">НАО «РФМШ»</button>
+                <button class="branch-btn active" data-branch="almaty">
+                    Алматы
+                </button>
+                <button class="branch-btn" data-branch="astana">Астана</button>
+                <button class="branch-btn" data-branch="uralsk">Уральск</button>
+            </div>
+
+            <div class="sh-period-tabs" id="shPeriods" style="margin-top: 10px">
+                <!-- вкладки месяцев + кнопка «плюс» -->
+            </div>
+        </div>
+
+        <div class="info-bar sh-settings">
+            <label
+                >МРП
+                <input
+                    id="shMrp"
+                    class="editable-cell"
+                    type="number"
+                    step="1"
+                    value="4325"
+            /></label>
+            <label
+                >Налоговый вычет по ИПН
+                <input
+                    id="shDeduction"
+                    class="editable-cell"
+                    type="number"
+                    step="1"
+                    value="129750"
+            /></label>
+            <label
+                >Лечебное пособие, окладов
+                <input
+                    id="shLopK"
+                    class="editable-cell"
+                    type="number"
+                    step="0.1"
+                    value="2"
+            /></label>
+            <div class="auto-save-status saved" id="shSaveStatus">
+                ✓ Сохранено
+            </div>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="sc-label">Штатных единиц</div>
+                <div class="sc-value" id="shCardUnits">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">ФЗП за месяц</div>
+                <div class="sc-value" id="shCardFzpMonth">0,00</div>
+            </div>
+            <div class="summary-card" style="border-top-color: #10b981">
+                <div class="sc-label">ФЗП в год с леч. пособием</div>
+                <div class="sc-value" id="shCardFzpYear">0,00</div>
+            </div>
+            <div class="summary-card" style="border-top-color: #f59e0b">
+                <div class="sc-label">ВСЕГО ФОТ</div>
+                <div class="sc-value" id="shCardFot">0,00</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="shTable" data-sheet data-sticky-cols="3">
+                <thead id="shHead"></thead>
+                <tbody id="shBody"></tbody>
+                <tfoot id="shFoot"></tfoot>
+            </table>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-add-row" id="shAddRow">
+                ➕ Добавить строку
+            </button>
+            <button class="btn btn-primary" id="shSave">💾 Сохранить</button>
+            <button class="btn btn-success" id="shExcel">📥 Excel</button>
+            <button class="btn btn-secondary" id="shPrint">🖨️ Печать</button>
+        </div>
+
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script>
+            (function () {
+                "use strict";
+
+                /* ═══════════════════════════════════════════════════════
+                   Штатное расписание.
+
+                   Хранится по филиалам, внутри филиала — по периодам
+                   (месяцам). Периоды добавляются кнопкой «+»: новый месяц
+                   заводится копией текущего, потому что от месяца к месяцу
+                   меняются единицы, а не весь список должностей.
+
+                   Все формулы сверены с книгой «Штатное расписание.xlsx»,
+                   лист «ШР на 02.02.2026 г.»:
+                     Итого доплаты      = сумма доплат
+                     ФЗП за месяц       = должностной оклад + итого доплаты
+                     ОПВ                = 10 % от ФЗП за месяц
+                     ВОСМС              = 2 %  от ФЗП за месяц
+                     ИПН                = (ФЗП − ОПВ − ВОСМС − вычет) × 10 %
+                     Итого на руки      = ФЗП − ОПВ − ИПН − ВОСМС
+                     ФЗП в год          = ФЗП за месяц × 12
+                     Леч. пособие       = должностной оклад × коэффициент
+                     ФЗП с пособием     = ФЗП в год + леч. пособие
+                     ОПВР               = 3,5 % от ФЗП с пособием
+                     Соц. налог         = (ФЗП с пособием − 10 % от него
+                                           − 2 % от ФЗП в год) × 6 %
+                     Соц. отчисления    = (ФЗП с пособием − 10 %) × 5 %
+                     ОСМС               = 3 % от ФЗП в год
+                     ВСЕГО ФОТ          = ФЗП с пособием + ОПВР + соц. налог
+                                          + соц. отчисления + ОСМС
+                   МРП, вычет по ИПН и коэффициент лечебного пособия вынесены
+                   в настройки страницы — они меняются каждый год.
+                   ═══════════════════════════════════════════════════════ */
+
+                var MONTHS = [
+                    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+                ];
+
+                // t: text | date | num | calc
+                var COLS = [
+                    { key: "post", title: "Наименование должностей", t: "text", cls: "col-name" },
+                    { key: "fio", title: "ФИО", t: "text" },
+                    { key: "units", title: "Количество штатных единиц", t: "num" },
+                    { key: "unitsFact", title: "Кол-во штатных единиц (по факту согласно приказа)", t: "num" },
+                    { key: "coef", title: "Коэффициент", t: "num" },
+                    { key: "hired", title: "Дата приема на работу", t: "date" },
+                    { key: "coefDo", title: "Коэффициент для исчисления должностного оклада", t: "num" },
+                    { key: "do", title: "Должностной оклад / сумма", t: "num" },
+                    { key: "d10", title: "Доплата 10% за особые условия труда", t: "num", add: true },
+                    { key: "degree", title: "Ученая степень и магистра", t: "num", add: true },
+                    { key: "dQualHead", title: "Доплата от ДО за квалификационную категорию руковод. и зам.", t: "num", add: true },
+                    { key: "dQualPed", title: "Доплата от ДО за квалификацию педагогического мастерства", t: "num", add: true },
+                    { key: "dBdoQual", title: "Доплата от БДО за квалификационную категорию педработников", t: "num", add: true },
+                    { key: "dBdoDriver", title: "Доплата от БДО за класс квалификации водителя", t: "num", add: true },
+                    { key: "d30", title: "Доплата 30% от БДО (библиотечный фонд, дезинфекция туалетов)", t: "num", add: true },
+                    { key: "d20", title: "Доплата 20% от БДО за использование дезинфицирующих средств", t: "num", add: true },
+                    { key: "d25", title: "Доплата 25% от БДО за особые условия труда", t: "num", add: true },
+                    { key: "addTotal", title: "Итого доплаты", t: "calc" },
+                    { key: "fzpMonth", title: "Всего ФЗП за месяц", t: "calc" },
+                    { key: "opv", title: "ОПВ 10%", t: "calc" },
+                    { key: "ipn", title: "ИПН", t: "calc" },
+                    { key: "vosms", title: "ВОСМС", t: "calc" },
+                    { key: "net", title: "Итого на руки", t: "calc" },
+                    { key: "fzpYear", title: "Всего ФЗП в год", t: "calc" },
+                    { key: "lop", title: "Лечебно-оздоровительные пособия", t: "calc" },
+                    { key: "fzpLop", title: "Всего ФЗП с леч. пособием", t: "calc" },
+                    { key: "opvr", title: "ОПВР 3.5%", t: "calc" },
+                    { key: "socTax", title: "Социальный налог 6%", t: "calc" },
+                    { key: "socOtch", title: "Социальные отчисления 5%", t: "calc" },
+                    { key: "osms", title: "ОСМС 3%", t: "calc" },
+                    { key: "fot", title: "ВСЕГО ФОТ", t: "calc" },
+                    { key: "budget", title: "Вид бюджета", t: "text" },
+                ];
+
+                var ADD_KEYS = COLS.filter(function (c) {
+                    return c.add;
+                }).map(function (c) {
+                    return c.key;
+                });
+                var SUM_COLS = [
+                    "units", "unitsFact", "do", "addTotal", "fzpMonth", "opv",
+                    "ipn", "vosms", "net", "fzpYear", "lop", "fzpLop", "opvr",
+                    "socTax", "socOtch", "osms", "fot",
+                ];
+
+                var STORAGE = "shtat";
+                var branch = "almaty";
+                var model = null; // { periods:[{id,label,rows:[]}], settings:{} }
+                var activePeriod = 0;
+                var saveTimer = null;
+
+                function key() {
+                    return STORAGE + "_" + branch;
+                }
+
+                function num(v) {
+                    var n = parseFloat(v);
+                    return Number.isFinite(n) ? n : 0;
+                }
+
+                function fmt(v) {
+                    return (v || 0).toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    });
+                }
+
+                // Ставки берутся из панели «Ставки и формулы» (formulas.js),
+                // а поля страницы остаются запасным вариантом — панели может
+                // не быть, если модуль не подключён
+                function rate(name, fallback) {
+                    if (window.finkaRates) {
+                        var v = window.finkaRates.get(name);
+                        if (v !== null && Number.isFinite(v)) return v;
+                    }
+                    return fallback;
+                }
+
+                function settings() {
+                    return {
+                        mrp: rate("mrp", num(document.getElementById("shMrp").value)),
+                        deduction: rate(
+                            "deduction",
+                            num(document.getElementById("shDeduction").value),
+                        ),
+                        lopK: rate("lopK", num(document.getElementById("shLopK").value)),
+                        opv: rate("opv", 10) / 100,
+                        vosms: rate("vosms", 2) / 100,
+                        ipn: rate("ipn", 10) / 100,
+                        opvr: rate("opvr", 3.5) / 100,
+                        socTax: rate("socTax", 6) / 100,
+                        socOtch: rate("socOtch", 5) / 100,
+                        osms: rate("osms", 3) / 100,
+                    };
+                }
+
+                /* ── Расчёт строки ─────────────────────────────────── */
+                function calcRow(row) {
+                    var s = settings();
+                    var out = {};
+
+                    out.addTotal = ADD_KEYS.reduce(function (a, k) {
+                        return a + num(row[k]);
+                    }, 0);
+                    out.fzpMonth = num(row.do) + out.addTotal;
+                    out.opv = out.fzpMonth * s.opv;
+                    out.vosms = out.fzpMonth * s.vosms;
+                    out.ipn = Math.max(
+                        0,
+                        (out.fzpMonth - out.opv - out.vosms - s.deduction) * s.ipn,
+                    );
+                    out.net = out.fzpMonth - out.opv - out.ipn - out.vosms;
+                    out.fzpYear = out.fzpMonth * 12;
+                    out.lop = num(row.do) * s.lopK;
+                    out.fzpLop = out.fzpYear + out.lop;
+                    out.opvr = out.fzpLop * s.opvr;
+                    out.socTax =
+                        (out.fzpLop - out.fzpLop * s.opv - out.fzpYear * s.vosms) *
+                        s.socTax;
+                    out.socOtch = (out.fzpLop - out.fzpLop * s.opv) * s.socOtch;
+                    out.osms = out.fzpYear * s.osms;
+                    out.fot =
+                        out.fzpLop + out.opvr + out.socTax + out.socOtch + out.osms;
+                    return out;
+                }
+
+                /* ── Хранение ──────────────────────────────────────── */
+                function emptyRow() {
+                    var r = {};
+                    COLS.forEach(function (c) {
+                        if (c.t !== "calc") r[c.key] = c.t === "num" ? 0 : "";
+                    });
+                    return r;
+                }
+
+                function defaultModel() {
+                    var now = new Date();
+                    return {
+                        periods: [
+                            {
+                                id: "p" + now.getTime(),
+                                label:
+                                    MONTHS[now.getMonth()] + " " + now.getFullYear(),
+                                rows: [emptyRow()],
+                            },
+                        ],
+                        settings: { mrp: 4325, deduction: 129750, lopK: 2 },
+                    };
+                }
+
+                function load() {
+                    var raw = null;
+                    try {
+                        raw = JSON.parse(localStorage.getItem(key()));
+                    } catch (e) {
+                        raw = null;
+                    }
+                    model =
+                        raw && raw.periods && raw.periods.length
+                            ? raw
+                            : defaultModel();
+                    if (activePeriod >= model.periods.length) activePeriod = 0;
+
+                    var s = model.settings || {};
+                    if (s.mrp) document.getElementById("shMrp").value = s.mrp;
+                    if (s.deduction)
+                        document.getElementById("shDeduction").value = s.deduction;
+                    if (s.lopK != null)
+                        document.getElementById("shLopK").value = s.lopK;
+
+                    renderPeriods();
+                    renderBody();
+                }
+
+                function save() {
+                    model.settings = settings();
+                    model._lastUpdate = new Date().toLocaleString("ru-RU");
+                    localStorage.setItem(key(), JSON.stringify(model));
+                    setStatus("✓ Сохранено", "saved");
+                }
+                window.saveData = save;
+
+                function scheduleSave() {
+                    clearTimeout(saveTimer);
+                    setStatus("⏳ Сохранение...", "saving");
+                    saveTimer = setTimeout(save, 800);
+                }
+
+                function setStatus(text, cls) {
+                    var el = document.getElementById("shSaveStatus");
+                    el.textContent = text;
+                    el.className = "auto-save-status " + cls;
+                }
+
+                /* ── Месяцы ────────────────────────────────────────── */
+                function nextLabel() {
+                    var last = model.periods[model.periods.length - 1].label;
+                    var parts = String(last).split(" ");
+                    var mi = MONTHS.indexOf(parts[0]);
+                    var year = parseInt(parts[1], 10);
+                    if (mi === -1 || !Number.isFinite(year)) return "Новый период";
+                    mi += 1;
+                    if (mi > 11) {
+                        mi = 0;
+                        year += 1;
+                    }
+                    return MONTHS[mi] + " " + year;
+                }
+
+                function renderPeriods() {
+                    var box = document.getElementById("shPeriods");
+                    box.innerHTML = "";
+
+                    model.periods.forEach(function (p, i) {
+                        var btn = document.createElement("button");
+                        btn.className =
+                            "month-btn" + (i === activePeriod ? " active" : "");
+                        btn.textContent = p.label;
+                        btn.title = "Переключиться на «" + p.label + "»";
+                        btn.addEventListener("click", function () {
+                            activePeriod = i;
+                            renderPeriods();
+                            renderBody();
+                        });
+                        box.appendChild(btn);
+                    });
+
+                    var add = document.createElement("button");
+                    add.className = "btn btn-add-row";
+                    add.style.margin = "0";
+                    add.style.padding = "6px 14px";
+                    add.textContent = "＋ Месяц";
+                    add.title = "Добавить месяц копией текущего";
+                    add.addEventListener("click", addPeriod);
+                    box.appendChild(add);
+
+                    if (model.periods.length > 1) {
+                        var del = document.createElement("button");
+                        del.className = "btn btn-danger";
+                        del.style.margin = "0";
+                        del.style.padding = "6px 14px";
+                        del.textContent = "✕ Удалить месяц";
+                        del.addEventListener("click", removePeriod);
+                        box.appendChild(del);
+                    }
+                }
+
+                function addPeriod() {
+                    var label = prompt("Название нового периода:", nextLabel());
+                    if (!label) return;
+                    var src = model.periods[activePeriod];
+                    model.periods.push({
+                        id: "p" + Date.now(),
+                        label: label,
+                        rows: JSON.parse(JSON.stringify(src.rows)),
+                    });
+                    activePeriod = model.periods.length - 1;
+                    renderPeriods();
+                    renderBody();
+                    save();
+                }
+
+                function removePeriod() {
+                    var p = model.periods[activePeriod];
+                    if (!confirm("Удалить период «" + p.label + "» со всеми строками?"))
+                        return;
+                    model.periods.splice(activePeriod, 1);
+                    activePeriod = Math.max(0, activePeriod - 1);
+                    renderPeriods();
+                    renderBody();
+                    save();
+                }
+
+                /* ── Таблица ───────────────────────────────────────── */
+                function renderHead() {
+                    document.getElementById("shHead").innerHTML =
+                        "<tr><th style='min-width:40px'>№</th>" +
+                        COLS.map(function (c) {
+                            return "<th>" + c.title + "</th>";
+                        }).join("") +
+                        "<th style='min-width:56px'>—</th></tr>";
+                }
+
+                function renderBody() {
+                    var rows = model.periods[activePeriod].rows;
+                    var tbody = document.getElementById("shBody");
+                    tbody.innerHTML = "";
+
+                    rows.forEach(function (row, idx) {
+                        var tr = document.createElement("tr");
+
+                        var tdN = document.createElement("td");
+                        tdN.className = "label-cell";
+                        tdN.style.textAlign = "center";
+                        tdN.textContent = idx + 1;
+                        tr.appendChild(tdN);
+
+                        COLS.forEach(function (c) {
+                            var td = document.createElement("td");
+                            if (c.cls) td.className = c.cls;
+                            if (c.t === "calc") {
+                                td.className =
+                                    (c.cls ? c.cls + " " : "") + "formula-cell";
+                                td.id = "shC_" + idx + "_" + c.key;
+                                td.textContent = "0,00";
+                            } else {
+                                td.className =
+                                    (c.cls ? c.cls + " " : "") + "editable";
+                                var inp = document.createElement("input");
+                                inp.className = "editable-cell";
+                                inp.type =
+                                    c.t === "num"
+                                        ? "number"
+                                        : c.t === "date"
+                                          ? "date"
+                                          : "text";
+                                if (c.t === "num") inp.step = "0.01";
+                                inp.value = row[c.key] != null ? row[c.key] : "";
+                                inp.addEventListener("input", function () {
+                                    row[c.key] =
+                                        c.t === "num"
+                                            ? num(inp.value)
+                                            : inp.value;
+                                    recalcRow(idx);
+                                    recalcTotals();
+                                    scheduleSave();
+                                });
+                                td.appendChild(inp);
+                            }
+                            tr.appendChild(td);
+                        });
+
+                        var tdDel = document.createElement("td");
+                        var btn = document.createElement("button");
+                        btn.className = "btn-delete-row";
+                        btn.type = "button";
+                        btn.textContent = "✕";
+                        btn.title = "Удалить строку";
+                        btn.addEventListener("click", function () {
+                            if (
+                                !confirm(
+                                    "Удалить строку «" + (row.post || "") + "»?",
+                                )
+                            )
+                                return;
+                            rows.splice(idx, 1);
+                            renderBody();
+                            scheduleSave();
+                        });
+                        tdDel.appendChild(btn);
+                        tr.appendChild(tdDel);
+
+                        tbody.appendChild(tr);
+                    });
+
+                    renderFoot();
+                    rows.forEach(function (_, i) {
+                        recalcRow(i);
+                    });
+                    recalcTotals();
+                }
+
+                function renderFoot() {
+                    document.getElementById("shFoot").innerHTML =
+                        "<tr class='total-row'><td></td>" +
+                        COLS.map(function (c) {
+                            if (c.key === "post")
+                                return "<td class='label-cell' style='font-weight:800'>Итого:</td>";
+                            if (SUM_COLS.indexOf(c.key) === -1)
+                                return "<td></td>";
+                            return (
+                                "<td class='formula-cell' id='shT_" +
+                                c.key +
+                                "'>0,00</td>"
+                            );
+                        }).join("") +
+                        "<td></td></tr>";
+                }
+
+                function recalcRow(idx) {
+                    var row = model.periods[activePeriod].rows[idx];
+                    var out = calcRow(row);
+                    Object.keys(out).forEach(function (k) {
+                        var el = document.getElementById("shC_" + idx + "_" + k);
+                        if (!el) return;
+                        el.textContent = fmt(out[k]);
+                        el.classList.toggle("negative", out[k] < 0);
+                    });
+                }
+
+                function recalcTotals() {
+                    var rows = model.periods[activePeriod].rows;
+                    var sums = {};
+                    SUM_COLS.forEach(function (k) {
+                        sums[k] = 0;
+                    });
+
+                    rows.forEach(function (row) {
+                        var out = calcRow(row);
+                        SUM_COLS.forEach(function (k) {
+                            sums[k] += out[k] !== undefined ? out[k] : num(row[k]);
+                        });
+                    });
+
+                    SUM_COLS.forEach(function (k) {
+                        var el = document.getElementById("shT_" + k);
+                        if (el) el.textContent = fmt(sums[k]);
+                    });
+
+                    document.getElementById("shCardUnits").textContent =
+                        (sums.units || 0).toLocaleString("ru-RU");
+                    document.getElementById("shCardFzpMonth").textContent = fmt(
+                        sums.fzpMonth,
+                    );
+                    document.getElementById("shCardFzpYear").textContent = fmt(
+                        sums.fzpLop,
+                    );
+                    document.getElementById("shCardFot").textContent = fmt(sums.fot);
+                }
+
+                /* ── Экспорт ───────────────────────────────────────── */
+                function exportExcel() {
+                    var period = model.periods[activePeriod];
+                    var head = [
+                        ["Штатное расписание"],
+                        ["Филиал: " + branch + " • период: " + period.label],
+                        [],
+                        ["№"].concat(
+                            COLS.map(function (c) {
+                                return c.title;
+                            }),
+                        ),
+                    ];
+
+                    var body = period.rows.map(function (row, i) {
+                        var out = calcRow(row);
+                        return [i + 1].concat(
+                            COLS.map(function (c) {
+                                return c.t === "calc" ? out[c.key] : row[c.key];
+                            }),
+                        );
+                    });
+
+                    var ws = XLSX.utils.aoa_to_sheet(head.concat(body));
+                    ws["!cols"] = [{ wch: 5 }].concat(
+                        COLS.map(function (c) {
+                            return { wch: c.key === "post" ? 40 : 16 };
+                        }),
+                    );
+                    var wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "ШР");
+                    XLSX.writeFile(
+                        wb,
+                        "Штатное_расписание_" +
+                            branch +
+                            "_" +
+                            period.label.replace(/\s/g, "_") +
+                            ".xlsx",
+                    );
+                }
+                window.exportExcel = exportExcel;
+
+                /* ── События ───────────────────────────────────────── */
+                document
+                    .getElementById("shBranches")
+                    .addEventListener("click", function (e) {
+                        var btn = e.target.closest(".branch-btn");
+                        if (!btn) return;
+                        save();
+                        this.querySelectorAll(".branch-btn").forEach(function (b) {
+                            b.classList.remove("active");
+                        });
+                        btn.classList.add("active");
+                        branch = btn.dataset.branch;
+                        activePeriod = 0;
+                        load();
+                    });
+
+                document
+                    .getElementById("shAddRow")
+                    .addEventListener("click", function () {
+                        model.periods[activePeriod].rows.push(emptyRow());
+                        renderBody();
+                        var last = document.querySelector(
+                            "#shBody tr:last-child input",
+                        );
+                        if (last) last.focus();
+                        scheduleSave();
+                    });
+
+                ["shMrp", "shDeduction", "shLopK"].forEach(function (id) {
+                    document
+                        .getElementById(id)
+                        .addEventListener("input", function () {
+                            model.periods[activePeriod].rows.forEach(function (_, i) {
+                                recalcRow(i);
+                            });
+                            recalcTotals();
+                            scheduleSave();
+                        });
+                });
+
+                document.getElementById("shSave").addEventListener("click", save);
+                document
+                    .getElementById("shExcel")
+                    .addEventListener("click", exportExcel);
+                document
+                    .getElementById("shPrint")
+                    .addEventListener("click", function () {
+                        window.print();
+                    });
+
+                // Правка ставки в панели «Ставки и формулы» — пересчитываем
+                document.addEventListener("finka:rates", function () {
+                    model.periods[activePeriod].rows.forEach(function (_, i) {
+                        recalcRow(i);
+                    });
+                    recalcTotals();
+                });
+
+                renderHead();
+                load();
+            })();
+        </script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

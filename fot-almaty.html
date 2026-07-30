@@ -4,12 +4,14 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>Свод ФОТ Алматы - Онлайн таблица</title>
-        <script src="editable-table.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
             <h1>📊 Свод оплаты труда филиала НАО "РФМШ"</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
@@ -56,7 +58,7 @@
                 <!-- Заголовок -->
                 <thead>
                     <tr class="header-row">
-                        <th colspan="11" class="title-cell" id="tableTitle">
+                        <th colspan="13" class="title-cell" id="tableTitle">
                             Свод оплаты труда филиала НАО «РФМШ» в г. Алматы
                         </th>
                     </tr>
@@ -277,18 +279,8 @@
                 setupEventListeners();
                 calculateAll();
 
-                // Инициализация редактируемых таблиц
-                setTimeout(() => {
-                    if (typeof initAllEditableTables === "function") {
-                        initAllEditableTables("table", () => {
-                            calculateAll();
-                            autoSave();
-                        });
-                        console.log(
-                            "✅ Редактируемые таблицы инициализированы",
-                        );
-                    }
-                }, 100);
+                // Редактирование наименований, строки и итоги даёт
+                // sheet-edit.js — он подключён ко всем страницам сразу
             });
 
             // Настройка обработчиков событий
@@ -615,6 +607,10 @@
                 );
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

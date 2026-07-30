@@ -6,3 +6,12 @@ __pycache__/
 .git/
 .vscode/
 node_modules/
+
+# Пароли быстрого входа — только для локальной разработки
+dev-logins.js
+dev-logins.example.js
+.env
+.env.*
+
+# Исходные книги Excel — только для разработки
+excel/

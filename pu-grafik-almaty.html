@@ -4,8 +4,9 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>График повышения зарплаты Алматы - Бюджет ПУ 2026</title>
-        <script src="editable-table.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -14,8 +15,8 @@
     <body class="page-pu">
         <div class="container">
             <div class="header">
-                <h1>График тарификации Алматы</h1>
-                <p>План тарификации заработной платы по филиалу - Алматы</p>
+                <h1>График родительской оплаты — Алматы</h1>
+                <p>График оплаты по траншам за образовательные услуги на платной основе</p>
             </div>
             <div class="controls">
                 <div class="branch-selector">
@@ -41,9 +42,6 @@
                         Консолидация
                     </button>
                 </div>
-                <button onclick="addStudent()" id="addBtn">
-                    + Добавить класс/группу
-                </button>
                 <div
                     style="
                         display: flex;
@@ -152,189 +150,419 @@
             </div>
             <div class="content">
                 <a href="index.html" class="back-link">← Вернуться к списку</a>
-                <table>
+                <table id="grafikTable" data-sheet data-sticky-cols="2">
                     <thead>
                         <tr>
-                            <th style="width: 50px">№</th>
-                            <th style="min-width: 200px">Класс/Группа</th>
-                            <th style="width: 80px">Кол-во уч.</th>
-                            <th style="width: 100px">Тариф</th>
-                            <th style="width: 80px">Янв</th>
-                            <th style="width: 80px">Фев</th>
-                            <th style="width: 80px">Мар</th>
-                            <th style="width: 80px">Апр</th>
-                            <th style="width: 80px">Май</th>
-                            <th style="width: 80px">Июн</th>
-                            <th style="width: 80px">Июл</th>
-                            <th style="width: 80px">Авг</th>
-                            <th style="width: 80px">Сен</th>
-                            <th style="width: 80px">Окт</th>
-                            <th style="width: 80px">Ноя</th>
-                            <th style="width: 80px">Дек</th>
-                            <th style="width: 120px">Итого</th>
-                            <th style="width: 60px"></th>
+                            <th rowspan="2" style="width: 44px">№</th>
+                            <th rowspan="2" style="min-width: 280px">
+                                Наименование и период оплаты транша
+                            </th>
+                            <th colspan="2">Транш к оплате</th>
+                            <th colspan="2">
+                                Поступления траншей<br />7 класс (включая Жанаозен)
+                            </th>
+                            <th colspan="2">Поступления траншей<br />8–11 классы</th>
+                            <th colspan="2">Итого по траншам</th>
+                        </tr>
+                        <tr>
+                            <th>7 класс</th>
+                            <th>8–11 класс</th>
+                            <th>Сумма</th>
+                            <th>%</th>
+                            <th>Сумма</th>
+                            <th>%</th>
+                            <th>Сумма</th>
+                            <th>%</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody"></tbody>
                 </table>
+
+                <div class="params-bar" style="margin-top: 16px">
+                    <div class="param-group">
+                        <label for="cont7">Контингент 7 классов</label>
+                        <input type="number" id="cont7" value="65" oninput="calc()" />
+                    </div>
+                    <div class="param-group">
+                        <label for="cont811">Контингент 8–11 классов</label>
+                        <input type="number" id="cont811" value="102" oninput="calc()" />
+                    </div>
+                    <div class="param-group">
+                        <label>Коэффициент поступления</label>
+                        <span class="param-val">0,92</span>
+                    </div>
+                    <div class="param-group">
+                        <label>Рентабельность</label>
+                        <span class="param-val">8%</span>
+                    </div>
+                </div>
+
+                <h3 style="margin: 20px 0 10px; font-size: 14px">
+                    Распределение по учебному году
+                </h3>
+                <table id="refTable">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 240px">Показатель</th>
+                            <th>7 классы<br />сентябрь–декабрь</th>
+                            <th>7 классы<br />январь–май</th>
+                            <th>8–11 классы<br />сентябрь–декабрь</th>
+                            <th>8–11 классы<br />январь–май</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="label-cell">Стоимость обучения по периодам</td>
+                            <td class="formula-cell" id="ref-n7">0,00</td>
+                            <td class="formula-cell" id="ref-o7">0,00</td>
+                            <td class="formula-cell" id="ref-p7">0,00</td>
+                            <td class="formula-cell" id="ref-q7">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">Доля периода, %</td>
+                            <td class="formula-cell" id="ref-n8">0,00</td>
+                            <td class="formula-cell" id="ref-o8">0,00</td>
+                            <td class="formula-cell" id="ref-p8">0,00</td>
+                            <td class="formula-cell" id="ref-q8">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">Контингент</td>
+                            <td class="formula-cell" id="ref-n9">0</td>
+                            <td class="formula-cell" id="ref-o9">0</td>
+                            <td class="formula-cell" id="ref-p9">0</td>
+                            <td class="formula-cell" id="ref-q9">0</td>
+                        </tr>
+                        <tr class="sub-row">
+                            <td class="label-cell">Сумма дохода</td>
+                            <td class="formula-cell" id="ref-n10">0,00</td>
+                            <td class="formula-cell" id="ref-o10">0,00</td>
+                            <td class="formula-cell" id="ref-p10">0,00</td>
+                            <td class="formula-cell" id="ref-q10">0,00</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table id="sumTable" style="margin-top: 14px">
+                    <tbody>
+                        <tr>
+                            <td class="label-cell">Сумма доходов, 7 классы</td>
+                            <td class="formula-cell" id="ref-n11">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">Сумма доходов, 8–11 классы</td>
+                            <td class="formula-cell" id="ref-p11">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">Сумма за сентябрь–декабрь</td>
+                            <td class="formula-cell" id="ref-n12">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">Сумма за январь–май</td>
+                            <td class="formula-cell" id="ref-n13">0,00</td>
+                        </tr>
+                        <tr class="sub-row">
+                            <td class="label-cell">ВСЕГО</td>
+                            <td class="formula-cell" id="ref-n14">0,00</td>
+                        </tr>
+                        <tr>
+                            <td class="label-cell">
+                                Рентабельность 8% (на льготные скидки и
+                                отчисляющихся учащихся)
+                            </td>
+                            <td class="formula-cell" id="ref-n15">0,00</td>
+                        </tr>
+                        <tr class="grand-row">
+                            <td class="label-cell">
+                                ВСЕГО с учётом скидки и рентабельности
+                            </td>
+                            <td class="formula-cell" id="ref-n16">0,00</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
         <script>
+            /* ─────────────────────────────────────────────────────────────
+               Лист Excel «График род. оплаты Алматы» (Бюджет ПУ 2026).
+
+               Учебный год — 9 месяцев, он делится на два периода:
+                 сентябрь–декабрь = 4/9 года, январь–май = 5/9.
+               Отсюда N7 = D11/9*4, O7 = D11/9*5 (для 7 классов),
+                      P7 = E11/9*4, Q7 = E11/9*5 (для 8–11).
+
+               Поступление транша считается с коэффициентом 0,92:
+                 G = транш_7кл  * контингент_7кл  * 0,92
+                 I = транш_8-11 * контингент_8-11 * 0,92
+               Процент — доля транша в доходе своей группы:
+                 H = G / N11 * 100      J = I / P11 * 100
+                 K = G + I              L = (H + J) / 2
+
+               Порядок расчёта важен: сначала итог траншей (D11, E11),
+               затем распределение по периодам и доход (N10..Q10, N11, P11),
+               и только потом проценты H и J — они на этот доход делятся.
+
+               Рентабельность 8% снимается в самом конце: N15 = N14*8%,
+               N16 = N14 − N15.
+               ───────────────────────────────────────────────────────────── */
             const KEY = "pu_grafik_almaty";
-            let branch = "nao",
-                timeout,
-                counter = 0;
+            const RATE = 0.92; // коэффициент поступления траншей
+            const PROFIT = 0.08; // рентабельность
+            const AUTUMN = 4; // сентябрь–декабрь, месяцев из 9
+            const SPRING = 5; // январь–май, месяцев из 9
+            const YEAR_MONTHS = 9; // учебный год
 
-            function addStudent() {
-                counter++;
-                const tbody = document.getElementById("tableBody");
-                const row = tbody.insertRow();
-                row.innerHTML = `
-                <td>${counter}</td>
-                <td><input type="text" id="class-${counter}" placeholder="7а класс" oninput="sched()"></td>
-                <td><input type="number" id="count-${counter}" value="0" oninput="calc(${counter})"></td>
-                <td><input type="number" id="tariff-${counter}" value="0" oninput="calc(${counter})"></td>
-                ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => `<td class="formula-cell" id="m${m}-${counter}">0</td>`).join("")}
-                <td class="formula-cell" id="total-${counter}">0</td>
-                <td><button class="delete-btn" onclick="delRow(this)">?</button></td>
-            `;
+            const TRANCHES = [
+                "Предоплата (гарантийный взнос)",
+                "Первый транш до 15 августа текущего года",
+                "Второй транш до 15 ноября текущего года",
+                "Третий транш до 15 февраля текущего года",
+            ];
+
+            let branch = "nao";
+            let timeout;
+
+            function fmt(n) {
+                if (!Number.isFinite(n)) return "0,00";
+                return n.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
             }
 
-            function delRow(btn) {
-                btn.closest("tr").remove();
-                sched();
+            function num(id) {
+                const el = document.getElementById(id);
+                return el ? parseFloat(el.value) || 0 : 0;
             }
 
-            function calc(id) {
-                const count =
-                    parseFloat(document.getElementById(`count-${id}`).value) ||
-                    0;
-                const tariff =
-                    parseFloat(document.getElementById(`tariff-${id}`).value) ||
-                    0;
-                const monthly = count * tariff;
-                for (let m = 1; m <= 12; m++) {
-                    document.getElementById(`m${m}-${id}`).textContent =
-                        monthly.toLocaleString("ru-RU", {
-                            minimumFractionDigits: 0,
-                        });
+            function put(id, v, digits) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent =
+                    digits === 0
+                        ? String(Math.round(v))
+                        : fmt(v);
+            }
+
+            /* ── Разметка ─────────────────────────────────────────────── */
+            function buildTable() {
+                let html = "";
+                TRANCHES.forEach((name, i) => {
+                    const r = i + 1;
+                    html +=
+                        "<tr>" +
+                        "<td>" + r + "</td>" +
+                        '<td class="label-cell">' + name + "</td>" +
+                        '<td><input type="number" id="t' + r +
+                        '-d" value="0" oninput="calc()"></td>' +
+                        '<td><input type="number" id="t' + r +
+                        '-e" value="0" oninput="calc()"></td>' +
+                        '<td class="formula-cell" id="t' + r + '-g">0,00</td>' +
+                        '<td class="formula-cell" id="t' + r + '-h">0,00</td>' +
+                        '<td class="formula-cell" id="t' + r + '-i">0,00</td>' +
+                        '<td class="formula-cell" id="t' + r + '-j">0,00</td>' +
+                        '<td class="formula-cell" id="t' + r + '-k">0,00</td>' +
+                        '<td class="formula-cell" id="t' + r + '-l">0,00</td>' +
+                        "</tr>";
+                });
+                html +=
+                    '<tr class="grand-row">' +
+                    '<td colspan="2" class="label-cell">' +
+                    "<strong>Итого стоимость услуги за один учебный год</strong></td>" +
+                    '<td class="formula-cell" id="tot-d">0,00</td>' +
+                    '<td class="formula-cell" id="tot-e">0,00</td>' +
+                    '<td class="formula-cell" id="tot-g">0,00</td>' +
+                    '<td class="formula-cell" id="tot-h">0,00</td>' +
+                    '<td class="formula-cell" id="tot-i">0,00</td>' +
+                    '<td class="formula-cell" id="tot-j">0,00</td>' +
+                    '<td class="formula-cell" id="tot-k">0,00</td>' +
+                    '<td class="formula-cell" id="tot-l">0,00</td>' +
+                    "</tr>";
+                document.getElementById("tableBody").innerHTML = html;
+            }
+
+            /* ── Расчёт ───────────────────────────────────────────────── */
+            function calc() {
+                const cont7 = num("cont7");
+                const cont811 = num("cont811");
+
+                // Итог траншей (D11, E11)
+                let sumD = 0;
+                let sumE = 0;
+                for (let r = 1; r <= TRANCHES.length; r++) {
+                    sumD += num("t" + r + "-d");
+                    sumE += num("t" + r + "-e");
                 }
-                document.getElementById(`total-${id}`).textContent = (
-                    monthly * 12
-                ).toLocaleString("ru-RU", { minimumFractionDigits: 0 });
-                sched();
+
+                // Распределение стоимости по периодам учебного года
+                const n7 = (sumD / YEAR_MONTHS) * AUTUMN;
+                const o7 = (sumD / YEAR_MONTHS) * SPRING;
+                const p7 = (sumE / YEAR_MONTHS) * AUTUMN;
+                const q7 = (sumE / YEAR_MONTHS) * SPRING;
+
+                // Доход по периодам = контингент × стоимость периода
+                const n10 = cont7 * n7;
+                const o10 = cont7 * o7;
+                const p10 = cont811 * p7;
+                const q10 = cont811 * q7;
+
+                const n11 = n10 + o10; // доход 7 классов
+                const p11 = p10 + q10; // доход 8–11 классов
+
+                // Строки траншей
+                let tg = 0, th = 0, ti = 0, tj = 0, tk = 0, tl = 0;
+                for (let r = 1; r <= TRANCHES.length; r++) {
+                    const d = num("t" + r + "-d");
+                    const e = num("t" + r + "-e");
+
+                    const g = d * cont7 * RATE;
+                    const i = e * cont811 * RATE;
+                    const h = n11 ? (g / n11) * 100 : 0;
+                    const j = p11 ? (i / p11) * 100 : 0;
+                    const k = g + i;
+                    const l = (h + j) / 2;
+
+                    put("t" + r + "-g", g);
+                    put("t" + r + "-h", h);
+                    put("t" + r + "-i", i);
+                    put("t" + r + "-j", j);
+                    put("t" + r + "-k", k);
+                    put("t" + r + "-l", l);
+
+                    tg += g; th += h; ti += i; tj += j; tk += k; tl += l;
+                }
+
+                put("tot-d", sumD);
+                put("tot-e", sumE);
+                put("tot-g", tg);
+                put("tot-h", th);
+                put("tot-i", ti);
+                put("tot-j", tj);
+                put("tot-k", tk);
+                put("tot-l", tl);
+
+                // Справочный блок
+                put("ref-n7", n7);
+                put("ref-o7", o7);
+                put("ref-p7", p7);
+                put("ref-q7", q7);
+                put("ref-n8", sumD ? (n7 / sumD) * 100 : 0);
+                put("ref-o8", sumD ? (o7 / sumD) * 100 : 0);
+                put("ref-p8", sumE ? (p7 / sumE) * 100 : 0);
+                put("ref-q8", sumE ? (q7 / sumE) * 100 : 0);
+                put("ref-n9", cont7, 0);
+                put("ref-o9", cont7, 0);
+                put("ref-p9", cont811, 0);
+                put("ref-q9", cont811, 0);
+                put("ref-n10", n10);
+                put("ref-o10", o10);
+                put("ref-p10", p10);
+                put("ref-q10", q10);
+                put("ref-n11", n11);
+                put("ref-p11", p11);
+
+                const n12 = n10 + p10; // сентябрь–декабрь
+                const n13 = o10 + q10; // январь–май
+                const n14 = n12 + n13; // всего
+                const n15 = n14 * PROFIT; // рентабельность
+                put("ref-n12", n12);
+                put("ref-n13", n13);
+                put("ref-n14", n14);
+                put("ref-n15", n15);
+                put("ref-n16", n14 - n15);
+
+                schedSave();
             }
 
-            function sched() {
-                document.getElementById("saveStatus").textContent =
-                    "Сохраняю...";
+            /* ── Сохранение ───────────────────────────────────────────── */
+            function schedSave() {
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохраняю...";
+                    st.className = "auto-save-status saving";
+                }
                 clearTimeout(timeout);
                 timeout = setTimeout(save, 1000);
             }
 
             function save() {
-                // Не сохранять в режиме консолидации
                 if (branch === "consolidated") return;
+                const data = { cont7: num("cont7"), cont811: num("cont811"), t: {} };
+                for (let r = 1; r <= TRANCHES.length; r++) {
+                    data.t[r] = { d: num("t" + r + "-d"), e: num("t" + r + "-e") };
+                }
+                localStorage.setItem(KEY + "_" + branch, JSON.stringify(data));
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохранено";
+                    st.className = "auto-save-status saved";
+                }
+            }
 
-                const data = { rows: [] };
-                const tbody = document.getElementById("tableBody");
-                Array.from(tbody.querySelectorAll("tr")).forEach((row) => {
-                    const inputs = row.querySelectorAll("input");
-                    if (inputs.length >= 3) {
-                        data.rows.push({
-                            class: inputs[0].value,
-                            count: inputs[1].value,
-                            tariff: inputs[2].value,
-                        });
-                    }
-                });
-                localStorage.setItem(`${KEY}_${branch}`, JSON.stringify(data));
-                document.getElementById("saveStatus").textContent = "Сохранено";
-                document.getElementById("saveStatus").style.background =
-                    "#d4edda";
+            function apply(data, readOnly) {
+                const set = (id, v) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.value = v === undefined || v === null ? "" : v;
+                    el.disabled = !!readOnly;
+                };
+                set("cont7", data ? data.cont7 : 65);
+                set("cont811", data ? data.cont811 : 102);
+                for (let r = 1; r <= TRANCHES.length; r++) {
+                    const t = data && data.t ? data.t[r] : null;
+                    set("t" + r + "-d", t ? t.d : "");
+                    set("t" + r + "-e", t ? t.e : "");
+                }
+                calc();
             }
 
             function load() {
-                const saved = localStorage.getItem(`${KEY}_${branch}`);
-                document.getElementById("tableBody").innerHTML = "";
-                document.getElementById("addBtn").disabled = false;
-                counter = 0;
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    data.rows.forEach((r) => {
-                        addStudent();
-                        document.getElementById(`class-${counter}`).value =
-                            r.class || "";
-                        document.getElementById(`count-${counter}`).value =
-                            r.count || 0;
-                        document.getElementById(`tariff-${counter}`).value =
-                            r.tariff || 0;
-                        calc(counter);
-                    });
-                }
+                const saved = localStorage.getItem(KEY + "_" + branch);
+                apply(saved ? JSON.parse(saved) : null, false);
             }
 
             function switchBranch(newBranch) {
-                if (branch !== "consolidated" && branch !== newBranch) {
-                    save();
-                }
+                if (branch !== "consolidated" && branch !== newBranch) save();
                 branch = newBranch;
                 document
                     .querySelectorAll(".branch-btn")
-                    .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
-                if (branch === "consolidated") {
-                    document.querySelectorAll("input").forEach((input) => {
-                        input.disabled = true;
-                    });
-                    loadConsolidatedData();
-                } else {
-                    load();
-                }
+                    .forEach((b) => b.classList.remove("active"));
+                if (window.event && window.event.target)
+                    window.event.target.classList.add("active");
+                if (branch === "consolidated") loadConsolidated();
+                else load();
             }
 
-            function loadConsolidatedData() {
-                const branches = ["almaty", "uralsk", "astana", "nao"];
-                const allRows = [];
-
-                branches.forEach((b) => {
-                    const key = `${KEY}_${b}`;
-                    const saved = localStorage.getItem(key);
-                    if (saved) {
-                        try {
-                            const data = JSON.parse(saved);
-                            if (data.rows) allRows.push(...data.rows);
-                        } catch (e) {}
+            function loadConsolidated() {
+                const acc = { cont7: 0, cont811: 0, t: {} };
+                for (let r = 1; r <= TRANCHES.length; r++)
+                    acc.t[r] = { d: 0, e: 0 };
+                ["almaty", "uralsk", "astana", "nao"].forEach((b) => {
+                    const saved = localStorage.getItem(KEY + "_" + b);
+                    if (!saved) return;
+                    try {
+                        const d = JSON.parse(saved);
+                        acc.cont7 += parseFloat(d.cont7) || 0;
+                        acc.cont811 += parseFloat(d.cont811) || 0;
+                        for (let r = 1; r <= TRANCHES.length; r++) {
+                            if (!d.t || !d.t[r]) continue;
+                            acc.t[r].d += parseFloat(d.t[r].d) || 0;
+                            acc.t[r].e += parseFloat(d.t[r].e) || 0;
+                        }
+                    } catch (e) {
+                        console.error("Ошибка чтения " + b, e);
                     }
                 });
-
-                const tbody = document.getElementById("tableBody");
-                tbody.innerHTML = "";
-                counter = 0;
-
-                allRows.forEach((r) => {
-                    counter++;
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                    <td>${counter}</td>
-                    <td><input type="text" id="class-${counter}" value="${r.class || ""}" disabled></td>
-                    <td><input type="number" id="count-${counter}" value="${r.count || 0}" disabled></td>
-                    <td><input type="number" id="tariff-${counter}" value="${r.tariff || 0}" disabled></td>
-                    ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => `<td class="formula-cell" id="m${m}-${counter}">0</td>`).join("")}
-                    <td class="formula-cell" id="total-${counter}">0</td>
-                    <td></td>
-                `;
-                    calc(counter);
-                });
-
-                document.getElementById("addBtn").disabled = true;
+                apply(acc, true);
             }
-            window.addEventListener("load", load);
+
+            window.addEventListener("load", () => {
+                buildTable();
+                load();
+            });
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова
-                console.log(' Таблица готова к работе');
-            });
+            console.log(' Таблица готова к работе');
             function addDetailToggles() {
                 // Удаляем существующие детальные строки и иконки
                 document.querySelectorAll('.detail-row').forEach(row => row.remove());
@@ -438,6 +666,10 @@
                 });
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

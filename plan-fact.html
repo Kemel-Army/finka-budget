@@ -4,38 +4,13 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>План-Факт РБ</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
-            .month-selector {
-                display: flex;
-                gap: 6px;
-                flex-wrap: wrap;
-                margin-top: 12px;
-            }
-            .month-btn {
-                padding: 7px 14px;
-                border: 2px solid var(--accent);
-                background: #fff;
-                color: var(--accent);
-                border-radius: 8px;
-                cursor: pointer;
-                font-family: var(--font);
-                font-weight: 600;
-                font-size: 12.5px;
-                transition: all 150ms ease;
-            }
-            .month-btn:hover {
-                background: var(--accent-light);
-            }
-            .month-btn.active {
-                background: var(--accent);
-                color: #fff;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            }
-
-            /* Table column widths */
+            /* Фиксированные ширины колонок отчёта — оформление в shared.css */
             #pfTable {
                 table-layout: fixed;
             }
@@ -54,87 +29,10 @@
             #pfTable col.col-data {
                 width: 100px;
             }
-
-            /* Section grouping */
-            .section-title-row td {
-                background: #e0e7ff !important;
-                font-weight: 700;
-                text-align: center;
-                font-size: 13px;
-            }
-
-            /* Auto-calc cells */
-            td.auto-cell {
-                background: #ecfdf5 !important;
-                color: #065f46 !important;
-                font-weight: 600;
-            }
-
-            /* Subtotal row for ФОТ */
-            .fot-row td {
-                background: #dbeafe !important;
-                font-weight: 700 !important;
-            }
-
-            /* Summary cards */
-            .summary-cards {
-                display: flex;
-                gap: 16px;
-                flex-wrap: wrap;
-                margin-bottom: 20px;
-            }
-            .summary-card {
-                flex: 1;
-                min-width: 200px;
-                background: #fff;
-                border-radius: 10px;
-                padding: 16px 20px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                border-top: 3px solid var(--accent);
-            }
-            .summary-card .sc-label {
-                font-size: 12px;
-                color: #6b7280;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.03em;
-            }
-            .summary-card .sc-value {
-                font-size: 22px;
-                font-weight: 700;
-                color: #1f2937;
-                margin-top: 4px;
-            }
-
-            /* Negative value highlight */
-            .negative {
-                color: #dc2626 !important;
-            }
-
-            @media print {
-                .header,
-                .info-bar,
-                .buttons,
-                .month-selector,
-                .branch-selector,
-                .finka-nav,
-                .summary-cards {
-                    display: none !important;
-                }
-                body {
-                    padding-top: 0 !important;
-                }
-                table {
-                    font-size: 10px;
-                }
-                td,
-                th {
-                    padding: 4px 6px !important;
-                }
-            }
         </style>
     </head>
     <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
             <h1>📊 ОТЧЕТ исполнения ПЛАН-ФАКТ</h1>
             <p>Республиканский бюджет • НАО «РФМШ»</p>
@@ -307,6 +205,7 @@
             </button>
         </div>
 
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
         <script>
             (function () {
@@ -1029,5 +928,8 @@
                 loadData();
             })();
         </script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

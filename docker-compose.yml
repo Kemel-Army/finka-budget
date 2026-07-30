@@ -1,0 +1,8 @@
+services:
+  finka-budget:
+    build: .
+    image: finka-budget:latest
+    container_name: finka-budget
+    ports:
+      - "8080:80"
+    restart: unless-stopped

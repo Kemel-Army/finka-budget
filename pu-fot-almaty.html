@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="shared.css">
+    <script src="auth.js"></script>
+    <script src="db-sync.js"></script>
     <title>Свод ФОТ Алматы - Бюджет ПУ 2026</title>
-    <script src="editable-table.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="shared-export.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -39,113 +40,255 @@
         </div>
         <div class="content">
             <a href="index.html" class="back-link">← Вернуться к списку</a>
-            <table>
+            <table id="fotTable" data-sheet data-sticky-cols="2">
                 <thead>
                     <tr>
-                        <th style="width:50px;">№</th>
-                        <th style="min-width:400px;">Статьи расходов</th>
-                        <th style="width:200px;">Сумма (тенге)</th>
+                        <th rowspan="2" style="width: 44px">№</th>
+                        <th rowspan="2" style="min-width: 260px">Наименование</th>
+                        <th colspan="3">Исходные данные</th>
+                        <th rowspan="2">Годовой ФЗП</th>
+                        <th rowspan="2">Лечебно-оздоро­вительное пособие</th>
+                        <th colspan="4">Начисления на ФЗП</th>
+                        <th rowspan="2">Годовой ФОТ</th>
+                    </tr>
+                    <tr>
+                        <th>Числен­ность, ед.</th>
+                        <th>Кол-во часов</th>
+                        <th>Зарплата в месяц</th>
+                        <th>Соц. налог 6%</th>
+                        <th>Соц. отчис­ления 5%</th>
+                        <th>ОСМС 3%</th>
+                        <th>ОПВР 3,5%</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody">
-                    <tr><td>1</td><td>Базовые начисления (основная заработная плата)</td><td><input type="number" id="i1" value="0" oninput="calc()"></td></tr>
-                    <tr><td>2</td><td>Тарификация (дополнительная зарплата)</td><td><input type="number" id="i2" value="0" oninput="calc()"></td></tr>
-                    <tr><td>3</td><td>Индивидуальные доплаты</td><td><input type="number" id="i3" value="0" oninput="calc()"></td></tr>
-                    <tr><td>4</td><td>Взносы в соцстрахование</td><td><input type="number" id="i4" value="0" oninput="calc()"></td></tr>
-                    <tr><td>5</td><td>Суточные</td><td><input type="number" id="i5" value="0" oninput="calc()"></td></tr>
-                    <tr><td>6</td><td>Оплата проживания</td><td><input type="number" id="i6" value="0" oninput="calc()"></td></tr>
-                    <tr><td>7</td><td>Материальная ответственность (специальная оплата)</td><td><input type="number" id="i7" value="0" oninput="calc()"></td></tr>
-                    <tr><td>8</td><td>Подоходный налог</td><td><input type="number" id="i8" value="0" oninput="calc()"></td></tr>
-                    <tr><td>9</td><td>Пенсионные взносы</td><td><input type="number" id="i9" value="0" oninput="calc()"></td></tr>
-                    <tr><td>10</td><td>Отчисления в ФОМС</td><td><input type="number" id="i10" value="0" oninput="calc()"></td></tr>
-                    <tr class="total-row"><td colspan="2"><strong>Итого ФОТ</strong></td><td class="formula-cell" id="total">0.00</td></tr>
-                </tbody>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
     </div>
     <script>
-        const KEY = 'pu_fot_almaty';
-        let branch = 'nao';
+        /* ─────────────────────────────────────────────────────────────
+           Лист Excel «Свод ФОТ Алматы» (Бюджет ПУ 2026).
+
+           Годовой ФОТ считается по-разному в двух блоках:
+             блок «Тарификация и штатное расписание» (строки 7-8):
+                 M = G + H + L + I + J + K      — все шесть составляющих
+             блок «Иные дополнительные выплаты» (строка 11):
+                 M = G + I + J + K + L          — БЕЗ H
+             На доплаты лечебно-оздоровительное пособие не начисляется,
+             поэтому H в сумму не входит. Асимметрия из Excel, не опечатка.
+
+           Итоги: строка 9 = SUM(7:8), строка 12 = строка 11,
+                  строка 13 (ВСЕГО) = строка 12 + строка 9.
+           ───────────────────────────────────────────────────────────── */
+        const KEY = "pu_fot_almaty";
+
+        // Колонки в порядке Excel D..L (M — расчётная)
+        const COLS = [
+            { id: "cnt", label: "Численность" },
+            { id: "hours", label: "Кол-во часов" },
+            { id: "salary", label: "Зарплата в месяц" },
+            { id: "fzp", label: "Годовой ФЗП" },
+            { id: "med", label: "Лечебно-оздоровительное пособие" },
+            { id: "tax", label: "Соц. налог 6%" },
+            { id: "soc", label: "Соц. отчисления 5%" },
+            { id: "osms", label: "ОСМС 3%" },
+            { id: "opvr", label: "ОПВР 3,5%" },
+        ];
+
+        // withMed: входит ли лечебно-оздоровительное пособие в годовой ФОТ
+        const ROWS = [
+            { id: "r1", num: 1, name: "Штатное расписание", type: "data", withMed: true },
+            { id: "r2", num: 2, name: "Тарификация", type: "data", withMed: true },
+            { id: "sub1", name: "Итого по тарификации и штатному расписанию", type: "sub", sum: ["r1", "r2"] },
+            { id: "r3", num: 3, name: "Возмещение за аренду жилого помещения работникам филиала", type: "data", withMed: false },
+            { id: "sub2", name: "Итого по иным дополнительным выплатам", type: "sub", sum: ["r3"] },
+            { id: "grand", name: "ВСЕГО", type: "grand", sum: ["sub2", "sub1"] },
+        ];
+
+        let branch = "nao";
         let timeout;
+
+        function fmt(n) {
+            return n.toLocaleString("ru-RU", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
+        function num(rowId, colId) {
+            const el = document.getElementById(rowId + "-" + colId);
+            return el ? parseFloat(el.value) || 0 : 0;
+        }
+
+        /* ── Разметка ─────────────────────────────────────────────── */
+        function buildTable() {
+            let html = "";
+            ROWS.forEach((r) => {
+                const cls =
+                    r.type === "grand"
+                        ? ' class="grand-row"'
+                        : r.type === "sub"
+                          ? ' class="sub-row"'
+                          : "";
+                html += "<tr" + cls + ">";
+                html +=
+                    "<td>" + (r.num || "") + "</td>" +
+                    '<td class="label-cell">' + r.name + "</td>";
+                COLS.forEach((c) => {
+                    html +=
+                        r.type === "data"
+                            ? '<td><input type="number" id="' + r.id + "-" + c.id +
+                              '" value="0" oninput="calc()"></td>'
+                            : '<td class="formula-cell" id="' + r.id + "-" + c.id +
+                              '">0,00</td>';
+                });
+                html +=
+                    '<td class="formula-cell" id="' + r.id + '-fot">0,00</td></tr>';
+            });
+            document.getElementById("tableBody").innerHTML = html;
+        }
+
+        /* ── Расчёт ───────────────────────────────────────────────── */
+        // Значения строки: либо из полей ввода, либо просуммированные
+        const vals = {};
+
+        function rowValues(r) {
+            if (r.type === "data") {
+                const v = {};
+                COLS.forEach((c) => (v[c.id] = num(r.id, c.id)));
+                return v;
+            }
+            const v = {};
+            COLS.forEach((c) => {
+                v[c.id] = r.sum.reduce((s, id) => s + (vals[id][c.id] || 0), 0);
+            });
+            return v;
+        }
+
+        function fotOf(v, withMed) {
+            // Годовой ФОТ = ФЗП + (пособие) + соцналог + соцотчисления + ОСМС + ОПВР
+            return (
+                v.fzp +
+                (withMed ? v.med : 0) +
+                v.tax +
+                v.soc +
+                v.osms +
+                v.opvr
+            );
+        }
+
         function calc() {
-            let sum = 0;
-            for (let i = 1; i <= 10; i++) sum += parseFloat(document.getElementById('i' + i).value) || 0;
-            document.getElementById('total').textContent = sum.toLocaleString('ru-RU', {minimumFractionDigits: 2});
+            ROWS.forEach((r) => {
+                vals[r.id] = rowValues(r);
+            });
+
+            ROWS.forEach((r) => {
+                const v = vals[r.id];
+                if (r.type !== "data") {
+                    COLS.forEach((c) => {
+                        document.getElementById(r.id + "-" + c.id).textContent =
+                            fmt(v[c.id]);
+                    });
+                }
+                let fot;
+                if (r.type === "data") {
+                    fot = fotOf(v, r.withMed);
+                } else {
+                    // Итоги складывают уже посчитанный ФОТ строк, а не
+                    // пересчитывают его — иначе блок без пособия сломается
+                    fot = r.sum.reduce((s, id) => s + vals[id].fot, 0);
+                }
+                vals[r.id].fot = fot;
+                document.getElementById(r.id + "-fot").textContent = fmt(fot);
+            });
+
+            schedSave();
+        }
+
+        /* ── Сохранение ───────────────────────────────────────────── */
+        function schedSave() {
+            const st = document.getElementById("saveStatus");
+            st.textContent = "Сохраняю...";
+            st.className = "auto-save-status saving";
             clearTimeout(timeout);
             timeout = setTimeout(save, 1000);
         }
+
         function save() {
-            // Не сохранять в режиме консолидации
-            if (branch === 'consolidated') return;
-            
+            if (branch === "consolidated") return;
             const data = {};
-            for (let i = 1; i <= 10; i++) data['i' + i] = document.getElementById('i' + i).value;
-            localStorage.setItem(`${KEY}_${branch}`, JSON.stringify(data));
-            document.getElementById('saveStatus').textContent = 'Сохранено';
-            document.getElementById('saveStatus').style.background = '#d4edda';
-        }
-        function load() {
-            const saved = localStorage.getItem(`${KEY}_${branch}`);
-            for (let i = 1; i <= 10; i++) {
-                document.getElementById('i' + i).value = '';
-                document.getElementById('i' + i).disabled = false;
-            }
-            if (saved) {
-                const data = JSON.parse(saved);
-                for (let i = 1; i <= 10; i++) if (data['i' + i]) document.getElementById('i' + i).value = data['i' + i];
-            }
-            calc();
-        }
-        function switchBranch(newBranch) {
-            if (branch !== 'consolidated' && branch !== newBranch) {
-                save();
-            }
-            branch = newBranch;
-            document.querySelectorAll('.branch-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            if (branch === 'consolidated') {
-                document.querySelectorAll('input').forEach(input => {
-                    input.disabled = true;
-                });
-                loadConsolidatedData();
-            } else {
-                load();
-            }
+            ROWS.filter((r) => r.type === "data").forEach((r) => {
+                data[r.id] = {};
+                COLS.forEach((c) => (data[r.id][c.id] = num(r.id, c.id)));
+            });
+            localStorage.setItem(KEY + "_" + branch, JSON.stringify(data));
+            const st = document.getElementById("saveStatus");
+            st.textContent = "Сохранено";
+            st.className = "auto-save-status saved";
         }
 
-        function loadConsolidatedData() {
-            const branches = ['almaty', 'uralsk', 'astana', 'nao'];
-            const sums = {};
-            
-            for (let i = 1; i <= 10; i++) sums['i' + i] = 0;
-            
-            branches.forEach(b => {
-                const key = `${KEY}_${b}`;
-                const saved = localStorage.getItem(key);
-                if (saved) {
-                    try {
-                        const data = JSON.parse(saved);
-                        for (let i = 1; i <= 10; i++) {
-                            if (data['i' + i]) {
-                                sums['i' + i] += parseFloat(data['i' + i]) || 0;
-                            }
-                        }
-                    } catch (e) {}
-                }
+        function apply(data, readOnly) {
+            ROWS.filter((r) => r.type === "data").forEach((r) => {
+                COLS.forEach((c) => {
+                    const el = document.getElementById(r.id + "-" + c.id);
+                    if (!el) return;
+                    const v = data && data[r.id] ? data[r.id][c.id] : "";
+                    el.value = v === undefined || v === null ? "" : v;
+                    el.disabled = !!readOnly;
+                });
             });
-            
-            for (let i = 1; i <= 10; i++) {
-                document.getElementById('i' + i).value = sums['i' + i];
-                document.getElementById('i' + i).disabled = true;
-            }
             calc();
         }
-        window.addEventListener('load', load);
+
+        function load() {
+            const saved = localStorage.getItem(KEY + "_" + branch);
+            apply(saved ? JSON.parse(saved) : null, false);
+        }
+
+        function switchBranch(newBranch) {
+            if (branch !== "consolidated" && branch !== newBranch) save();
+            branch = newBranch;
+            document
+                .querySelectorAll(".branch-btn")
+                .forEach((b) => b.classList.remove("active"));
+            if (window.event && window.event.target)
+                window.event.target.classList.add("active");
+            if (branch === "consolidated") loadConsolidated();
+            else load();
+        }
+
+        function loadConsolidated() {
+            const acc = {};
+            ROWS.filter((r) => r.type === "data").forEach((r) => {
+                acc[r.id] = {};
+                COLS.forEach((c) => (acc[r.id][c.id] = 0));
+            });
+            ["almaty", "uralsk", "astana", "nao"].forEach((b) => {
+                const saved = localStorage.getItem(KEY + "_" + b);
+                if (!saved) return;
+                try {
+                    const d = JSON.parse(saved);
+                    ROWS.filter((r) => r.type === "data").forEach((r) => {
+                        if (!d[r.id]) return;
+                        COLS.forEach((c) => {
+                            acc[r.id][c.id] += parseFloat(d[r.id][c.id]) || 0;
+                        });
+                    });
+                } catch (e) {
+                    console.error("Ошибка чтения " + b, e);
+                }
+            });
+            apply(acc, true);
+        }
+
+        window.addEventListener("load", () => {
+            buildTable();
+            load();
+        });
     </script>
     <script>
         // НЕ инициализируем редактируемые таблицы - структура уже готова
-            console.log(' Таблица готова к работе');
-        });
+        console.log(' Таблица готова к работе');
         function addDetailToggles() {
             // Удаляем существующие детальные строки и иконки
             document.querySelectorAll('.detail-row').forEach(row => row.remove());
@@ -250,7 +393,11 @@
         }
 
     </script>
+    <script src="sheet-ux.js"></script>
     <script src="shared-nav.js"></script>
+    <script src="sheet-edit.js"></script>
+    <script src="formulas.js"></script>
+    <script src="ui-kit.js"></script>
 </body>
 </html>
 

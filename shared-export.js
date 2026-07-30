@@ -233,58 +233,12 @@
         }, 1500);
     }
 
-    /* ── Печать ─────────────────────────────────────────── */
-    function printPage() {
-        window.print();
-    }
-
-    /* ── Создать универсальную панель кнопок экспорта ──── */
-    function createExportBar(opts) {
-        opts = opts || {};
-        var bar = document.createElement("div");
-        bar.className = "export-bar";
-        bar.style.cssText =
-            "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0;";
-
-        var btnExcel = document.createElement("button");
-        btnExcel.textContent = "📥 Excel";
-        btnExcel.className = "btn-export";
-        btnExcel.onclick = function () {
-            if (opts.onExcel) opts.onExcel();
-            else exportTableToExcel(opts.excelOpts || {});
-        };
-
-        var btnPDF = document.createElement("button");
-        btnPDF.textContent = "📄 PDF";
-        btnPDF.className = "btn-export";
-        btnPDF.onclick = function () {
-            if (opts.onPDF) opts.onPDF();
-            else exportToPDF();
-        };
-
-        var btnPrint = document.createElement("button");
-        btnPrint.textContent = "🖨️ Печать";
-        btnPrint.className = "btn-export";
-        btnPrint.onclick = function () {
-            if (opts.onPrint) opts.onPrint();
-            else printPage();
-        };
-
-        bar.appendChild(btnExcel);
-        bar.appendChild(btnPDF);
-        bar.appendChild(btnPrint);
-
-        return bar;
-    }
-
     /* ── Глобальные функции ─────────────────────────────── */
     window.SharedExport = {
         tableToAOA: tableToAOA,
         exportTableToExcel: exportTableToExcel,
         exportMultiTableExcel: exportMultiTableExcel,
         exportToPDF: exportToPDF,
-        printPage: printPage,
-        createExportBar: createExportBar,
         autoColWidths: autoColWidths,
         getBudgetYear: getBudgetYear,
         getBudgetYearEnd: getBudgetYearEnd,

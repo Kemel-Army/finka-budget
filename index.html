@@ -3,43 +3,37 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Бюджетная система НАО "РФМШ"</title>
+        <title>Бюджетная система НАО «РФМШ»</title>
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-
             body {
-                background: var(--c-gray-50);
                 padding: 0 !important;
                 min-height: 100vh;
+                background: var(--c-gray-100);
             }
 
-            /* ── Hero Header ──────────────────────────────── */
+            .wrap {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 0 20px;
+            }
+
+            /* ── Шапка ────────────────────────────────────────── */
             .hero {
-                background: linear-gradient(
-                    135deg,
-                    #1e293b 0%,
-                    #334155 50%,
-                    #1e293b 100%
-                );
+                background: var(--c-brand);
                 color: #fff;
-                padding: 48px 24px 40px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             }
 
             .hero-inner {
-                max-width: 1280px;
+                max-width: 1400px;
                 margin: 0 auto;
-            }
-
-            .hero-top {
+                padding: 16px 20px;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 28px;
                 gap: 16px;
                 flex-wrap: wrap;
             }
@@ -47,1106 +41,1153 @@
             .hero-brand {
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 12px;
+                min-width: 0;
             }
 
             .hero-logo {
-                width: 48px;
-                height: 48px;
-                border-radius: 14px;
-                background: linear-gradient(135deg, var(--c-primary), #7c3aed);
+                width: 36px;
+                height: 36px;
+                border-radius: var(--radius);
+                background: var(--c-primary);
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 26px;
+                font-size: 19px;
                 font-weight: 700;
                 flex-shrink: 0;
             }
 
             .hero-title {
-                font-size: 24px;
-                font-weight: 700;
-                letter-spacing: -0.5px;
+                font-size: 15px;
+                font-weight: 650;
+                letter-spacing: -0.015em;
+                color: #fff;
                 line-height: 1.2;
             }
 
             .hero-subtitle {
-                font-size: 14px;
+                font-size: 12px;
                 color: #94a3b8;
-                font-weight: 400;
                 margin-top: 2px;
-            }
-
-            .hero-storage {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 8px 16px;
-                background: rgba(255, 255, 255, 0.08);
-                border-radius: 10px;
-                font-size: 13px;
-                color: #94a3b8;
-            }
-
-            .hero-storage strong {
-                color: #e2e8f0;
-                font-weight: 600;
             }
 
             .hero-right {
                 display: flex;
                 align-items: center;
-                gap: 12px;
+                gap: 8px;
                 flex-wrap: wrap;
             }
 
             .year-selector {
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                padding: 6px 14px;
-                background: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                border-radius: 10px;
-                font-size: 13px;
+                gap: 5px;
+                padding: 4px 8px;
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: var(--radius);
+                font-size: 12px;
                 color: #94a3b8;
             }
 
             .year-selector label {
-                white-space: nowrap;
+                font-size: 12px;
+                line-height: 1;
             }
 
             .year-input {
-                width: 90px;
-                padding: 6px 10px;
-                border: 1px solid rgba(255, 255, 255, 0.25);
-                border-radius: 7px;
-                background: rgba(255, 255, 255, 0.15);
-                color: #fff;
-                font-family: var(--font);
-                font-size: 14px;
-                font-weight: 600;
-                text-align: center;
-                outline: none;
-                transition: border-color 200ms;
+                height: 24px !important;
+                padding: 0 4px !important;
+                font-family: var(--font-mono) !important;
+                font-size: 12px !important;
+                font-weight: 500;
+                color: #e2e8f0;
+                background: transparent;
+                border: 0 !important;
+                border-radius: var(--radius-sm) !important;
                 cursor: pointer;
-                -webkit-appearance: none;
-                appearance: none;
-            }
-
-            .year-input option {
-                background: #1e293b;
-                color: #fff;
             }
 
             .year-input:focus {
-                border-color: var(--c-primary);
-                background: rgba(255, 255, 255, 0.2);
+                outline: none;
+                box-shadow: none !important;
+                background: rgba(255, 255, 255, 0.08);
             }
 
-            .year-input::-webkit-inner-spin-button,
-            .year-input::-webkit-outer-spin-button {
-                display: none;
+            .year-input option {
+                color: var(--c-gray-900);
+                background: #fff;
             }
 
-            /* ── Stats Row ────────────────────────────────── */
+            .hero-storage {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: var(--radius);
+                font-size: 12px;
+                color: #94a3b8;
+            }
+
+            .hero-storage strong {
+                font-family: var(--font-mono);
+                font-weight: 600;
+                color: #e2e8f0;
+            }
+
+            /* ── Метрики ──────────────────────────────────────── */
             .stats-row {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                gap: 12px;
-                margin-top: 0;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px;
+                margin: 18px 0;
             }
 
             .stat-card {
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 12px;
-                padding: 16px 18px;
-                transition: background 200ms;
-            }
-
-            .stat-card:hover {
-                background: rgba(255, 255, 255, 0.1);
+                background: #fff !important;
+                border: 1px solid var(--c-gray-200);
+                border-radius: var(--radius-lg) !important;
+                padding: 12px 14px !important;
+                text-align: left;
             }
 
             .stat-label {
-                font-size: 12px;
-                font-weight: 500;
-                color: #94a3b8;
+                font-size: 10.5px !important;
+                font-weight: 600;
                 text-transform: uppercase;
-                letter-spacing: 0.03em;
-                margin-bottom: 6px;
+                letter-spacing: 0.06em;
+                color: var(--c-gray-400);
+                margin-bottom: 4px;
             }
 
             .stat-value {
+                font-family: var(--font-mono);
                 font-size: 22px;
-                font-weight: 700;
-                color: #fff;
-                font-variant-numeric: tabular-nums;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                color: var(--c-gray-900);
+                line-height: 1.1;
             }
 
-            .stat-value .stat-unit {
-                font-size: 13px;
+            .stat-unit {
+                margin-left: 5px;
+                font-family: var(--font);
+                font-size: 11.5px;
                 font-weight: 500;
-                color: #94a3b8;
-                margin-left: 4px;
+                color: var(--c-gray-400);
+                letter-spacing: 0;
             }
 
-            /* ── Search & Filters ─────────────────────────── */
+            /* ── Поиск и фильтры ──────────────────────────────── */
             .toolbar {
-                max-width: 1280px;
-                margin: -24px auto 0;
-                padding: 0 24px;
-                position: relative;
-                z-index: 10;
+                position: sticky;
+                top: 0;
+                z-index: 50;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+                padding: 10px 0 !important;
+                margin: 0 0 4px !important;
+                background: var(--c-gray-100);
+                border: 0 !important;
+                border-radius: 0 !important;
             }
 
             .search-bar {
                 display: flex;
                 align-items: center;
-                background: #fff;
-                border-radius: 14px;
-                box-shadow: var(--shadow-lg);
-                padding: 4px;
-                gap: 4px;
+                gap: 8px;
+                width: 100%;
+                flex-wrap: wrap;
             }
 
             .search-input {
                 flex: 1;
-                padding: 14px 20px;
-                border: none;
-                font-family: var(--font);
-                font-size: 15px;
-                background: none;
-                color: var(--c-gray-800);
-                outline: none;
+                min-width: 200px;
+                height: 34px !important;
+                padding: 0 12px !important;
+                font-family: var(--font) !important;
+                font-size: 13px !important;
+                text-align: left !important;
+                color: var(--c-gray-900);
+                background: #fff;
+                border: 1px solid var(--c-gray-200) !important;
+                border-radius: var(--radius) !important;
             }
 
             .search-input::placeholder {
                 color: var(--c-gray-400);
             }
 
+            .search-input:focus {
+                outline: none;
+                border-color: var(--c-primary) !important;
+                box-shadow: 0 0 0 3px var(--c-primary-light) !important;
+            }
+
             .filter-btn {
-                padding: 10px 18px;
-                border: none;
-                background: none;
+                height: 34px;
+                padding: 0 14px;
                 font-family: var(--font);
-                font-size: 13.5px;
-                font-weight: 500;
-                color: var(--c-gray-500);
+                font-size: 12.5px;
+                font-weight: 550;
+                color: var(--c-gray-600);
+                background: #fff;
+                border: 1px solid var(--c-gray-200);
+                border-radius: var(--radius);
                 cursor: pointer;
-                border-radius: 10px;
                 transition: all var(--transition);
-                white-space: nowrap;
             }
 
             .filter-btn:hover {
-                background: var(--c-gray-100);
-                color: var(--c-gray-700);
+                border-color: var(--c-gray-300);
+                color: var(--c-gray-900);
             }
 
             .filter-btn.active {
-                background: var(--c-primary);
                 color: #fff;
+                background: var(--c-gray-900);
+                border-color: var(--c-gray-900);
             }
 
-            /* ── Main Content ─────────────────────────────── */
+            /* ── Секции ───────────────────────────────────────── */
             .main {
-                max-width: 1280px;
-                margin: 0 auto;
-                padding: 32px 24px 48px;
+                padding-bottom: 40px;
             }
 
             .section {
-                margin-bottom: 40px;
+                background: transparent !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                padding: 0 !important;
+                margin: 0 0 26px !important;
             }
 
             .section-header {
                 display: flex;
                 align-items: center;
-                gap: 10px;
-                margin-bottom: 18px;
+                gap: 9px;
+                padding: 0 0 8px;
+                margin-bottom: 12px;
+                background: transparent !important;
+                border-bottom: 1px solid var(--c-gray-200);
             }
 
             .section-badge {
-                display: inline-flex;
+                width: 24px;
+                height: 24px;
+                display: flex;
                 align-items: center;
                 justify-content: center;
-                width: 36px;
-                height: 36px;
-                border-radius: 10px;
-                font-size: 18px;
+                font-size: 13px;
+                border-radius: var(--radius-sm);
+                background: var(--c-gray-200);
                 flex-shrink: 0;
             }
 
             .section-badge.rb {
                 background: var(--c-rb-light);
-                color: var(--c-rb);
             }
 
             .section-badge.pu {
                 background: var(--c-pu-light);
-                color: var(--c-pu);
             }
 
             .section-badge.util {
                 background: var(--c-gray-100);
-                color: var(--c-gray-600);
             }
 
             .section-title {
-                font-size: 18px;
-                font-weight: 700;
-                color: var(--c-gray-800);
-                letter-spacing: -0.3px;
+                font-size: 13px;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: var(--c-gray-700);
             }
 
             .section-count {
                 margin-left: auto;
-                font-size: 12px;
+                font-family: var(--font-mono);
+                font-size: 11.5px;
                 font-weight: 500;
                 color: var(--c-gray-400);
             }
 
-            /* ── Cards Grid ───────────────────────────────── */
+            /* ── Карточки страниц ─────────────────────────────── */
             .cards-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                gap: 14px;
+                gap: 8px;
             }
 
             .page-card {
+                position: relative;
                 display: flex;
                 align-items: flex-start;
-                gap: 14px;
-                padding: 18px;
+                gap: 11px;
+                padding: 12px 14px;
                 background: #fff;
-                border-radius: var(--radius-lg);
                 border: 1px solid var(--c-gray-200);
+                border-left: 3px solid var(--c-gray-300);
+                border-radius: var(--radius);
                 text-decoration: none;
-                color: inherit;
-                transition: all 200ms ease;
-                cursor: pointer;
+                transition: all var(--transition);
             }
 
             .page-card:hover {
                 border-color: var(--c-gray-300);
-                box-shadow: var(--shadow);
-                transform: translateY(-2px);
+                border-left-color: var(--c-gray-900);
+                background: var(--c-gray-50);
+                text-decoration: none;
             }
 
-            .page-card.rb:hover {
-                border-color: #c7d2fe;
+            .page-card.rb {
+                border-left-color: var(--c-rb);
             }
-            .page-card.pu:hover {
-                border-color: #fde68a;
+
+            .page-card.pu {
+                border-left-color: var(--c-pu);
             }
 
             .card-icon {
-                width: 40px;
-                height: 40px;
-                border-radius: 10px;
+                width: 30px;
+                height: 30px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 18px;
+                font-size: 15px;
+                background: var(--c-gray-100);
+                border-radius: var(--radius-sm);
                 flex-shrink: 0;
             }
 
             .page-card.rb .card-icon {
                 background: var(--c-rb-light);
-                color: var(--c-rb);
             }
 
             .page-card.pu .card-icon {
                 background: var(--c-pu-light);
-                color: var(--c-pu);
-            }
-
-            .page-card.util .card-icon {
-                background: var(--c-gray-100);
-                color: var(--c-gray-600);
             }
 
             .card-body {
-                flex: 1;
                 min-width: 0;
+                flex: 1;
             }
 
             .card-title {
-                font-size: 14.5px;
+                font-size: 13px;
                 font-weight: 600;
-                color: var(--c-gray-800);
-                margin-bottom: 3px;
+                color: var(--c-gray-900);
                 line-height: 1.3;
             }
 
             .card-desc {
-                font-size: 13px;
+                margin-top: 3px;
+                font-size: 11.5px;
+                line-height: 1.45;
                 color: var(--c-gray-500);
-                line-height: 1.4;
             }
 
             .card-status {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
+                width: 7px;
+                height: 7px;
                 margin-top: 6px;
+                border-radius: 50%;
                 flex-shrink: 0;
             }
 
             .card-status.has-data {
                 background: var(--c-success);
-                box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+                box-shadow: 0 0 0 3px var(--c-success-light);
             }
 
             .card-status.no-data {
                 background: var(--c-gray-300);
             }
 
-            /* ── Utility cards (smaller) ──────────────────── */
+            /* ── Импорт ───────────────────────────────────────── */
             .util-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-                gap: 10px;
+                gap: 8px;
             }
 
             .util-card {
                 display: flex;
                 align-items: center;
-                gap: 10px;
-                padding: 12px 16px;
+                gap: 9px;
+                padding: 11px 14px;
                 background: #fff;
                 border: 1px solid var(--c-gray-200);
                 border-radius: var(--radius);
                 text-decoration: none;
                 color: var(--c-gray-700);
-                font-size: 13.5px;
-                font-weight: 500;
-                transition: all 180ms ease;
+                font-size: 12.5px;
+                font-weight: 550;
+                transition: all var(--transition);
             }
 
             .util-card:hover {
                 background: var(--c-gray-50);
                 border-color: var(--c-gray-300);
+                color: var(--c-gray-900);
+                text-decoration: none;
             }
 
             .util-card .util-icon {
-                font-size: 18px;
+                font-size: 15px;
                 flex-shrink: 0;
             }
 
-            .util-card.danger {
-                color: var(--c-danger);
-                border-color: var(--c-danger-light);
-            }
-
-            .util-card.danger:hover {
-                background: #fef2f2;
-            }
-
-            /* ── Footer ───────────────────────────────────── */
+            /* ── Подвал ───────────────────────────────────────── */
             .footer {
+                padding: 22px 0 32px;
                 text-align: center;
-                padding: 24px;
+                font-size: 11.5px;
                 color: var(--c-gray-400);
-                font-size: 12px;
+                border-top: 1px solid var(--c-gray-200);
             }
 
-            /* ── Responsive ───────────────────────────────── */
-            @media (max-width: 768px) {
-                .hero {
-                    padding: 32px 16px 28px;
-                }
-                .hero-title {
-                    font-size: 20px;
-                }
-                .toolbar {
-                    margin-top: -20px;
-                    padding: 0 16px;
-                }
-                .main {
-                    padding: 24px 16px 40px;
-                }
-                .cards-grid {
-                    grid-template-columns: 1fr;
-                }
-                .util-grid {
-                    grid-template-columns: 1fr;
-                }
-                .stats-row {
-                    grid-template-columns: repeat(2, 1fr);
-                }
-                .search-bar {
-                    flex-wrap: wrap;
-                }
-                .filter-btn {
-                    font-size: 12px;
-                    padding: 8px 12px;
-                }
-                .hero-storage {
-                    display: none;
-                }
-            }
-
-            @media (max-width: 480px) {
-                .hero {
-                    padding: 24px 12px 20px;
-                }
-                .hero-title {
-                    font-size: 18px;
-                }
-                .hero-subtitle {
-                    font-size: 12px;
-                }
-                .stats-row {
-                    grid-template-columns: 1fr 1fr;
-                    gap: 8px;
-                }
-                .stat-card {
-                    padding: 12px 14px;
-                }
-                .stat-value {
-                    font-size: 18px;
-                }
-                .main {
-                    padding: 20px 12px 32px;
-                }
-                .section-title {
-                    font-size: 16px;
-                }
-            }
-
-            /* Hide items via search */
+            /* Скрытие при поиске */
             .page-card.hidden,
             .util-card.hidden {
                 display: none;
             }
+
+            /* ── Адаптив ──────────────────────────────────────── */
+            @media (max-width: 900px) {
+                .stats-row {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            @media (max-width: 640px) {
+                .wrap {
+                    padding: 0 12px;
+                }
+
+                .hero-inner {
+                    padding: 12px;
+                }
+
+                .cards-grid,
+                .util-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .stat-value {
+                    font-size: 19px;
+                }
+            }
         </style>
     </head>
     <body>
-        <!-- ── Hero Header ────────────────────────────────────── -->
-        <div class="hero">
+        <!-- ── Шапка ──────────────────────────────────────────── -->
+        <header class="hero">
             <div class="hero-inner">
-                <div class="hero-top">
-                    <div class="hero-brand">
-                        <div class="hero-logo">₸</div>
-                        <div>
-                            <div class="hero-title">
-                                Бюджетная система НАО «РФМШ»
-                            </div>
-                            <div class="hero-subtitle">
-                                Республиканский бюджет и Подушевое
-                                финансирование 2026–2028
-                            </div>
-                            <!-- updated by JS -->
+                <div class="hero-brand">
+                    <div class="hero-logo">₸</div>
+                    <div>
+                        <div class="hero-title">
+                            Бюджетная система НАО «РФМШ»
                         </div>
-                    </div>
-                    <div class="hero-right">
-                        <div class="year-selector">
-                            <label>📅</label>
-                            <select class="year-input" id="yearInput"></select>
-                            <span
-                                style="
-                                    color: #94a3b8;
-                                    font-size: 13px;
-                                    margin: 0 2px;
-                                "
-                                >–</span
-                            >
-                            <select
-                                class="year-input"
-                                id="yearEndInput"
-                            ></select>
-                        </div>
-                        <div class="hero-storage" id="heroStorage">
-                            💾 Данные: <strong id="storageSize">...</strong>
+                        <div class="hero-subtitle">
+                            Республиканский бюджет и Подушевое финансирование
+                            2026–2028
                         </div>
                     </div>
                 </div>
-
-                <div class="stats-row" id="statsRow">
-                    <div class="stat-card">
-                        <div class="stat-label">Страниц РБ</div>
-                        <div class="stat-value">7</div>
+                <div class="hero-right">
+                    <div class="year-selector">
+                        <label>Период</label>
+                        <select class="year-input" id="yearInput"></select>
+                        <span>–</span>
+                        <select class="year-input" id="yearEndInput"></select>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Страниц ПУ</div>
-                        <div class="stat-value">11</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Заполнено</div>
-                        <div class="stat-value" id="statFilled">–</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">localStorage</div>
-                        <div class="stat-value" id="statStorage">–</div>
+                    <div class="hero-storage" id="heroStorage">
+                        <strong id="storageSize">Подключение…</strong>
                     </div>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- ── Search & Filters ───────────────────────────────── -->
-        <div class="toolbar">
-            <div class="search-bar">
-                <input
-                    type="text"
-                    class="search-input"
-                    id="searchInput"
-                    placeholder="Поиск по таблицам…"
-                    autocomplete="off"
-                />
-                <button class="filter-btn active" data-filter="all">Все</button>
-                <button class="filter-btn" data-filter="rb">РБ</button>
-                <button class="filter-btn" data-filter="pu">ПУ</button>
-                <button class="filter-btn" data-filter="util">Утилиты</button>
+        <div class="wrap">
+            <!-- ── Метрики ────────────────────────────────────── -->
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card">
+                    <div class="stat-label">Страниц РБ</div>
+                    <div class="stat-value">7</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Страниц ПУ</div>
+                    <div class="stat-value">11</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Заполнено</div>
+                    <div class="stat-value" id="statFilled">–</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">База данных</div>
+                    <div class="stat-value" id="statStorage">–</div>
+                </div>
             </div>
-        </div>
 
-        <!-- ── Main Content ───────────────────────────────────── -->
-        <div class="main">
-            <!-- Консолидация ФОТ -->
-            <div class="section" data-section="rb" id="sectionFot">
-                <div class="section-header">
-                    <div
-                        class="section-badge"
-                        style="
-                            background: linear-gradient(
-                                135deg,
-                                #f59e0b,
-                                #d97706
-                            );
-                            color: #fff;
-                        "
-                    >
-                        💼
+            <!-- ── Поиск и фильтры ────────────────────────────── -->
+            <div class="toolbar">
+                <div class="search-bar">
+                    <input
+                        type="text"
+                        class="search-input"
+                        id="searchInput"
+                        placeholder="Поиск по таблицам…  (нажмите /)"
+                        autocomplete="off"
+                    />
+                    <button class="filter-btn active" data-filter="all">
+                        Все
+                    </button>
+                    <button class="filter-btn" data-filter="rb">РБ</button>
+                    <button class="filter-btn" data-filter="pu">ПУ</button>
+                    <button class="filter-btn" data-filter="util">
+                        Импорт
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Контент ────────────────────────────────────── -->
+            <main class="main">
+                <!-- Для руководства -->
+                <section class="section" data-section="rb" id="sectionFot">
+                    <div class="section-header">
+                        <div class="section-badge">💼</div>
+                        <div class="section-title">Для руководства</div>
+                        <div class="section-count">8 форм</div>
                     </div>
-                    <div class="section-title">Для руководства</div>
-                </div>
-                <div class="cards-grid">
-                    <a
-                        href="kb-svod.html"
-                        class="page-card"
-                        style="border-left:4px solid #1e293b;"
-                        data-key="kb_svod"
-                        data-search="консолидированный бюджет нао рфмш доходы план процент"
-                    >
-                        <div class="card-icon">🏛️</div>
-                        <div class="card-body">
-                            <div class="card-title">КБ — Консолидированный бюджет</div>
-                            <div class="card-desc">
-                                Сводный расчёт доходов НАО РФМШ на 2026–2028 гг. с % от бюджета
+                    <div class="cards-grid">
+                        <a
+                            href="kb-svod.html"
+                            class="page-card"
+                            data-key="kb_svod"
+                            data-search="консолидированный бюджет нао рфмш доходы план процент"
+                        >
+                            <div class="card-icon">🏛️</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    КБ — Консолидированный бюджет
+                                </div>
+                                <div class="card-desc">
+                                    Сводный расчёт доходов НАО РФМШ на 2026–2028
+                                    гг. с % от бюджета
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="fot-consolidation.html"
-                        class="page-card rb"
-                        data-key=""
-                        data-search="консолидация фот оплата труда председатель правление свод тарификация штатное расписание"
-                    >
-                        <div class="card-icon">💼</div>
-                        <div class="card-body">
-                            <div class="card-title">Свод ФОТ</div>
-                            <div class="card-desc">
-                                Тарификация, штатное расписание — РБ + ПУ для
-                                Председателя Правления
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="fot-consolidation.html"
+                            class="page-card rb"
+                            data-key=""
+                            data-search="консолидация фот оплата труда председатель правление свод тарификация штатное расписание"
+                        >
+                            <div class="card-icon">💼</div>
+                            <div class="card-body">
+                                <div class="card-title">Свод ФОТ</div>
+                                <div class="card-desc">
+                                    Тарификация, штатное расписание — РБ + ПУ для
+                                    Председателя Правления
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Только чтение"
-                        ></div>
-                    </a>
-                    <a
-                        href="income-consolidation.html"
-                        class="page-card rb"
-                        data-key=""
-                        data-search="консолидация доходы доходная часть рб пу поступления бюджет свод"
-                    >
-                        <div class="card-icon">💰</div>
-                        <div class="card-body">
-                            <div class="card-title">Консолидация доходов</div>
-                            <div class="card-desc">
-                                Доходная часть — РБ отдельно, ПУ отдельно, общая
-                                консолидация
+                            <div
+                                class="card-status no-data"
+                                title="Только чтение"
+                            ></div>
+                        </a>
+                        <a
+                            href="income-consolidation.html"
+                            class="page-card rb"
+                            data-key=""
+                            data-search="консолидация доходы доходная часть рб пу поступления бюджет свод"
+                        >
+                            <div class="card-icon">💰</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Консолидация доходов
+                                </div>
+                                <div class="card-desc">
+                                    Доходная часть — РБ отдельно, ПУ отдельно,
+                                    общая консолидация
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Только чтение"
-                        ></div>
-                    </a>
-                    <a
-                        href="plan-fact.html"
-                        class="page-card rb"
-                        data-key="plan_fact_rb"
-                        data-search="план факт исполнение бюджет отчет остатки экономия справка нарастающий"
-                    >
-                        <div class="card-icon">📊</div>
-                        <div class="card-body">
-                            <div class="card-title">План-Факт РБ</div>
-                            <div class="card-desc">
-                                Ежемесячный отчёт исполнения бюджета — план,
-                                факт, остатки, экономия
+                            <div
+                                class="card-status no-data"
+                                title="Только чтение"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-fact.html"
+                            class="page-card rb"
+                            data-key="plan_fact_rb"
+                            data-search="план факт исполнение бюджет отчет остатки экономия справка нарастающий"
+                        >
+                            <div class="card-icon">📊</div>
+                            <div class="card-body">
+                                <div class="card-title">План-Факт РБ</div>
+                                <div class="card-desc">
+                                    Ежемесячный отчёт исполнения бюджета — план,
+                                    факт, остатки, экономия
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                </div>
-            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-finansirovaniya.html"
+                            class="page-card rb"
+                            data-key="plan_fin_rb_almaty"
+                            data-search="план финансирования по платежам индивидуальный план рб пу дотация финцентр месяцы"
+                        >
+                            <div class="card-icon">🗓️</div>
+                            <div class="card-body">
+                                <div class="card-title">План</div>
+                                <div class="card-desc">
+                                    План финансирования по платежам на год — РБ,
+                                    ПУ, дотация и свод ПУ + ДТ по месяцам
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="spravki.html"
+                            class="page-card rb"
+                            data-key="spravka_peredvizhka_rb_almaty"
+                            data-search="справки справка на передвижку по платежам перераспределение плана"
+                        >
+                            <div class="card-icon">📄</div>
+                            <div class="card-body">
+                                <div class="card-title">Справки</div>
+                                <div class="card-desc">
+                                    Справки на передвижку по платежам — снятие и
+                                    добавление сумм по статьям
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="shtatnoe.html"
+                            class="page-card rb"
+                            data-key="shtat_almaty"
+                            data-search="штатное расписание шр должности оклад доплаты фзп фот месяцы"
+                        >
+                            <div class="card-icon">🧾</div>
+                            <div class="card-body">
+                                <div class="card-title">Штатное расписание</div>
+                                <div class="card-desc">
+                                    Должности, оклады, доплаты и ФОТ по месяцам
+                                    — месяцы добавляются кнопкой «＋»
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="osnovaniya.html"
+                            class="page-card rb"
+                            data-key="osnovaniya_almaty"
+                            data-search="основания приказы решения правления протокол служебная записка вложения файлы"
+                        >
+                            <div class="card-icon">📎</div>
+                            <div class="card-body">
+                                <div class="card-title">Основания</div>
+                                <div class="card-desc">
+                                    Реестр приказов и решений с прикреплёнными
+                                    файлами
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                    </div>
+                </section>
 
-            <!-- Республиканский бюджет -->
-            <div class="section" data-section="rb" id="sectionRb">
-                <div class="section-header">
-                    <div class="section-badge rb">📊</div>
-                    <div class="section-title">Республиканский бюджет</div>
-                    <div class="section-count">7 таблиц</div>
-                </div>
-                <div class="cards-grid">
-                    <a
-                        href="rb-svod.html"
-                        class="page-card rb"
-                        data-key="rb_svod"
-                        data-search="свод расходов 2026 2028"
-                    >
-                        <div class="card-icon">📋</div>
-                        <div class="card-body">
-                            <div class="card-title">
-                                Свод расходов
-                                <span class="dyn-year-range">2026-2028</span>
-                            </div>
-                            <div class="card-desc">
-                                Консолидированные данные по всем статьям
-                                расходов
-                            </div>
+                <!-- Республиканский бюджет -->
+                <section class="section" data-section="rb" id="sectionRb">
+                    <div class="section-header">
+                        <div class="section-badge rb">📊</div>
+                        <div class="section-title">
+                            Республиканский бюджет
                         </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="rb-svodnaya.html"
-                        class="page-card rb"
-                        data-key="rb_svodnaya"
-                        data-search="сводная общая 2026 детальная расшифровка"
-                    >
-                        <div class="card-icon">📑</div>
-                        <div class="card-body">
-                            <div class="card-title">
-                                Сводная общая <span class="dyn-year">2026</span>
+                        <div class="section-count">7 таблиц</div>
+                    </div>
+                    <div class="cards-grid">
+                        <a
+                            href="rb-svod.html"
+                            class="page-card rb"
+                            data-key="rb_svod"
+                            data-search="свод расходов 2026 2028"
+                        >
+                            <div class="card-icon">📋</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Свод расходов
+                                    <span class="dyn-year-range">2026-2028</span>
+                                </div>
+                                <div class="card-desc">
+                                    Консолидированные данные по всем статьям
+                                    расходов
+                                </div>
                             </div>
-                            <div class="card-desc">
-                                Детальная расшифровка всех разделов — 641 строка
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="rb-svodnaya.html"
+                            class="page-card rb"
+                            data-key="rb_svodnaya"
+                            data-search="сводная общая 2026 детальная расшифровка"
+                        >
+                            <div class="card-icon">📑</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Сводная общая
+                                    <span class="dyn-year">2026</span>
+                                </div>
+                                <div class="card-desc">
+                                    Детальная расшифровка всех разделов — 641
+                                    строка
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="rb-income.html"
-                        class="page-card rb"
-                        data-key="rb_income"
-                        data-search="доходы рб поступления"
-                    >
-                        <div class="card-icon">💰</div>
-                        <div class="card-body">
-                            <div class="card-title">Доходы РБ</div>
-                            <div class="card-desc">
-                                План поступлений средств по месяцам
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="rb-income.html"
+                            class="page-card rb"
+                            data-key="rb_income"
+                            data-search="доходы рб поступления"
+                        >
+                            <div class="card-icon">💰</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы РБ</div>
+                                <div class="card-desc">
+                                    План поступлений средств по месяцам
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="rb-fzp.html"
-                        class="page-card rb"
-                        data-key="rb_fzp"
-                        data-search="фонд заработной платы фзп"
-                    >
-                        <div class="card-icon">👥</div>
-                        <div class="card-body">
-                            <div class="card-title">Фонд заработной платы</div>
-                            <div class="card-desc">
-                                Расчёт ФЗП по категориям персонала
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="rb-fzp.html"
+                            class="page-card rb"
+                            data-key="rb_fzp"
+                            data-search="фонд заработной платы фзп"
+                        >
+                            <div class="card-icon">👥</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Фонд заработной платы
+                                </div>
+                                <div class="card-desc">
+                                    Расчёт ФЗП по категориям персонала
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="fot-almaty.html"
-                        class="page-card rb"
-                        data-key="fot"
-                        data-search="фот алматы оплата труда"
-                    >
-                        <div class="card-icon">📊</div>
-                        <div class="card-body">
-                            <div class="card-title">Свод ФОТ</div>
-                            <div class="card-desc">
-                                Сводная таблица фонда оплаты труда
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="fot-almaty.html"
+                            class="page-card rb"
+                            data-key="fot"
+                            data-search="фот алматы оплата труда"
+                        >
+                            <div class="card-icon">📊</div>
+                            <div class="card-body">
+                                <div class="card-title">Свод ФОТ</div>
+                                <div class="card-desc">
+                                    Сводная таблица фонда оплаты труда
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="rb-kalkulyacia.html"
-                        class="page-card rb"
-                        data-key="rb_kalkulyacia"
-                        data-search="калькуляция расходов расчёт статей"
-                    >
-                        <div class="card-icon">🧮</div>
-                        <div class="card-body">
-                            <div class="card-title">Калькуляция расходов</div>
-                            <div class="card-desc">
-                                Детальный расчёт статей бюджета
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="rb-kalkulyacia.html"
+                            class="page-card rb"
+                            data-key="rb_kalkulyacia"
+                            data-search="калькуляция расходов расчёт статей"
+                        >
+                            <div class="card-icon">🧮</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Калькуляция расходов
+                                </div>
+                                <div class="card-desc">
+                                    Детальный расчёт статей бюджета
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="rb-plan-komandir.html"
-                        class="page-card rb"
-                        data-key="rb_plan_komandir"
-                        data-search="план командировок рк служебные"
-                    >
-                        <div class="card-icon">✈️</div>
-                        <div class="card-body">
-                            <div class="card-title">План командировок РК</div>
-                            <div class="card-desc">
-                                Служебные командировки по РК
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="rb-plan-komandir.html"
+                            class="page-card rb"
+                            data-key="rb_plan_komandir"
+                            data-search="план командировок рк служебные"
+                        >
+                            <div class="card-icon">✈️</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    План командировок РК
+                                </div>
+                                <div class="card-desc">
+                                    Служебные командировки по РК
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                </div>
-            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                    </div>
+                </section>
 
-            <!-- Подушевое финансирование -->
-            <div class="section" data-section="pu" id="sectionPu">
-                <div class="section-header">
-                    <div class="section-badge pu">👥</div>
-                    <div class="section-title">Подушевое финансирование</div>
-                    <div class="section-count">11 таблиц</div>
-                </div>
-                <div class="cards-grid">
-                    <a
-                        href="pu-svod-2026.html"
-                        class="page-card pu"
-                        data-key="pu_svod_2026"
-                        data-search="свод пу 2026"
-                    >
-                        <div class="card-icon">📋</div>
-                        <div class="card-body">
-                            <div class="card-title">
-                                Свод ПУ <span class="dyn-year">2026</span>
+                <!-- Подушевое финансирование -->
+                <section class="section" data-section="pu" id="sectionPu">
+                    <div class="section-header">
+                        <div class="section-badge pu">👥</div>
+                        <div class="section-title">
+                            Подушевое финансирование
+                        </div>
+                        <div class="section-count">14 таблиц</div>
+                    </div>
+                    <div class="cards-grid">
+                        <a
+                            href="pu-svod-2026.html"
+                            class="page-card pu"
+                            data-key="pu_svod_2026"
+                            data-search="свод пу 2026"
+                        >
+                            <div class="card-icon">📋</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Свод ПУ <span class="dyn-year">2026</span>
+                                </div>
+                                <div class="card-desc">
+                                    Консолидированный свод подушевого
+                                    финансирования
+                                </div>
                             </div>
-                            <div class="card-desc">
-                                Консолидированный свод подушевого финансирования
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-ss-dotacia.html"
+                            class="page-card pu"
+                            data-key="pu_ss_dotacia"
+                            data-search="сс дотация социальное страхование"
+                        >
+                            <div class="card-icon">🏥</div>
+                            <div class="card-body">
+                                <div class="card-title">СС Дотация</div>
+                                <div class="card-desc">
+                                    Социальное страхование и дотации
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-ss-dotacia.html"
-                        class="page-card pu"
-                        data-key="pu_ss_dotacia"
-                        data-search="сс дотация социальное страхование"
-                    >
-                        <div class="card-icon">🏥</div>
-                        <div class="card-body">
-                            <div class="card-title">СС Дотация</div>
-                            <div class="card-desc">
-                                Социальное страхование и дотации
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-ss-almaty.html"
+                            class="page-card pu"
+                            data-key="pu_ss_almaty"
+                            data-search="сс алматы собственные средства"
+                        >
+                            <div class="card-icon">🏫</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    Собственные средства
+                                </div>
+                                <div class="card-desc">
+                                    Собственные средства филиалов
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-ss-almaty.html"
-                        class="page-card pu"
-                        data-key="pu_ss_almaty"
-                        data-search="сс алматы собственные средства"
-                    >
-                        <div class="card-icon">🏫</div>
-                        <div class="card-body">
-                            <div class="card-title">Собственные средства</div>
-                            <div class="card-desc">
-                                Собственные средства филиалов
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-income-pu.html"
+                            class="page-card pu"
+                            data-key="pu_income_pu"
+                            data-search="доходы пу поступления подушевое"
+                        >
+                            <div class="card-icon">💰</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы ПУ</div>
+                                <div class="card-desc">
+                                    Поступления средств по подушевому
+                                    финансированию
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-income-pu.html"
-                        class="page-card pu"
-                        data-key="pu_income_pu"
-                        data-search="доходы пу поступления подушевое"
-                    >
-                        <div class="card-icon">💰</div>
-                        <div class="card-body">
-                            <div class="card-title">Доходы ПУ</div>
-                            <div class="card-desc">
-                                Поступления средств по подушевому финансированию
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-income-dt.html"
+                            class="page-card pu"
+                            data-key="pu_income_dt"
+                            data-search="доходы дт дополнительный тариф"
+                        >
+                            <div class="card-icon">💵</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы ДТ</div>
+                                <div class="card-desc">
+                                    Доходы от дополнительного тарифа
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-income-dt.html"
-                        class="page-card pu"
-                        data-key="pu_income_dt"
-                        data-search="доходы дт дополнительный тариф"
-                    >
-                        <div class="card-icon">💵</div>
-                        <div class="card-body">
-                            <div class="card-title">Доходы ДТ</div>
-                            <div class="card-desc">
-                                Доходы от дополнительного тарифа
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-income-dop.html"
+                            class="page-card pu"
+                            data-key="pu_income_dop"
+                            data-search="доходы доп дополнительные"
+                        >
+                            <div class="card-icon">💵</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы ДОП</div>
+                                <div class="card-desc">
+                                    Дополнительные доходы
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-income-dop.html"
-                        class="page-card pu"
-                        data-key="pu_income_dop"
-                        data-search="доходы доп дополнительные"
-                    >
-                        <div class="card-icon">💵</div>
-                        <div class="card-body">
-                            <div class="card-title">Доходы ДОП</div>
-                            <div class="card-desc">Дополнительные доходы</div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-fot-almaty.html"
-                        class="page-card pu"
-                        data-key="pu_fot_almaty"
-                        data-search="фот алматы оплата труда пу"
-                    >
-                        <div class="card-icon">👥</div>
-                        <div class="card-body">
-                            <div class="card-title">ФОТ</div>
-                            <div class="card-desc">Фонд оплаты труда (ПУ)</div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-grafik-almaty.html"
-                        class="page-card pu"
-                        data-key="pu_grafik_almaty"
-                        data-search="график алматы работа расчёт"
-                    >
-                        <div class="card-icon">📅</div>
-                        <div class="card-body">
-                            <div class="card-title">График</div>
-                            <div class="card-desc">График работы и расчёты</div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-kalkulyacia-almaty.html"
-                        class="page-card pu"
-                        data-key="pu_kalkulyacia_almaty"
-                        data-search="калькуляция алматы расходов пу"
-                    >
-                        <div class="card-icon">🧮</div>
-                        <div class="card-body">
-                            <div class="card-title">Калькуляция</div>
-                            <div class="card-desc">
-                                Детальная калькуляция расходов ПУ
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-fot-almaty.html"
+                            class="page-card pu"
+                            data-key="pu_fot_almaty"
+                            data-search="фот алматы оплата труда пу"
+                        >
+                            <div class="card-icon">👥</div>
+                            <div class="card-body">
+                                <div class="card-title">ФОТ</div>
+                                <div class="card-desc">
+                                    Фонд оплаты труда (ПУ)
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-plan-rk.html"
-                        class="page-card pu"
-                        data-key="pu_plan_rk"
-                        data-search="план командировок рк пу"
-                    >
-                        <div class="card-icon">✈️</div>
-                        <div class="card-body">
-                            <div class="card-title">План командировок РК</div>
-                            <div class="card-desc">Командировки по РК (ПУ)</div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                    <a
-                        href="pu-plan-abroad.html"
-                        class="page-card pu"
-                        data-key="pu_plan_abroad"
-                        data-search="план командировок зарубеж"
-                    >
-                        <div class="card-icon">🌍</div>
-                        <div class="card-body">
-                            <div class="card-title">
-                                План командировок за рубеж
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-grafik-almaty.html"
+                            class="page-card pu"
+                            data-key="pu_grafik_almaty"
+                            data-search="график алматы работа расчёт"
+                        >
+                            <div class="card-icon">📅</div>
+                            <div class="card-body">
+                                <div class="card-title">График</div>
+                                <div class="card-desc">
+                                    График работы и расчёты
+                                </div>
                             </div>
-                            <div class="card-desc">Зарубежные командировки</div>
-                        </div>
-                        <div
-                            class="card-status no-data"
-                            title="Нет данных"
-                        ></div>
-                    </a>
-                </div>
-            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-kalkulyacia-almaty.html"
+                            class="page-card pu"
+                            data-key="pu_kalkulyacia_almaty"
+                            data-search="калькуляция алматы расходов пу"
+                        >
+                            <div class="card-icon">🧮</div>
+                            <div class="card-body">
+                                <div class="card-title">Калькуляция</div>
+                                <div class="card-desc">
+                                    Детальная калькуляция расходов ПУ
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-plan-rk.html"
+                            class="page-card pu"
+                            data-key="pu_plan_rk"
+                            data-search="план командировок рк пу"
+                        >
+                            <div class="card-icon">✈️</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    План командировок РК
+                                </div>
+                                <div class="card-desc">
+                                    Командировки по РК (ПУ)
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="pu-plan-abroad.html"
+                            class="page-card pu"
+                            data-key="pu_plan_abroad"
+                            data-search="план командировок зарубеж"
+                        >
+                            <div class="card-icon">🌍</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    План командировок за рубеж
+                                </div>
+                                <div class="card-desc">
+                                    Зарубежные командировки
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-fact-pu.html"
+                            class="page-card pu"
+                            data-key="plan_fact_pu_almaty"
+                            data-search="план факт пу исполнение подушевое остатки экономия справка"
+                        >
+                            <div class="card-icon">📊</div>
+                            <div class="card-body">
+                                <div class="card-title">План-Факт ПУ</div>
+                                <div class="card-desc">
+                                    Исполнение подушевого финансирования — план,
+                                    справка, факт, остатки
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-fact-dt.html"
+                            class="page-card pu"
+                            data-key="plan_fact_dt_almaty"
+                            data-search="план факт дт дотация государственный образовательный заказ исполнение"
+                        >
+                            <div class="card-icon">📊</div>
+                            <div class="card-body">
+                                <div class="card-title">План-Факт ДТ</div>
+                                <div class="card-desc">
+                                    Исполнение дотации — государственный
+                                    образовательный заказ
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-fact-pu-dt.html"
+                            class="page-card pu"
+                            data-key=""
+                            data-search="сводная план факт пу дт сумма консолидация автоматически"
+                        >
+                            <div class="card-icon">📈</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    План-Факт ПУ + ДТ (свод)
+                                </div>
+                                <div class="card-desc">
+                                    Сумма двух отчётов подставляется
+                                    автоматически — вводить ничего не нужно
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Только чтение"
+                            ></div>
+                        </a>
+                    </div>
+                </section>
 
-            <!-- Утилиты -->
-            <div class="section" data-section="util" id="sectionUtil">
-                <div class="section-header">
-                    <div class="section-badge util">🛠</div>
-                    <div class="section-title">Утилиты и инструменты</div>
-                </div>
-                <div class="util-grid">
-                    <a
-                        href="import-excel.html"
-                        class="util-card"
-                        data-search="импорт excel загрузка"
-                    >
-                        <span class="util-icon">📤</span> Импорт из Excel
-                    </a>
-                    <a
-                        href="check-import.html"
-                        class="util-card"
-                        data-search="проверка импорта диагностика"
-                    >
-                        <span class="util-icon">🔍</span> Проверка импорта
-                    </a>
-                    <a
-                        href="check-formulas.html"
-                        class="util-card"
-                        data-search="проверка формул анализ"
-                    >
-                        <span class="util-icon">🧮</span> Проверка формул
-                    </a>
-                    <a
-                        href="fill-all-budgets.html"
-                        class="util-card"
-                        data-search="заполнить все бюджеты данные"
-                    >
-                        <span class="util-icon">📊</span> Заполнить все бюджеты
-                    </a>
-                    <a
-                        href="fill-test-data.html"
-                        class="util-card"
-                        data-search="тестовые данные рб"
-                    >
-                        <span class="util-icon">📝</span> Тестовые данные РБ
-                    </a>
-                    <a
-                        href="fill-pu-data.html"
-                        class="util-card"
-                        data-search="тестовые данные пу"
-                    >
-                        <span class="util-icon">🏫</span> Тестовые данные ПУ
-                    </a>
-                    <a
-                        href="fill-rb-svodnaya.html"
-                        class="util-card"
-                        data-search="заполнение сводная"
-                    >
-                        <span class="util-icon">📊</span> Заполнение сводной
-                    </a>
-                    <a
-                        href="reset-and-refill.html"
-                        class="util-card"
-                        data-search="сброс перезаполнение очистка"
-                    >
-                        <span class="util-icon">🔄</span> Сброс и перезаполнение
-                    </a>
-                    <a
-                        href="diagnose-consolidation.html"
-                        class="util-card"
-                        data-search="диагностика консолидация проверка"
-                    >
-                        <span class="util-icon">🔬</span> Диагностика
-                        консолидации
-                    </a>
-                    <a
-                        href="migrate-localStorage.html"
-                        class="util-card"
-                        data-search="миграция перенос данные"
-                    >
-                        <span class="util-icon">🔄</span> Миграция данных
-                    </a>
-                    <a
-                        href="clear-consolidated-data.html"
-                        class="util-card danger"
-                        data-search="очистка удаление данных"
-                    >
-                        <span class="util-icon">🗑️</span> Очистка данных
-                    </a>
-                </div>
-            </div>
-        </div>
+                <!-- Импорт данных -->
+                <section class="section" data-section="util" id="sectionUtil">
+                    <div class="section-header">
+                        <div class="section-badge util">📤</div>
+                        <div class="section-title">Импорт данных</div>
+                    </div>
+                    <div class="util-grid">
+                        <a
+                            href="import-excel.html"
+                            class="util-card"
+                            data-search="импорт excel загрузка"
+                        >
+                            <span class="util-icon">📤</span> Импорт из Excel
+                        </a>
+                    </div>
+                </section>
+            </main>
 
-        <div class="footer">
-            НАО «РФМШ» · Бюджетная система · <span class="dyn-year">2026</span>
+            <div class="footer">
+                НАО «РФМШ» · Бюджетная система ·
+                <span class="dyn-year">2026</span>
+            </div>
         </div>
 
         <script>
             (function () {
                 "use strict";
 
-                /* ── Budget Year ────────────────────────────────── */
+                /* ── Период бюджета ─────────────────────────────── */
                 var currentYear = new Date().getFullYear();
                 var savedEndYear = localStorage.getItem("budget_year_end");
                 var budgetYear = currentYear;
@@ -1160,7 +1201,6 @@
                 var yearInput = document.getElementById("yearInput");
                 var yearEndInput = document.getElementById("yearEndInput");
 
-                // Populate start year dropdown
                 for (var yi = currentYear; yi <= currentYear + 5; yi++) {
                     var opt = document.createElement("option");
                     opt.value = yi;
@@ -1183,7 +1223,6 @@
                 populateEndYear();
 
                 function applyYear(y, y2) {
-                    // Update subtitle
                     var sub = document.querySelector(".hero-subtitle");
                     var suffix = y === y2 ? " " + y : " " + y + "–" + y2;
                     if (sub)
@@ -1191,7 +1230,6 @@
                             "Республиканский бюджет и Подушевое финансирование" +
                             suffix;
 
-                    // Update card titles and search data
                     document
                         .querySelectorAll(".dyn-year")
                         .forEach(function (el) {
@@ -1211,7 +1249,6 @@
                     if (v >= 2020 && v <= 2050) {
                         budgetYear = v;
                         localStorage.setItem("budget_year", v);
-                        // Reset end year to start+2 when start changes
                         budgetEndYear = v + 2;
                         localStorage.setItem("budget_year_end", budgetEndYear);
                         populateEndYear();
@@ -1230,29 +1267,44 @@
                     }
                 });
 
-                /* ── Storage Info ──────────────────────────────── */
-                function getStorageInfo() {
-                    var bytes = 0;
-                    var keys = [];
-                    try {
-                        for (var i = 0; i < localStorage.length; i++) {
-                            var k = localStorage.key(i);
-                            bytes +=
-                                k.length +
-                                (localStorage.getItem(k) || "").length;
-                            keys.push(k);
-                        }
-                    } catch (e) {}
-                    return { bytes: bytes * 2, keys: keys };
+                /* ── Где лежат данные ───────────────────────────── */
+                /* Раньше здесь показывался объём localStorage. Данные теперь
+                   в базе (схема budget), localStorage остался кэшем — его
+                   размер ни о чём не говорит. Показываем то, что важно:
+                   сколько таблиц подтянулось и из скольких филиалов. */
+                var BRANCH_NAMES = {
+                    nao: "ЦА",
+                    almaty: "Алматы",
+                    astana: "Астана",
+                    uralsk: "Уральск",
+                };
+
+                function showDataState(st) {
+                    var pill = document.getElementById("storageSize");
+                    var tile = document.getElementById("statStorage");
+                    if (!st) {
+                        pill.textContent = "Локально";
+                        tile.innerHTML =
+                            '–<span class="stat-unit">без базы</span>';
+                        return;
+                    }
+                    pill.textContent = st.text;
+                    var names = (st.branches || []).map(function (b) {
+                        return BRANCH_NAMES[b] || b;
+                    });
+                    tile.innerHTML =
+                        st.rows +
+                        '<span class="stat-unit">' +
+                        (names.length ? "таблиц · " + names.join(", ") : "таблиц") +
+                        "</span>";
                 }
 
-                var info = getStorageInfo();
-                var mb = (info.bytes / 1024 / 1024).toFixed(1);
-                document.getElementById("storageSize").textContent = mb + " МБ";
-                document.getElementById("statStorage").innerHTML =
-                    mb + '<span class="stat-unit">МБ</span>';
+                showDataState(window.finkaSync && window.finkaSync.stats());
+                document.addEventListener("finka:sync", function (e) {
+                    showDataState(e.detail);
+                });
 
-                /* ── Data Status Indicators ────────────────────── */
+                /* ── Индикаторы заполненности ───────────────────── */
                 var BRANCHES = [
                     "almaty",
                     "astana",
@@ -1290,7 +1342,7 @@
                 document.getElementById("statFilled").innerHTML =
                     filledPages + '<span class="stat-unit">из 18</span>';
 
-                /* ── Search ────────────────────────────────────── */
+                /* ── Поиск ──────────────────────────────────────── */
                 var searchInput = document.getElementById("searchInput");
                 var allCards = document.querySelectorAll(
                     ".page-card, .util-card",
@@ -1346,7 +1398,7 @@
                         });
                     });
 
-                /* ── Keyboard: focus search on / ───────────────── */
+                /* ── Клавиша / — фокус в поиск ──────────────────── */
                 document.addEventListener("keydown", function (e) {
                     if (
                         e.key === "/" &&
@@ -1358,5 +1410,7 @@
                 });
             })();
         </script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

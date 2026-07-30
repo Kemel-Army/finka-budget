@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>План-Факт ПУ + ДТ (сводная)</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+    </head>
+    <body class="page-pu">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+
+        <div class="info-bar" style="margin-bottom: 0">
+            <div>
+                Страница расчётная: суммы берутся из
+                <a href="plan-fact-pu.html">План-Факт ПУ</a> и
+                <a href="plan-fact-dt.html">План-Факт ДТ</a> и пересчитываются
+                при каждом открытии. Вводить здесь ничего не нужно.
+            </div>
+        </div>
+
+        <div id="pfRoot"></div>
+
+        <script src="budget-rows.js"></script>
+        <script src="plan-fact-core.js"></script>
+        <script>
+            PlanFact.init({
+                storageKey: "plan_fact_pu_dt",
+                title: "СВОД ПЛАН-ФАКТ ПУ + ДТ",
+                subtitle:
+                    "Подушевое финансирование и дотация одной таблицей • НАО «РФМШ»",
+                rows: BUDGET_ROWS.PU,
+                sum: ["plan_fact_pu", "plan_fact_dt"],
+            });
+        </script>
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

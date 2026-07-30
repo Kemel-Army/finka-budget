@@ -4,57 +4,58 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Консолидированный бюджет — НАО РФМШ</title>
+    <link rel="stylesheet" href="shared.css" />
+    <script src="auth.js"></script>
+    <script src="db-sync.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+        /* Токены синхронизированы с shared.css (строгий финтех) */
         :root {
-            --bg:          #f0f2f7;
+            --bg:          #f1f5f9;
             --surface:     #ffffff;
-            --border:      #e4e8f0;
+            --border:      #e2e8f0;
             --text-1:      #0f172a;
             --text-2:      #475569;
             --text-3:      #94a3b8;
-            --accent:      #3b5bdb;
-            --accent-s:    #e8edff;
-            --green:       #0d9488;
-            --green-s:     #ccfbf1;
-            --amber:       #d97706;
-            --amber-s:     #fef3c7;
-            --fact-hdr:    #f0f4ff;   /* 2024-2025 group */
-            --plan-hdr:    #f0fdf8;   /* 2026+ group */
-            --radius:      12px;
-            --shadow-sm:   0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
-            --shadow:      0 4px 16px rgba(15,23,42,.08), 0 1px 4px rgba(15,23,42,.05);
-            --tr: 160ms cubic-bezier(.4,0,.2,1);
+            --accent:      #2563eb;
+            --accent-s:    #eff6ff;
+            --green:       #047857;
+            --green-s:     #ecfdf5;
+            --amber:       #b45309;
+            --amber-s:     #fffbeb;
+            --fact-hdr:    #f8fafc;   /* 2024-2025 group */
+            --plan-hdr:    #eff6ff;   /* 2026+ group */
+            --mono:        'JetBrains Mono', 'SF Mono', Consolas, monospace;
+            --radius:      10px;
+            --shadow-sm:   0 1px 2px rgba(15,23,42,.04);
+            --shadow:      0 2px 8px rgba(15,23,42,.08);
+            --tr: 130ms ease;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }
         body {
             font-family: 'Inter', system-ui, sans-serif;
+            font-variant-numeric: tabular-nums;
             background: var(--bg);
             color: var(--text-1);
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ─── NAV ───────────────────────────────────── */
-        .top-nav {
-            position: sticky; top: 0; z-index: 100;
-            background: rgba(15,23,42,.93);
-            backdrop-filter: blur(14px);
-            border-bottom: 1px solid rgba(255,255,255,.07);
-            height: 52px;
-            display: flex; align-items: center;
-            padding: 0 24px; gap: 16px;
+        /* Все денежные значения — моноширинно, чтобы разряды совпадали */
+        td.td-val,
+        td.td-val input,
+        td.total-val,
+        .hero-stat .value,
+        .num-badge,
+        .pct-label {
+            font-family: var(--mono);
+            font-variant-numeric: tabular-nums;
         }
-        .nav-brand { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: .03em; }
-        .nav-sep   { color: rgba(255,255,255,.2); font-size: 16px; }
-        .nav-back  { font-size: 12px; color: rgba(255,255,255,.5); text-decoration: none; display: flex; align-items: center; gap: 5px; transition: color var(--tr); }
-        .nav-back:hover { color: rgba(255,255,255,.9); }
-        .nav-spacer { flex: 1; }
-        .nav-tag   { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.4); letter-spacing: .06em; text-transform: uppercase; }
+
 
         /* ─── WRAPPER ───────────────────────────────── */
         .wrapper { max-width: 1340px; margin: 0 auto; padding: 32px 24px 64px; }
@@ -96,8 +97,6 @@
         .btn-primary:hover { background: #2f4bc4; border-color: #2f4bc4; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,91,219,.3); }
         .btn-ghost { background: var(--surface); color: var(--text-2); border-color: var(--border); }
         .btn-ghost:hover { background: #f8f9fe; border-color: #c5cde8; color: var(--text-1); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-        .btn-amber { background: var(--surface); color: var(--amber); border-color: #fcd34d; }
-        .btn-amber:hover { background: var(--amber-s); transform: translateY(-1px); }
         .save-pill {
             margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
             font-size: 12px; font-weight: 500; color: var(--text-3);
@@ -288,7 +287,7 @@
         @media print {
             @page { size: A3 landscape; margin: 10mm; }
             body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .top-nav, .toolbar, .btn-add-year, .btn-rm-year { display: none !important; }
+            .finka-nav, .toolbar, .btn-add-year, .btn-rm-year { display: none !important; }
             .wrapper { padding: 0; max-width: 100%; }
             .hero { background: #0f172a !important; -webkit-print-color-adjust: exact; }
             .card { box-shadow: none; border: 1px solid #ccc; }
@@ -300,16 +299,7 @@
 </head>
 <body>
 
-<nav class="top-nav">
-    <span class="nav-brand">НАО РФМШ</span>
-    <span class="nav-sep">|</span>
-    <a href="index.html" class="nav-back">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 12L6 8l4-4"/></svg>
-        Главная
-    </a>
-    <div class="nav-spacer"></div>
-    <span class="nav-tag">Для руководства</span>
-</nav>
+<a href="index.html" class="back-link">← Вернуться на главную</a>
 
 <div class="wrapper">
 
@@ -320,6 +310,7 @@
         <p class="hero-sub">НАО «Республиканская физико-математическая школа» · 2024–<span id="hero-last-year">2026</span></p>
         <div class="hero-meta">
             <div class="hero-stat"><div class="label">Итого план 2026</div><div class="value" id="hero-total">—</div></div>
+            <div class="hero-stat"><div class="label">Период</div><div class="value" id="hero-period">—</div></div>
         </div>
     </div>
 
@@ -337,10 +328,15 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5V2h8v3M4 11H2V6h12v5h-2M4 11v3h8v-3"/></svg>
             Печать
         </button>
-        <button class="btn btn-amber" onclick="fillRandom()">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="5" width="14" height="10" rx="1.5"/><path d="M5 5V3.5a3 3 0 016 0V5"/><circle cx="5.5" cy="10" r="1"/><circle cx="10.5" cy="10" r="1"/></svg>
-            Тест-данные
-        </button>
+        <!-- Соседние формы руководства: план финансирования и справки -->
+        <a class="btn btn-ghost" href="plan-finansirovaniya.html">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+            План
+        </a>
+        <a class="btn btn-ghost" href="spravki.html">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 1.5h5l3 3v10a1 1 0 01-1 1H4a1 1 0 01-1-1v-12a1 1 0 011-1z"/><path d="M9 1.5v3h3M5.5 8h5M5.5 11h3"/></svg>
+            Справки
+        </a>
         <div class="save-pill" id="save-pill">
             <span class="dot-saved" id="save-dot"></span>
             <span id="save-text">Сохранено</span>
@@ -688,22 +684,6 @@ function renderBody() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   RANDOM TEST DATA
-═══════════════════════════════════════════════════════ */
-function fillRandom() {
-    var bases = [4200,1800,380,95,210,45,28,62,18,55,12].map(function(b){ return b*1e6; });
-    ROWS.forEach(function(r, i) {
-        var b = bases[i] || 5e7;
-        allYears().forEach(function(y, j) {
-            setVal(r, y, Math.round(b * (0.78 + j*0.06 + Math.random()*0.08) / 1000) * 1000);
-        });
-    });
-    renderBody();
-    updateDOM();
-    deferSave();
-}
-
-/* ═══════════════════════════════════════════════════════
    EXCEL EXPORT
 ═══════════════════════════════════════════════════════ */
 function doExportExcel() {
@@ -749,7 +729,7 @@ function doExportExcel() {
 ═══════════════════════════════════════════════════════ */
 function doExportPDF() {
     var s = document.createElement('style'); s.id='_pdf';
-    s.textContent='@media print{@page{size:A3 landscape;margin:10mm}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.top-nav,.toolbar,.btn-add-year,.btn-rm-year{display:none!important}.wrapper{padding:0;max-width:100%}.hero{background:#0f172a!important;-webkit-print-color-adjust:exact}.card{box-shadow:none;border:1px solid #ddd}td.td-val input,.name-edit{font-size:10px;padding:7px 8px}table.kb{font-size:10.5px}.pct-fill{background:#0d9488!important;-webkit-print-color-adjust:exact}}';
+    s.textContent='@media print{@page{size:A3 landscape;margin:10mm}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.finka-nav,.toolbar,.btn-add-year,.btn-rm-year{display:none!important}.wrapper{padding:0;max-width:100%}.hero{background:#0f172a!important;-webkit-print-color-adjust:exact}.card{box-shadow:none;border:1px solid #ddd}td.td-val input,.name-edit{font-size:10px;padding:7px 8px}table.kb{font-size:10.5px}.pct-fill{background:#0d9488!important;-webkit-print-color-adjust:exact}}';
     document.head.appendChild(s);
     window.print();
     setTimeout(function(){ var el=document.getElementById('_pdf');if(el)el.remove(); },2000);
@@ -767,5 +747,10 @@ document.addEventListener('DOMContentLoaded', function() {
     updateMeta();
 });
 </script>
+    <script src="shared-nav.js"></script>
+    <script src="sheet-ux.js"></script>
+    <script src="sheet-edit.js"></script>
+    <script src="formulas.js"></script>
+    <script src="ui-kit.js"></script>
 </body>
 </html>

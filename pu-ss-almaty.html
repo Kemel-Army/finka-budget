@@ -4,12 +4,14 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>СС Алматы 2026</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
-        <script src="editable-table.js"></script>
     </head>
     <body class="page-pu">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
             <h1>📊 Собственные средства Алматы 2026</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
@@ -893,8 +895,7 @@
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова
-                console.log(' Таблица готова к работе');
-            });
+            console.log(' Таблица готова к работе');
             function addDetailToggles() {
                 // Удаляем существующие детальные строки и иконки
                 document.querySelectorAll('.detail-row').forEach(row => row.remove());
@@ -998,6 +999,10 @@
                 });
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

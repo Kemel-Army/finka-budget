@@ -4,145 +4,19 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>Свод ФЗП 2026 — РБ</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
-            /* ── params bar ── */
-            .params-bar {
-                display: flex;
-                gap: 20px;
-                align-items: center;
-                flex-wrap: wrap;
-                background: #f8fafc;
-                border: 1px solid #e2e8f0;
-                border-radius: 10px;
-                padding: 14px 18px;
-                margin-bottom: 16px;
-            }
-            .param-group {
-                display: flex;
-                flex-direction: column;
-                gap: 3px;
-            }
-            .param-group label {
-                font-size: 11px;
-                font-weight: 600;
-                color: #64748b;
-                text-transform: uppercase;
-                letter-spacing: 0.4px;
-            }
-            .param-group input {
-                width: 140px;
-                padding: 6px 10px;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 600;
-                text-align: right;
-            }
-            .param-group input:focus {
-                outline: none;
-                border-color: #6366f1;
-                box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-            }
-            .param-group .param-val {
-                font-size: 13px;
-                color: #334155;
-                font-weight: 600;
-            }
-
-            /* ── table ── */
-            table {
-                border-collapse: collapse;
-                width: 100%;
-                font-size: 12px;
-            }
-            th,
-            td {
-                border: 1px solid #cbd5e1;
-                padding: 4px 6px;
-                text-align: right;
-            }
-            th {
-                background: #f1f5f9;
-                text-align: center;
-                font-size: 11px;
-                font-weight: 600;
-            }
+            /* Ширины служебных колонок — остальное в shared.css */
             td:nth-child(1) {
-                text-align: center;
-                width: 34px;
+                width: 36px;
             }
             td:nth-child(2) {
                 text-align: left;
                 min-width: 220px;
-            }
-
-            .section-hdr td {
-                background: #eef2f7;
-                text-align: left !important;
-                font-weight: 600;
-                padding: 8px !important;
-            }
-            .sub-row td {
-                background: #fef9ee;
-                font-weight: 600;
-            }
-            .grand-row td {
-                background: #fef3cd;
-                font-weight: 700;
-            }
-
-            input[type="number"],
-            input.cell-input {
-                width: 100%;
-                border: none;
-                background: transparent;
-                text-align: right;
-                font-size: 12px;
-                padding: 2px 0;
-                -moz-appearance: textfield;
-                appearance: textfield;
-            }
-            input[type="number"]::-webkit-outer-spin-button,
-            input[type="number"]::-webkit-inner-spin-button {
-                -webkit-appearance: none;
-            }
-            input[type="number"]:focus,
-            input.cell-input:focus {
-                background: #eff6ff;
-                outline: 1px solid #93c5fd;
-                border-radius: 2px;
-            }
-
-            .formula-cell {
-                color: #1e40af;
-                font-weight: 600;
-            }
-
-            /* ── import zone ── */
-            .import-zone {
-                display: flex;
-                gap: 10px;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-            .import-zone input[type="file"] {
-                font-size: 12px;
-            }
-            .import-zone .hint {
-                font-size: 11px;
-                color: #94a3b8;
-            }
-
-            @media print {
-                .controls,
-                .back-link,
-                .import-zone,
-                .params-bar {
-                    display: none !important;
-                }
             }
         </style>
     </head>
@@ -776,6 +650,10 @@
             buildTable();
             load();
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

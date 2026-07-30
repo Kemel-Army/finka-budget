@@ -1,428 +1,338 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Импорт данных из Excel</title>
+    <link rel="stylesheet" href="shared.css">
+    <script src="auth.js"></script>
+    <script src="db-sync.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="budget-rows.js"></script>
+    <script src="derive.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 2.5rem;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #7f8c8d;
-            margin-bottom: 40px;
-            font-size: 1.1rem;
-        }
-
-        .upload-section {
-            margin: 30px 0;
-            padding: 30px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 12px;
-            border-left: 5px solid #667eea;
-        }
-
-        .upload-section h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-            margin: 10px 0;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .file-label {
-            display: inline-block;
-            padding: 12px 30px;
-            background: #667eea;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-        }
-
-        .file-label:hover {
-            background: #764ba2;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .file-name {
-            margin-left: 15px;
-            color: #2c3e50;
-            font-weight: 500;
-        }
-
-        .buttons {
-            display: flex;
-            gap: 15px;
-            margin: 30px 0;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 15px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            color: white;
-        }
-
-        .btn-primary {
-            background: #28a745;
-        }
-
-        .btn-primary:hover {
-            background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .log {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            border: 1px solid #dee2e6;
-        }
-
-        .log-entry {
-            padding: 5px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        .log-success {
-            color: #28a745;
-        }
-
-        .log-error {
-            color: #dc3545;
-        }
-
-        .log-info {
-            color: #17a2b8;
-        }
-
-        .log-warning {
-            color: #ffc107;
-        }
-
-        .progress {
-            margin: 20px 0;
-            height: 30px;
-            background: #e9ecef;
-            border-radius: 15px;
-            overflow: hidden;
-            display: none;
-        }
-
+        /* Оформление берётся из shared.css */
         .progress-bar {
+            display: block;
             height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s;
+            background: var(--c-primary);
+            border-radius: 3px;
+            transition: width 250ms ease;
+        }
+
+        .map-table select {
+            width: 100%;
+            min-width: 150px;
+            height: 28px !important;
+            font-size: 12px !important;
+        }
+
+        .map-table td {
+            text-align: left;
+        }
+
+        .sheet-name {
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--c-gray-700);
+        }
+
+        .rows-count {
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--c-gray-400);
+            text-align: right !important;
+        }
+
+        .step {
+            border-left-color: var(--c-gray-300);
+        }
+
+        .step.done {
+            border-left-color: var(--c-success);
+        }
+
+        .hint-exact {
+            font-size: 10.5px;
+            color: var(--c-success);
+        }
+
+        .hint-raw {
+            font-size: 10.5px;
+            color: var(--c-gray-400);
+        }
+
+        /* Итог импорта */
+        .imp-result {
+            margin: 18px 0;
+            padding: 16px 18px;
+            border: 1px solid var(--c-gray-200);
+            border-left: 4px solid var(--c-gray-300);
+            border-radius: var(--radius-lg);
+            background: #fff;
+        }
+
+        .imp-result.ok {
+            border-left-color: var(--c-success);
+            background: #f0fdf4;
+        }
+
+        .imp-result.warn {
+            border-left-color: #d97706;
+            background: #fffbeb;
+        }
+
+        .imp-result.bad {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .imp-result-head {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            font-size: 14.5px;
+        }
+
+        .imp-result-mark {
+            flex: 0 0 26px;
+            height: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-weight: 500;
+            border-radius: 50%;
+            font-weight: 800;
+            color: #fff;
+            background: var(--c-gray-400);
         }
 
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
+        .imp-result.ok .imp-result-mark {
+            background: var(--c-success);
         }
 
-        .stat-card {
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .imp-result.warn .imp-result-mark {
+            background: #d97706;
         }
 
-        .stat-card h3 {
-            color: #7f8c8d;
-            font-size: 0.9rem;
-            margin-bottom: 10px;
+        .imp-result.bad .imp-result-mark {
+            background: #dc2626;
         }
 
-        .stat-card .value {
-            color: #2c3e50;
-            font-size: 2rem;
-            font-weight: bold;
+        .imp-result-sub {
+            margin-top: 3px;
+            font-size: 12.5px;
+            font-weight: 400;
+            color: var(--c-gray-600);
         }
 
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #667eea;
+        .imp-result-list {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--c-gray-200);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .imp-result-row {
+            display: flex;
+            gap: 9px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 12.5px;
+            color: var(--c-gray-700);
+        }
+
+        .imp-result-arrow {
+            color: var(--c-gray-400);
+        }
+
+        .imp-result-open {
+            margin-left: auto;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--c-primary);
             text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s;
         }
 
-        .back-link:hover {
-            color: #764ba2;
-            transform: translateX(-5px);
-        }
-    
-        /* Mobile adaptation - Tablets */
-        @media (max-width: 1200px) {
-            .container {
-                max-width: 100%;
-            }
-            
-            .table-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
+        .imp-result-open:hover {
+            text-decoration: underline;
         }
 
-        /* Mobile adaptation - Medium screens */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .header, .container {
-                padding: 15px 20px;
-                margin-bottom: 15px;
-            }
-
-            h1 {
-                font-size: 20px;
-                margin-bottom: 8px;
-            }
-
-            h2 {
-                font-size: 16px;
-            }
-
-            .subtitle {
-                font-size: 12px;
-            }
-
-            .branch-selector, .btn-group, .controls {
-                gap: 8px;
-                margin-top: 10px;
-            }
-
-            .btn, button, .branch-btn {
-                padding: 10px 16px;
-                font-size: 12px;
-            }
-
-            .info-bar, .status-bar {
-                padding: 12px 15px;
-                gap: 10px;
-            }
-            
-            table {
-                font-size: 11px;
-            }
-
-            th, td {
-                padding: 6px 4px;
-            }
-
-            .section-footer {
-                padding: 12px;
-                gap: 8px;
-            }
-
-            input, select, textarea {
-                padding: 6px;
-                font-size: 12px;
-            }
+        /* Итог сверки */
+        .chk-ok {
+            color: var(--c-success);
+            font-weight: 600;
         }
 
-        /* Mobile adaptation - Small screens */
-        @media (max-width: 480px) {
-            body {
-                padding: 5px;
-            }
+        .chk-part {
+            color: var(--c-gray-500);
+        }
 
-            .header, .container {
-                padding: 12px 15px;
-                border-radius: 10px;
-            }
+        .chk-bad {
+            color: var(--c-danger, #e74c3c);
+            font-weight: 700;
+        }
 
-            h1 {
-                font-size: 18px;
-            }
+        /* Просмотр исходного листа: SheetJS отдаёт свою разметку,
+           поэтому оформляем её здесь, а не через классы shared.css */
+        .xl-view {
+            max-height: 460px;
+            overflow: auto;
+            background: #fff;
+            border: 1px solid var(--c-gray-200);
+            border-radius: var(--radius-lg);
+        }
 
-            h2 {
-                font-size: 14px;
-            }
+        .xl-view table {
+            border-collapse: collapse;
+            font-size: 11.5px;
+            font-variant-numeric: tabular-nums;
+        }
 
-            .subtitle {
-                font-size: 11px;
-                margin-bottom: 10px;
-            }
+        .xl-view td {
+            min-width: 90px;
+            max-width: 320px;
+            padding: 4px 7px !important;
+            text-align: left;
+            vertical-align: middle;
+            border: 1px solid var(--c-gray-200) !important;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--c-gray-700);
+        }
 
-            .branch-selector, .btn-group, .controls {
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .btn, button, .branch-btn {
-                width: 100%;
-                padding: 10px;
-                font-size: 13px;
-            }
-
-            .info-bar, .status-bar {
-                flex-direction: column;
-                padding: 10px;
-                gap: 8px;
-            }
-
-            table {
-                font-size: 10px;
-            }
-
-            th, td {
-                padding: 4px 2px;
-            }
-
-            .section-footer {
-                flex-direction: column;
-                padding: 10px;
-            }
-
-            input, select, textarea {
-                font-size: 11px;
-                padding: 5px;
-            }
+        .xl-view td[rowspan],
+        .xl-view td[colspan] {
+            background: var(--c-gray-50);
+            font-weight: 600;
+            color: var(--c-gray-900);
         }
     </style>
 </head>
-<body>
+<body class="page-util">
     <div class="container">
         <a href="index.html" class="back-link">← Вернуться на главную</a>
-        
-        <h1>📊 Импорт данных из Excel</h1>
-        <p class="subtitle">Массовое заполнение всех таблиц бюджетной системы</p>
 
-        <div class="upload-section">
-            <h2>Республиканский бюджет (РБ)</h2>
-            <div class="file-input-wrapper">
-                <input type="file" id="rbFile" class="file-input" accept=".xlsx,.xls">
-                <label for="rbFile" class="file-label">📁 Выбрать файл РБ</label>
-                <span id="rbFileName" class="file-name">Файл не выбран</span>
+        <h1>Импорт данных из Excel</h1>
+        <p class="subtitle">
+            Выберите файл, укажите для каждого листа целевую страницу и филиал.
+            Импортируется только то, что вы отметили.
+        </p>
+
+        <!-- Шаг 1 -->
+        <div class="step" id="step1">
+            <div>
+                <strong>Шаг 1. Файл Excel</strong>
+                <div class="file-input-wrapper" style="display:block;margin-top:8px">
+                    <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                    <label for="fileInput" class="file-label">Выбрать файл .xlsx</label>
+                    <span id="fileName" class="file-name">Файл не выбран</span>
+                </div>
             </div>
         </div>
 
-        <div class="upload-section">
-            <h2>Подушевое финансирование (ПУ)</h2>
-            <div class="file-input-wrapper">
-                <input type="file" id="puFile" class="file-input" accept=".xlsx,.xls">
-                <label for="puFile" class="file-label">📁 Выбрать файл ПУ</label>
-                <span id="puFileName" class="file-name">Файл не выбран</span>
-            </div>
-        </div>
+        <!-- Шаг 2 -->
+        <div id="mapBlock" hidden>
+            <h3>Шаг 2. Куда загружать</h3>
+            <p style="font-size:12.5px;color:var(--c-gray-500);margin-bottom:10px">
+                Целевая страница подставлена по названию листа — проверьте и
+                поправьте. Филиал выбирается для каждого листа отдельно.
+            </p>
 
-        <div class="buttons">
-            <button id="showSheetsBtn" class="btn btn-secondary" disabled>
-                📋 Показать листы в файлах
-            </button>
-            <button id="importBtn" class="btn btn-primary" disabled>
-                🚀 Импортировать данные
-            </button>
-            <button id="clearBtn" class="btn btn-danger">
-                🗑️ Очистить все данные
-            </button>
-            <button id="exportBtn" class="btn btn-secondary">
-                💾 Экспортировать текущие данные
-            </button>
+            <div class="toolbar" style="margin-bottom:10px">
+                <div class="control-group">
+                    <label for="bulkBranch">Филиал для всех листов</label>
+                    <select id="bulkBranch">
+                        <option value="">— не менять —</option>
+                        <option value="nao">НАО «РФМШ» (центральный аппарат)</option>
+                        <option value="almaty">Алматы</option>
+                        <option value="astana">Астана</option>
+                        <option value="uralsk">Уральск</option>
+                    </select>
+                </div>
+                <button class="btn" id="selectAllBtn">Отметить все</button>
+                <button class="btn" id="selectNoneBtn">Снять все</button>
+            </div>
+
+            <div class="table-container">
+                <table class="map-table">
+                    <thead>
+                        <tr>
+                            <th style="width:40px"></th>
+                            <th>Лист в файле</th>
+                            <th style="width:60px">Строк</th>
+                            <th style="width:230px">Страница системы</th>
+                            <th style="width:190px">Филиал</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mapBody"></tbody>
+                </table>
+            </div>
+
+            <div class="buttons">
+                <button id="importBtn" class="btn btn-primary">Импортировать отмеченное</button>
+                <button id="previewBtn" class="btn">Показать первые строки</button>
+            </div>
+
+            <div id="viewBlock" hidden>
+                <h3 style="margin-top:22px">Лист как в Excel</h3>
+                <p style="font-size:12.5px;color:var(--c-gray-500);margin-bottom:10px">
+                    Исходник со всеми объединениями — можно сверить глазами
+                    перед импортом.
+                </p>
+                <div class="control-group" style="margin-bottom:10px">
+                    <label for="viewSheet">Лист</label>
+                    <select id="viewSheet"></select>
+                </div>
+                <div class="xl-view" id="xlView"></div>
+            </div>
         </div>
 
         <div class="progress" id="progress">
-            <div class="progress-bar" id="progressBar">0%</div>
+            <span class="progress-bar" id="progressBar" style="width:0%"></span>
         </div>
 
-        <div class="stats" id="stats" style="display: none;">
+        <!-- Итог импорта -->
+        <div class="imp-result" id="resultBlock" hidden></div>
+
+        <!-- Шаг 3: сверка -->
+        <div id="checkBlock" hidden>
+            <h3 style="margin-top:22px">Шаг 3. Сверка с файлом</h3>
+            <p style="font-size:12.5px;color:var(--c-gray-500);margin-bottom:10px">
+                Числа в листе и числа, которые легли в систему, посчитаны
+                независимо друг от друга — так видно, если что-то не доехало.
+                «Часть листа» — нормально для страниц со своим разбором: они
+                берут не все колонки, а лист целиком сохраняется рядом.
+                «Расхождение» на сыром листе — повод проверить.
+            </p>
+            <div class="table-container">
+                <table class="map-table">
+                    <thead>
+                        <tr>
+                            <th>Лист</th>
+                            <th>Страница</th>
+                            <th style="width:70px">Строк</th>
+                            <th style="width:110px">Чисел</th>
+                            <th style="width:110px">Текстов</th>
+                            <th style="width:130px">Σ в файле</th>
+                            <th style="width:130px">Σ в системе</th>
+                            <th style="width:110px">Разница</th>
+                            <th style="width:110px">Итог</th>
+                        </tr>
+                    </thead>
+                    <tbody id="checkBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display:none">
             <div class="stat-card">
-                <h3>Обработано листов</h3>
+                <h3>Импортировано листов</h3>
                 <div class="value" id="sheetsProcessed">0</div>
             </div>
             <div class="stat-card">
-                <h3>Импортировано строк</h3>
+                <h3>Строк</h3>
                 <div class="value" id="rowsImported">0</div>
             </div>
             <div class="stat-card">
@@ -432,420 +342,1207 @@
         </div>
 
         <div class="log" id="log">
-            <div class="log-entry log-info">Готов к импорту данных...</div>
+            <div class="log-entry log-info">Готов к импорту. Выберите файл.</div>
+        </div>
+
+        <div class="buttons">
+            <button id="exportBtn" class="btn">Выгрузить текущие данные в JSON</button>
+            <button id="clearBtn" class="btn btn-danger">Очистить все данные</button>
         </div>
     </div>
 
     <script>
-        let rbWorkbook = null;
-        let puWorkbook = null;
-        const branches = ['almaty', 'uralsk', 'astana'];
+        /* ═══════════════════════════════════════════════════════════════
+           Импорт из Excel.
 
-        document.getElementById('rbFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                document.getElementById('rbFileName').textContent = file.name;
-                readExcelFile(file, 'rb');
+           Ключевое отличие от прежней версии: лист пишется в ОДИН выбранный
+           филиал, а не сразу во все. Раньше каждый лист копировался в
+           almaty + astana + uralsk, из-за чего данные одного города
+           оказывались во всех трёх, а «НАО (центральный аппарат)» вообще
+           не заполнялся.
+
+           Второе: формат записи. Страницы хранят данные по-разному, поэтому
+           у каждой известной страницы свой конвертер. Для остальных пишется
+           «сырой» формат {cells:{A1:…}} — как было.
+           ═══════════════════════════════════════════════════════════════ */
+
+        const BRANCHES = [
+            { key: "nao", label: "НАО «РФМШ» (центральный аппарат)" },
+            { key: "almaty", label: "Алматы" },
+            { key: "astana", label: "Астана" },
+            { key: "uralsk", label: "Уральск" },
+        ];
+
+        // Лист целиком кладём рядом с разобранными данными, но не любой ценой:
+        // в localStorage около 5 МБ на весь домен, а «Тариф Свод Алматы» —
+        // это 392 строки на 90 колонок. Крупные листы пропускаем с записью
+        // в журнал, чтобы это не выглядело как потеря данных.
+        const FULL_SHEET_LIMIT = 700 * 1024;
+
+        // Как филиал называют в именах файлов и листов
+        const BRANCH_ALIASES = {
+            almaty: ["алматы", "алмата", "almaty", "алм."],
+            astana: ["астана", "astana", "нур-султан", "нурсултан"],
+            uralsk: ["уральск", "уралск", "uralsk", "орал"],
+            nao: ["нао", "центральный аппарат", "цa", "головной"],
+        };
+
+        // Филиал по имени листа, а если там ничего нет — по имени файла.
+        // Без этого всё уезжало в «НАО (центральный аппарат)»: первый пункт
+        // выпадающего списка выбирался молча.
+        function guessBranch(sheetName, fileName) {
+            const hay = [sheetName, fileName]
+                .map((s) => String(s || "").toLowerCase())
+                .join(" ");
+            for (const key of ["almaty", "astana", "uralsk"]) {
+                if (BRANCH_ALIASES[key].some((a) => hay.includes(a))) return key;
             }
-        });
+            if (BRANCH_ALIASES.nao.some((a) => hay.includes(a))) return "nao";
+            return "";
+        }
 
-        document.getElementById('puFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                document.getElementById('puFileName').textContent = file.name;
-                readExcelFile(file, 'pu');
+        /* Лист → массив строк, где rows[N-1] это строка Excel N.
+
+           sheet_to_json идёт по '!ref', а Excel в '!ref' не включает пустые
+           строки сверху: у «План свод 2026г платежи» диапазон начинается с
+           восьмой строки. Из-за этого rows[0] оказывался восьмой строкой
+           Excel, и все конвертеры, считающие по номерам строк, читали не то —
+           это и выглядело как «съедает первую строчку».
+           Поэтому диапазон принудительно расширяем до A1. */
+        function sheetToRows(ws) {
+            if (!ws || !ws["!ref"]) return [];
+            const range = XLSX.utils.decode_range(ws["!ref"]);
+            range.s.r = 0;
+            range.s.c = 0;
+            return XLSX.utils.sheet_to_json(ws, {
+                header: 1,
+                defval: "",
+                blankrows: true,
+                range: range,
+            });
+        }
+
+        // Значение ячейки: '' → 0, числовая строка → число
+        function cell(rows, r, c) {
+            const row = Array.isArray(rows) ? rows[r] : null;
+            if (!row) return 0;
+            const v = row[c];
+            if (v === undefined || v === null || v === "") return 0;
+            const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function text(rows, r, c) {
+            const row = Array.isArray(rows) ? rows[r] : null;
+            if (!row) return "";
+            const v = row[c];
+            return v === undefined || v === null ? "" : String(v);
+        }
+
+        /* ── Конвертеры под формат каждой страницы ──────────────────── */
+        // rows — массив массивов из sheet_to_json({header:1}), индексы с нуля,
+        // то есть строка Excel N лежит в rows[N-1].
+
+        function convIncomePu(rows) {
+            // Excel «ДОХОДНАЯ ЧАСТЬ ПУ»: строки 9..16, колонки E,F..Q,R,S
+            const out = { rows: {} };
+            for (let i = 0; i < 8; i++) {
+                const r = 8 + i; // строка 9 Excel = индекс 8
+                const rec = {
+                    cont: cell(rows, r, 4), // E
+                    pm: cell(rows, r, 17),  // R — в месяц
+                    py: cell(rows, r, 18),  // S — в год
+                };
+                for (let m = 1; m <= 12; m++) rec["m" + m] = cell(rows, r, 4 + m); // F..Q
+                out.rows[i + 1] = rec;
             }
-        });
+            return out;
+        }
 
-        function readExcelFile(file, type) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                
-                if (type === 'rb') {
-                    rbWorkbook = workbook;
-                    addLog(`✅ Файл РБ загружен: ${workbook.SheetNames.length} листов`, 'success');
-                } else {
-                    puWorkbook = workbook;
-                    addLog(`✅ Файл ПУ загружен: ${workbook.SheetNames.length} листов`, 'success');
-                }
-                
-                checkImportReady();
+        function convFotAlmaty(rows) {
+            // Excel «Свод ФОТ Алматы»: строки 7, 8 и 11; колонки D..L
+            const pick = (r) => ({
+                cnt: cell(rows, r, 3),
+                hours: cell(rows, r, 4),
+                salary: cell(rows, r, 5),
+                fzp: cell(rows, r, 6),
+                med: cell(rows, r, 7),
+                tax: cell(rows, r, 8),
+                soc: cell(rows, r, 9),
+                osms: cell(rows, r, 10),
+                opvr: cell(rows, r, 11),
+            });
+            return { r1: pick(6), r2: pick(7), r3: pick(10) };
+        }
+
+        function convGrafik(rows) {
+            // Excel «График род. оплаты Алматы»: транши в строках 7..10,
+            // контингент — N9 (индекс 8, колонка 13) и P9 (колонка 15)
+            const out = {
+                cont7: cell(rows, 8, 13) || 65,
+                cont811: cell(rows, 8, 15) || 102,
+                t: {},
             };
-            reader.readAsArrayBuffer(file);
+            for (let i = 0; i < 4; i++) {
+                const r = 6 + i; // строка 7 Excel = индекс 6
+                out.t[i + 1] = { d: cell(rows, r, 3), e: cell(rows, r, 4) };
+            }
+            return out;
         }
 
-        function checkImportReady() {
-            const importBtn = document.getElementById('importBtn');
-            const showSheetsBtn = document.getElementById('showSheetsBtn');
-            if (rbWorkbook || puWorkbook) {
-                importBtn.disabled = false;
-                showSheetsBtn.disabled = false;
+        function convKomandir(rows) {
+            // Excel «План командир 2026»: строки 18..32, колонки B..Q
+            const out = { rows: [] };
+            for (let r = 17; r <= 31; r++) {
+                const name = text(rows, r, 1);
+                const dest = text(rows, r, 2);
+                const any =
+                    name || dest || cell(rows, r, 3) || cell(rows, r, 8);
+                if (!any) continue;
+                out.rows.push({
+                    name: name,
+                    dest: dest,
+                    mrp: cell(rows, r, 3),
+                    trips: cell(rows, r, 4),
+                    days: cell(rows, r, 5),
+                    road: cell(rows, r, 6),
+                    people: cell(rows, r, 7),
+                    perNorm: cell(rows, r, 8),
+                    tripTo: cell(rows, r, 10),
+                    tripBack: cell(rows, r, 11),
+                    tripSum: cell(rows, r, 12),
+                    stayNorm: cell(rows, r, 13),
+                    stayNights: cell(rows, r, 14),
+                    staySum: cell(rows, r, 15),
+                    fee: cell(rows, r, 16),
+                });
+            }
+            if (!out.rows.length) out.rows.push({ name: "", dest: "", mrp: 3932 });
+            return out;
+        }
+
+        async function convSvodnaya(rows) {
+            // Разделы берутся из svodnaya_sections_full.json — страница
+            // хранит значения по ключу sec{N}_row{I}_col{J}
+            const out = {};
+            try {
+                const res = await fetch("svodnaya_sections_full.json");
+                const json = await res.json();
+                if (json && json.sections) {
+                    const put = (num, idx, colIdx) => {
+                        const id = "sec" + num + "_row" + idx + "_col" + colIdx;
+                        const src = rows[idx];
+                        out[id] = src && src[colIdx] !== undefined ? src[colIdx] : "";
+                    };
+
+                    json.sections.forEach((section) => {
+                        section.rows.forEach((row) => {
+                            row.data.forEach((_, colIdx) => {
+                                if (colIdx < 2) return;
+                                put(section.num, row.idx, colIdx);
+                            });
+                        });
+
+                        /* Строка-заголовок раздела в rows не входит, а в ней
+                           лежит итог раздела — именно на него ссылается лист
+                           «Свод» в исходной книге. Без него разнести данные
+                           по страницам не из чего. */
+                        if (section.start_row !== undefined) {
+                            for (let c = 2; c < 9; c++) {
+                                put(section.num, section.start_row, c);
+                            }
+                        }
+                    });
+                    return out;
+                }
+            } catch (e) {
+                addLog("Структура разделов не загрузилась, пишу сырые ячейки", "warning");
+            }
+            return convRaw(rows);
+        }
+
+        /* ── План финансирования и справки на передвижку ─────────── */
+        // Шапка у книг разъезжается по колонкам: у «План РБ 2026г платежи»
+        // «Финансовый план» стоит восьмой колонкой, у «План дотация 2026» —
+        // седьмой. Поэтому колонки ищем по заголовкам, а не по номерам.
+        function findPlanHeader(rows) {
+            for (let i = 0; i < rows.length && i < 60; i++) {
+                const r = rows[i] || [];
+                let nameCol = -1;
+                let finCol = -1;
+                for (let c = 0; c < r.length; c++) {
+                    const v = String(r[c] || "").trim();
+                    if (nameCol === -1 && /наименование расходов/i.test(v)) nameCol = c;
+                    if (finCol === -1 && /^финансовый план/i.test(v)) finCol = c;
+                }
+                if (nameCol !== -1 && finCol !== -1) {
+                    return { row: i, nameCol: nameCol, finCol: finCol };
+                }
+            }
+            return null;
+        }
+
+        // Специфику в этих книгах не пишут — подставляем по наименованию из
+        // типового состава расходов, чтобы колонка не осталась пустой
+        function codeByName(name) {
+            const norm = (s) =>
+                String(s || "").toLowerCase().replace(/[^а-яёa-z0-9]+/g, " ").trim();
+            const target = norm(name);
+            const sets = window.BUDGET_ROWS;
+            if (!target || !sets) return "";
+            let best = "";
+            let bestLen = 0;
+            Object.keys(sets).forEach((set) => {
+                sets[set].forEach((r) => {
+                    const a = norm(r.name);
+                    if (!a) return;
+                    if (target.indexOf(a) === 0 || a.indexOf(target) === 0) {
+                        const len = Math.min(a.length, target.length);
+                        if (len > bestLen) {
+                            bestLen = len;
+                            best = r.code;
+                        }
+                    }
+                });
+            });
+            return bestLen >= 8 ? best : "";
+        }
+
+        function convMonthlyPlan(rows) {
+            const h = findPlanHeader(rows);
+            if (!h) {
+                throw new Error(
+                    "не нашёл шапку «Наименование расходов» и «Финансовый план»",
+                );
+            }
+
+            const out = { rows: [], doc: {} };
+            for (let i = h.row + 1; i < rows.length; i++) {
+                const r = rows[i] || [];
+
+                /* Строка расходов выглядит так: один порядковый номер, за ним
+                   наименование. Всё остальное в этих книгах — не данные:
+                   строка с кодами госучреждения («225 | 99 | 100 | 159 |
+                   Оплата прочих услуг и работ») даёт четыре числа подряд,
+                   а «Всего:» и подписи внизу — ни одного. Считаем числа
+                   перед наименованием и берём только строки ровно с одним. */
+                let name = "";
+                let numbers = 0;
+                for (let c = 0; c < r.length && c <= h.finCol; c++) {
+                    const v = String(r[c] === null || r[c] === undefined ? "" : r[c]).trim();
+                    if (!v) continue;
+                    if (/^\d+([.,]\d+)?$/.test(v)) {
+                        numbers++;
+                        continue;
+                    }
+                    name = v;
+                    break;
+                }
+                if (/^(всего|итого)/i.test(name)) break;
+                if (numbers !== 1) continue;
+
+                const months = [];
+                let any = false;
+                for (let m = 1; m <= 12; m++) {
+                    const v = cell(rows, i, h.finCol + m);
+                    if (v) any = true;
+                    months.push(v);
+                }
+                if (!name && !any) continue;
+                if (!name) continue;
+
+                out.rows.push({ code: codeByName(name), name: name, m: months });
+            }
+
+            if (!out.rows.length) throw new Error("строки расходов не найдены");
+            out._lastUpdate = new Date().toLocaleString("ru-RU");
+            return out;
+        }
+
+        /* ── Штатное расписание ──────────────────────────────────── */
+        const SHTAT_COLS = [
+            ["post", /наименование должностей/i],
+            ["fio", /^\s*фио/i],
+            ["unitsFact", /по факту/i],
+            ["units", /^количество штатных единиц/i],
+            ["hired", /дата приема/i],
+            ["coefDo", /коэффициент для исчисления/i],
+            ["coef", /^коэффициент\s*$/i],
+            ["do", /должностной оклад/i],
+            ["d10", /доплата\s*10\s*%/i],
+            ["degree", /ученая степень/i],
+            ["dQualHead", /квалификационную категорию руковод/i],
+            ["dQualPed", /квалификацию педагогического мастерства/i],
+            ["dBdoQual", /от БДО за квалификационную категорию/i],
+            ["dBdoDriver", /класса?\s*квалификаци/i],
+            ["d30", /30\s*%\s*от БДО/i],
+            ["d20", /20\s*%\s*от БДО/i],
+            ["d25", /25\s*%\s*от БДО/i],
+            ["budget", /вид бюджета/i],
+        ];
+
+        // Даты приходят то объектом Date, то серийным номером Excel
+        function toDateString(v) {
+            if (v instanceof Date && !isNaN(v)) {
+                return v.toISOString().slice(0, 10);
+            }
+            if (typeof v === "number" && v > 20000 && v < 80000) {
+                const ms = Math.round((v - 25569) * 86400 * 1000);
+                return new Date(ms).toISOString().slice(0, 10);
+            }
+            const s = String(v || "").trim();
+            const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            return m ? m[0] : "";
+        }
+
+        function convShtatnoe(rows) {
+            let hdr = -1;
+            for (let i = 0; i < rows.length && i < 40; i++) {
+                if ((rows[i] || []).some((v) => /наименование должностей/i.test(String(v)))) {
+                    hdr = i;
+                    break;
+                }
+            }
+            if (hdr === -1) throw new Error("не нашёл шапку «Наименование должностей»");
+
+            const map = {};
+            (rows[hdr] || []).forEach((v, c) => {
+                const s = String(v || "").replace(/\s+/g, " ").trim();
+                if (!s) return;
+                SHTAT_COLS.forEach((pair) => {
+                    if (map[pair[0]] === undefined && pair[1].test(s)) map[pair[0]] = c;
+                });
+            });
+            if (map.post === undefined) throw new Error("колонка должностей не найдена");
+
+            const NUMS = [
+                "units", "unitsFact", "coef", "coefDo", "do", "d10", "degree",
+                "dQualHead", "dQualPed", "dBdoQual", "dBdoDriver", "d30", "d20", "d25",
+            ];
+
+            const out = [];
+            for (let i = hdr + 1; i < rows.length; i++) {
+                const post = text(rows, i, map.post).trim();
+                if (!post) continue;
+                if (/^(итого|всего)/i.test(post)) continue;
+
+                const rec = { post: post };
+                rec.fio = map.fio !== undefined ? text(rows, i, map.fio).trim() : "";
+                rec.budget =
+                    map.budget !== undefined ? text(rows, i, map.budget).trim() : "";
+                rec.hired =
+                    map.hired !== undefined
+                        ? toDateString((rows[i] || [])[map.hired])
+                        : "";
+                NUMS.forEach((k) => {
+                    rec[k] = map[k] !== undefined ? cell(rows, i, map[k]) : 0;
+                });
+                out.push(rec);
+            }
+
+            if (!out.length) throw new Error("строки должностей не найдены");
+
+            const now = new Date();
+            const MONTHS = [
+                "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+            ];
+            return {
+                periods: [
+                    {
+                        id: "p" + now.getTime(),
+                        label: MONTHS[now.getMonth()] + " " + now.getFullYear(),
+                        rows: out,
+                    },
+                ],
+                settings: { mrp: 4325, deduction: 129750, lopK: 2 },
+                _lastUpdate: now.toLocaleString("ru-RU"),
+            };
+        }
+
+        // Имя колонки как в Excel: A…Z, AA…AZ, BA… Раньше здесь стоял
+        // String.fromCharCode(65 + i), и после 26-й колонки получались «[», «\»,
+        // «]» — у штатного расписания 35 колонок, у тарификации 90, то есть
+        // больше половины листа уезжало в мусорные ключи.
+        function colName(i) {
+            let s = "";
+            i += 1;
+            while (i > 0) {
+                const r = (i - 1) % 26;
+                s = String.fromCharCode(65 + r) + s;
+                i = Math.floor((i - 1) / 26);
+            }
+            return s;
+        }
+
+        function rawValue(v) {
+            if (v === "" || v === null || v === undefined) return 0;
+            if (v instanceof Date) return v.toISOString().slice(0, 10);
+            if (typeof v === "number") return v;
+            /* Числом считаем только «чистое» число. Раньше здесь стоял
+               Number(), а он принимает и «1.» — нумерацию пунктов «1.», «2.»
+               превращало в числа 1 и 2, и текстовая подпись уезжала в
+               суммы. Правило теперь то же, что у сверки. */
+            const t = String(v).replace(/[\s ]/g, "").replace(",", ".");
+            if (!/^-?\d+(\.\d+)?$/.test(t)) return v;
+            const n = Number(t);
+            return Number.isFinite(n) ? n : v;
+        }
+
+        function convRaw(rows) {
+            // Универсальный формат: {cells:{A1: значение}} — лист целиком,
+            // и наименования, и числа
+            const cells = {};
+            let maxCol = 0;
+            rows.forEach((row, rowIndex) => {
+                if (!row) return;
+                if (row.length > maxCol) maxCol = row.length;
+                row.forEach((v, colIndex) => {
+                    cells[colName(colIndex) + (rowIndex + 1)] = rawValue(v);
+                });
+            });
+            return {
+                lastModified: new Date().toISOString(),
+                meta: { rows: rows.length, cols: maxCol },
+                cells: cells,
+            };
+        }
+
+        /* ── Сверка: всё ли доехало из листа ─────────────────────── */
+        /* Импорт легко «проглатывает» строки молча: не тот номер колонки,
+           не та шапка — и половина листа не доехала, а лог рапортует успех.
+           Поэтому после каждого листа считаем две вещи независимо друг от
+           друга: что было в Excel и что легло в хранилище. */
+
+        function isNum(v) {
+            if (typeof v === "number") return Number.isFinite(v);
+            if (typeof v !== "string") return false;
+            const t = v.replace(/[\s ]/g, "").replace(",", ".");
+            return t !== "" && /^-?\d+(\.\d+)?$/.test(t) && Number.isFinite(+t);
+        }
+
+        function asNum(v) {
+            if (typeof v === "number") return v;
+            return Number(String(v).replace(/[\s ]/g, "").replace(",", "."));
+        }
+
+        // \b в JS считает кириллицу неслововым символом, поэтому границу
+        // слова после «Всего» задавать нечем — обходимся началом строки
+        function isTotalRow(row) {
+            return (row || []).some(
+                (v) => typeof v === "string" && /^\s*(всего|итого)/i.test(v),
+            );
+        }
+
+        /* Контрольная сумма листа. Считается по всем строкам, включая
+           «Всего» — сравнивается она с суммой по сохранённым данным, где
+           итоговые строки тоже есть. Складывать разное с обеих сторон
+           нельзя: расхождение вылезет там, где всё в порядке. */
+        function excelStats(rows) {
+            let numbers = 0;
+            let sum = 0;
+            let texts = 0;
+            let dataRows = 0;
+            const totals = [];
+
+            (rows || []).forEach((row) => {
+                if (!row) return;
+                let rowHasNum = false;
+                let rowSum = 0;
+                row.forEach((v) => {
+                    if (isNum(v)) {
+                        const n = asNum(v);
+                        if (n !== 0) {
+                            numbers++;
+                            sum += n;
+                            rowSum += n;
+                            rowHasNum = true;
+                        }
+                    } else if (typeof v === "string" && v.trim()) {
+                        texts++;
+                    }
+                });
+                if (isTotalRow(row)) totals.push(rowSum);
+                else if (rowHasNum) dataRows++;
+            });
+
+            return { numbers, sum, texts, dataRows, totals };
+        }
+
+        // Пересчёт того, что реально записано: обходим сохранённый объект
+        function storedStats(data) {
+            let numbers = 0;
+            let sum = 0;
+            let texts = 0;
+
+            (function walk(node) {
+                if (node === null || node === undefined) return;
+                if (Array.isArray(node)) {
+                    node.forEach(walk);
+                    return;
+                }
+                if (typeof node === "object") {
+                    Object.keys(node).forEach((k) => {
+                        // Служебные поля — не данные листа. meta хранит размер
+                        // листа, и без этой строчки «Тариф Свод» на 16 149
+                        // колонок добавлял к контрольной сумме лишние 16 тысяч
+                        if (k === "lastModified" || k === "_lastUpdate") return;
+                        if (k === "meta") return;
+                        walk(node[k]);
+                    });
+                    return;
+                }
+                if (typeof node === "number") {
+                    if (Number.isFinite(node) && node !== 0) {
+                        numbers++;
+                        sum += node;
+                    }
+                    return;
+                }
+                if (typeof node === "string") {
+                    if (isNum(node)) {
+                        const n = asNum(node);
+                        if (n !== 0) {
+                            numbers++;
+                            sum += n;
+                        }
+                    } else if (node.trim()) {
+                        texts++;
+                    }
+                }
+            })(data);
+
+            return { numbers, sum, texts };
+        }
+
+        function verify(job, rows, data) {
+            const xl = excelStats(rows);
+            const got = storedStats(data);
+            // Нули в контрольную сумму не входят с обеих сторон: пустая
+            // ячейка Excel и записанный ноль — одно и то же
+            const xlSum = Math.round(xl.sum * 100) / 100;
+            const gotSum = Math.round(got.sum * 100) / 100;
+            const diff = Math.round((gotSum - xlSum) * 100) / 100;
+
+            let state;
+            if (Math.abs(diff) < 0.01) state = "ok";
+            else if (job.target.exact) state = "part"; // конвертер берёт часть листа — так и задумано
+            else state = "bad";
+
+            return {
+                sheet: job.sheet,
+                title: job.target.title,
+                exact: !!job.target.exact,
+                xlNumbers: xl.numbers,
+                gotNumbers: got.numbers,
+                xlTexts: xl.texts,
+                gotTexts: got.texts,
+                xlRows: xl.dataRows,
+                xlSum,
+                gotSum,
+                diff,
+                totals: xl.totals,
+                state,
+            };
+        }
+
+        /* ── Итог импорта ────────────────────────────────────────── */
+        /* Раньше о результате говорил только журнал внизу — по нему было не
+           понять, доехало ли что-нибудь. Теперь сверху появляется блок с
+           ответом на три вопроса: сколько листов, куда легло, всё ли сошлось. */
+
+        // Ключ страницы → её адрес. У большинства имя файла получается заменой
+        // подчёркиваний на дефисы, остальные перечислены отдельно.
+        const PAGE_OF = {
+            plan_fin_rb: "plan-finansirovaniya.html",
+            plan_fin_pu: "plan-finansirovaniya.html",
+            plan_fin_dt: "plan-finansirovaniya.html",
+            spravka_peredvizhka_rb: "spravki.html",
+            spravka_peredvizhka_pu: "spravki.html",
+            shtat: "shtatnoe.html",
+        };
+
+        function pageOf(key) {
+            return PAGE_OF[key] || key.replace(/_/g, "-") + ".html";
+        }
+
+        function showResult(r) {
+            const box = document.getElementById("resultBlock");
+            const bad = r.errors > 0;
+            const warn = !bad && r.mismatched > 0;
+            const state = bad ? "bad" : warn ? "warn" : "ok";
+
+            const headline = bad
+                ? "Импорт прошёл с ошибками"
+                : warn
+                  ? "Импорт завершён, но есть расхождения"
+                  : "Импорт завершён — всё на месте";
+
+            const sub = bad
+                ? `Не удалось обработать листов: ${r.errors}. Подробности в журнале ниже.`
+                : warn
+                  ? `Листов загружено: ${r.sheets}. По ${r.mismatched} из них числа ` +
+                    "в файле и в системе разошлись — смотрите «Сверку с файлом»."
+                  : `Загружено листов: ${r.sheets}, строк: ${r.rows.toLocaleString("ru-RU")}. ` +
+                    "Все числа из файла на месте.";
+
+            box.className = "imp-result " + state;
+            box.innerHTML =
+                '<div class="imp-result-head">' +
+                '<span class="imp-result-mark">' + (bad ? "!" : warn ? "!" : "✓") + "</span>" +
+                "<div><strong>" + headline + "</strong>" +
+                "<div class='imp-result-sub'>" + sub + "</div></div>" +
+                "</div>" +
+                (r.landed.length
+                    ? '<div class="imp-result-list">' +
+                      r.landed
+                          .map(
+                              (x) =>
+                                  '<div class="imp-result-row">' +
+                                  '<span class="sheet-name">' + x.sheet + "</span>" +
+                                  '<span class="imp-result-arrow">→</span>' +
+                                  "<span>" + x.title + " · " + x.branch + "</span>" +
+                                  '<a class="imp-result-open" href="' + x.page + '">Открыть</a>' +
+                                  "</div>",
+                          )
+                          .join("") +
+                      "</div>"
+                    : "") +
+                // Что подтянулось на связанные страницы само
+                ((r.derived || []).length
+                    ? '<div class="imp-result-list">' +
+                      '<div class="imp-result-sub" style="margin-bottom:4px">' +
+                      "Заодно заполнено по связям из исходной книги:</div>" +
+                      r.derived
+                          .map(
+                              (x) =>
+                                  '<div class="imp-result-row">' +
+                                  "<span>" + x.from + "</span>" +
+                                  '<span class="imp-result-arrow">→</span>' +
+                                  "<span>" + x.to + " · " + x.branch +
+                                  " · строк " + x.count + "</span>" +
+                                  '<a class="imp-result-open" href="' + x.page + '">Открыть</a>' +
+                                  "</div>",
+                          )
+                          .join("") +
+                      "</div>"
+                    : "");
+
+            box.hidden = false;
+            box.scrollIntoView({ behavior: "smooth", block: "start" });
+
+            if (window.finkaToast) {
+                window.finkaToast(
+                    bad
+                        ? "Импорт с ошибками: " + r.errors
+                        : warn
+                          ? "Импорт завершён, расхождений: " + r.mismatched
+                          : "Импорт завершён: листов " + r.sheets,
+                    bad ? "error" : warn ? "warning" : "success",
+                );
             }
         }
 
-        document.getElementById('showSheetsBtn').addEventListener('click', function() {
-            addLog('📋 Список листов в загруженных файлах:', 'info');
-            
-            if (rbWorkbook) {
-                addLog('--- Файл РБ ---', 'info');
-                rbWorkbook.SheetNames.forEach((name, index) => {
-                    addLog(`${index + 1}. "${name}"`, 'success');
+        function renderReport(list) {
+            const box = document.getElementById("checkBlock");
+            const body = document.getElementById("checkBody");
+            const fmt = (v) =>
+                v.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                 });
-            }
-            
-            if (puWorkbook) {
-                addLog('--- Файл ПУ ---', 'info');
-                puWorkbook.SheetNames.forEach((name, index) => {
-                    addLog(`${index + 1}. "${name}"`, 'success');
-                });
-            }
-        });
 
-        function addLog(message, type = 'info') {
-            const log = document.getElementById('log');
-            const entry = document.createElement('div');
+            const mark = {
+                ok: '<span class="chk-ok">всё сошлось</span>',
+                part: '<span class="chk-part">часть листа</span>',
+                bad: '<span class="chk-bad">расхождение</span>',
+            };
+
+            body.innerHTML = list
+                .map(
+                    (r) =>
+                        "<tr>" +
+                        '<td class="sheet-name">' + r.sheet + "</td>" +
+                        "<td>" + r.title + "</td>" +
+                        '<td class="rows-count">' + r.xlRows + "</td>" +
+                        '<td class="rows-count">' + r.xlNumbers + " → " + r.gotNumbers + "</td>" +
+                        '<td class="rows-count">' + r.xlTexts + " → " + r.gotTexts + "</td>" +
+                        '<td class="rows-count">' + fmt(r.xlSum) + "</td>" +
+                        '<td class="rows-count">' + fmt(r.gotSum) + "</td>" +
+                        '<td class="rows-count">' + (r.diff ? fmt(r.diff) : "0,00") + "</td>" +
+                        "<td>" + mark[r.state] + "</td>" +
+                        "</tr>",
+                )
+                .join("");
+            box.hidden = false;
+        }
+
+        /* ── Каталог страниц ───────────────────────────────────────── */
+        // exact: есть точный конвертер под формат страницы
+        const TARGETS = [
+            { key: "rb_svod", title: "РБ · Свод расходов", sheets: ["Свод"] },
+            { key: "rb_svodnaya", title: "РБ · Сводная общая", sheets: ["Сводная общая 2026г."], conv: convSvodnaya, exact: true },
+            { key: "rb_income", title: "РБ · Доходы", sheets: ["ДОХОДНАЯ ЧАСТЬ РБ"] },
+            { key: "rb_fzp", title: "РБ · Свод ФЗП", sheets: ["СВОД ФЗП"] },
+            { key: "rb_kalkulyacia", title: "РБ · Калькуляция", sheets: ["Калькуляция 2026"] },
+            { key: "rb_plan_komandir", title: "РБ · План командировок", sheets: ["План командир 2026"], conv: convKomandir, exact: true },
+            { key: "pu_svod_2026", title: "ПУ · Свод общий", sheets: ["СВОД общий 2026"] },
+            { key: "pu_ss_almaty", title: "ПУ · Собственные средства", sheets: ["СС Алматы"] },
+            { key: "pu_ss_dotacia", title: "ПУ · СС Дотация", sheets: ["СС Дотация"] },
+            { key: "pu_income_pu", title: "ПУ · Доходы ПУ", sheets: ["ДОХОДНАЯ ЧАСТЬ ПУ"], conv: convIncomePu, exact: true },
+            { key: "pu_income_dt", title: "ПУ · Доходы ДТ", sheets: ["ДОХОДНАЯ ЧАСТЬ ДТ"] },
+            { key: "pu_income_dop", title: "ПУ · Доходы ДОП", sheets: ["ДОХОДНАЯ ЧАСТЬ доп"] },
+            { key: "pu_fot_almaty", title: "ПУ · Свод ФОТ", sheets: ["Свод ФОТ Алматы"], conv: convFotAlmaty, exact: true },
+            { key: "pu_grafik_almaty", title: "ПУ · График род. оплаты", sheets: ["График род. оплаты Алматы"], conv: convGrafik, exact: true },
+            { key: "pu_kalkulyacia_almaty", title: "ПУ · Калькуляция", sheets: ["Калькуляция Алматы"] },
+            { key: "pu_plan_rk", title: "ПУ · План командировок РК", sheets: ["План команд в пред РК"] },
+            { key: "pu_plan_abroad", title: "ПУ · План командировок за рубеж", sheets: ["План команд за пределы РК"] },
+
+            { key: "plan_fin_rb", title: "План финансирования · РБ", sheets: ["План РБ 2026г платежи", "План РБ 2026г обяз."], conv: convMonthlyPlan, exact: true },
+            { key: "plan_fin_pu", title: "План финансирования · ПУ", sheets: ["ПЛАН ПУ 2026"], conv: convMonthlyPlan, exact: true },
+            { key: "plan_fin_dt", title: "План финансирования · Дотация", sheets: ["План дотация 2026", "План 2026"], conv: convMonthlyPlan, exact: true },
+            // Лист в обеих книгах называется одинаково — «План по видам
+            // Алматы», поэтому различаем их по имени файла
+            // \b в JS считает кириллицу неслововым символом, поэтому границы
+            // слова здесь задаём явно
+            { key: "spravka_peredvizhka_rb", title: "Справка на передвижку · РБ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])рб($|[\s_.-])/i, conv: convMonthlyPlan, exact: true },
+            { key: "spravka_peredvizhka_pu", title: "Справка на передвижку · ПУ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])пу($|[\s_.-])/i, conv: convMonthlyPlan, exact: true },
+            { key: "shtat", title: "Штатное расписание", sheets: ["ШР на 02.02.2026 г.", "ШР СВОД Алматы 2026", "ШР РБ Алматы"], conv: convShtatnoe, exact: true },
+        ];
+
+        /* Лист → страница.
+
+           Мягкое совпадение раньше шло по первому вхождению, и лист «Свод»
+           у РБ (алиас из четырёх букв) забирал себе всё, где встречается
+           «свод»: «СВОД ФЗП», «СВОД ПЛАНА 2026», «Свод ФОТ Алматы»,
+           «Сводная общая 2027г.». Теперь короткие алиасы в мягком поиске не
+           участвуют, а из подходящих берётся самый длинный — то есть самый
+           конкретный. */
+        const SOFT_MIN_LEN = 6;
+
+        function guessTarget(sheetName, fileName) {
+            const norm = (s) => s.replace(/\s+/g, " ").trim().toLowerCase();
+            const n = norm(sheetName);
+            if (!n) return "";
+
+            const exact = TARGETS.filter((t) => t.sheets.some((s) => norm(s) === n));
+            if (exact.length) {
+                // одинаковое имя листа у нескольких книг — разводим по файлу
+                const byFile = exact.filter(
+                    (t) => t.file && t.file.test(String(fileName || "")),
+                );
+                return (byFile[0] || exact[0]).key;
+            }
+
+            let best = null;
+            let bestLen = 0;
+            TARGETS.forEach((t) => {
+                t.sheets.forEach((s) => {
+                    const a = norm(s);
+                    if (a.length < SOFT_MIN_LEN) return;
+                    if (!n.includes(a) && !a.includes(n)) return;
+                    if (a.length > bestLen) {
+                        bestLen = a.length;
+                        best = t.key;
+                    }
+                });
+            });
+            return best || "";
+        }
+
+        /* ── Интерфейс ─────────────────────────────────────────────── */
+        let workbook = null;
+        let sheetRows = {}; // имя листа → массив строк
+        let currentFileName = ""; // нужен для определения филиала
+
+        function addLog(message, type = "info") {
+            const log = document.getElementById("log");
+            const entry = document.createElement("div");
             entry.className = `log-entry log-${type}`;
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            entry.textContent = message;
             log.appendChild(entry);
             log.scrollTop = log.scrollHeight;
         }
 
-        function updateProgress(percent, text) {
-            const progress = document.getElementById('progress');
-            const progressBar = document.getElementById('progressBar');
-            progress.style.display = 'block';
-            progressBar.style.width = percent + '%';
-            progressBar.textContent = text || percent + '%';
+        function updateProgress(percent) {
+            const p = document.getElementById("progress");
+            p.style.display = "block";
+            document.getElementById("progressBar").style.width = percent + "%";
         }
 
         function updateStats(sheets, rows, errors) {
-            document.getElementById('stats').style.display = 'grid';
-            document.getElementById('sheetsProcessed').textContent = sheets;
-            document.getElementById('rowsImported').textContent = rows;
-            document.getElementById('errorsCount').textContent = errors;
+            document.getElementById("stats").style.display = "grid";
+            document.getElementById("sheetsProcessed").textContent = sheets;
+            document.getElementById("rowsImported").textContent = rows;
+            document.getElementById("errorsCount").textContent = errors;
         }
 
-        // ПРАВИЛЬНАЯ конвертация в формат страниц
-        function convertExcelDataToPageFormat(excelData, sheetKey, branch, startRow = 1) {
-            const cells = {};
-            
-            excelData.forEach((row, rowIndex) => {
-                if (rowIndex < startRow) return; // Пропускаем заголовки
-                
-                row.forEach((cellValue, colIndex) => {
-                    const colLetter = String.fromCharCode(65 + colIndex); // A, B, C...
-                    const cellId = `${colLetter}${rowIndex + 1}`;
-                    const value = cellValue === '' ? 0 : (isNaN(cellValue) ? cellValue : Number(cellValue));
-                    cells[cellId] = value;
-                });
-            });
-            
-            // Возвращаем в формате, который ожидают страницы
-            return {
-                branch: branch,
-                sheet: sheetKey,
-                lastModified: new Date().toISOString(),
-                cells: cells
-            };
-        }
+        document.getElementById("fileInput").addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            currentFileName = file.name;
+            document.getElementById("fileName").textContent = file.name;
 
-        // Специальная конвертация для rb-svodnaya (сохраняет формат как на странице)
-        async function convertExcelToSvodnaya(excelData, branch) {
-            // Загружаем структуру секций если есть
-            let sectionData = {};
-            
-            try {
-                const response = await fetch('svodnaya_sections_full.json');
-                const jsonData = await response.json();
-                
-                // Если есть структура секций, используем её
-                if (jsonData && jsonData.sections) {
-                    jsonData.sections.forEach(section => {
-                        section.rows.forEach(row => {
-                            row.data.forEach((cell, colIdx) => {
-                                // Пропускаем заголовки и формулы (первые 2 колонки и последняя)
-                                if (colIdx === 0 || colIdx === 1 || colIdx === row.data.length - 1 || cell === "") return;
-                                
-                                const cellId = `sec${section.num}_row${row.idx}_col${colIdx}`;
-                                
-                                // Получаем значение из Excel данных если есть
-                                if (excelData[row.idx] && excelData[row.idx][colIdx] !== undefined) {
-                                    const value = excelData[row.idx][colIdx];
-                                    sectionData[cellId] = value === '' ? '' : value;
-                                } else {
-                                    sectionData[cellId] = '';
-                                }
-                            });
-                        });
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                try {
+                    // cellDates — иначе дата приёма на работу приходит
+                    // серийным номером Excel и в поле type="date" не встаёт
+                    workbook = XLSX.read(new Uint8Array(ev.target.result), {
+                        type: "array",
+                        cellDates: true,
                     });
-                    return sectionData;
+                } catch (err) {
+                    addLog("Не удалось прочитать файл: " + err.message, "error");
+                    return;
                 }
-            } catch (e) {
-                console.log('Используем простую конвертацию (файл структуры не найден)');
-            }
-            
-            // Если структура не загрузилась, используем простую конвертацию
-            const data = {};
-            excelData.forEach((row, rowIdx) => {
-                if (rowIdx < 10) return; // Пропускаем первые строки с заголовками
-                
-                row.forEach((cellValue, colIdx) => {
-                    if (colIdx < 2 || colIdx > 30) return; // Пропускаем первые 2 колонки и после 30
-                    
-                    const cellId = `sec1_row${rowIdx}_col${colIdx}`;
-                    const value = cellValue === '' ? '' : cellValue;
-                    data[cellId] = value;
+                sheetRows = {};
+                workbook.SheetNames.forEach((name) => {
+                    sheetRows[name] = sheetToRows(workbook.Sheets[name]);
                 });
-            });
-            
-            return data;
-        }
-
-        document.getElementById('importBtn').addEventListener('click', async function() {
-            addLog('🚀 Начало импорта данных...', 'info');
-            
-            let totalSheets = 0;
-            let totalRows = 0;
-            let totalErrors = 0;
-
-            try {
-                if (rbWorkbook) {
-                    addLog('📊 Импорт данных РБ...', 'info');
-                    const rbResult = await importRBData(rbWorkbook);
-                    totalSheets += rbResult.sheets;
-                    totalRows += rbResult.rows;
-                    totalErrors += rbResult.errors;
-                }
-
-                if (puWorkbook) {
-                    addLog('👥 Импорт данных ПУ...', 'info');
-                    const puResult = await importPUData(puWorkbook);
-                    totalSheets += puResult.sheets;
-                    totalRows += puResult.rows;
-                    totalErrors += puResult.errors;
-                }
-
-                updateStats(totalSheets, totalRows, totalErrors);
-                updateProgress(100, 'Завершено!');
-                
-                const totalDataSets = totalSheets * branches.length;
-                
-                if (totalErrors === 0) {
-                    addLog(`✅ Импорт успешно завершен!`, 'success');
-                    addLog(`📊 Обработано листов: ${totalSheets}`, 'success');
-                    addLog(`📁 Создано наборов данных: ${totalDataSets} (для ${branches.length} филиалов)`, 'success');
-                    addLog(`📝 Всего строк: ${totalRows}`, 'success');
-                    addLog(`🎉 Данные готовы к использованию! Откройте любую страницу бюджета.`, 'success');
-                } else {
-                    addLog(`⚠️ Импорт завершен с ошибками: ${totalErrors}`, 'warning');
-                }
-                
-            } catch (error) {
-                addLog(`❌ Ошибка импорта: ${error.message}`, 'error');
-                totalErrors++;
-                updateStats(totalSheets, totalRows, totalErrors);
-            }
+                addLog(
+                    `Файл прочитан: ${workbook.SheetNames.length} листов`,
+                    "success",
+                );
+                document.getElementById("step1").classList.add("done");
+                buildMap();
+            };
+            reader.readAsArrayBuffer(file);
         });
 
-        async function importRBData(workbook) {
-            let sheets = 0;
-            let rows = 0;
-            let errors = 0;
+        function buildMap() {
+            const body = document.getElementById("mapBody");
+            let html = "";
 
-            const sheetMapping = {
-                'Свод ': { key: 'rb_svod', data: 'rb_svod_data' },
-                'Сводная общая 2026г.': { key: 'rb_svodnaya', data: 'rb_svodnaya_data', special: true },
-                'ДОХОДНАЯ ЧАСТЬ РБ': { key: 'rb_income', data: 'rb_income_data' },
-                'СВОД ФЗП': { key: 'rb_fzp', data: 'rb_fzp_data' },
-                'Калькуляция 2026': { key: 'rb_kalkulyacia', data: 'rb_kalkulyacia_data' },
-                'План командир 2026': { key: 'rb_plan_komandir', data: 'rb_plan_komandir_data' }
-            };
+            workbook.SheetNames.forEach((name, i) => {
+                const guess = guessTarget(name, currentFileName);
+                const rows = sheetRows[name] || [];
+                const target = TARGETS.find((t) => t.key === guess);
+                const hint = !guess
+                    ? ""
+                    : target && target.exact
+                      ? '<div class="hint-exact">точное соответствие формул</div>'
+                      : '<div class="hint-raw">сырые ячейки</div>';
 
-            for (const [sheetName, config] of Object.entries(sheetMapping)) {
-                try {
-                    let foundSheet = workbook.SheetNames.find(name => 
-                        name.trim() === sheetName.trim() || name === sheetName
+                const branchGuess = guessBranch(name, currentFileName) || "nao";
+                const branchHint =
+                    branchGuess === "nao" && !guessBranch(name, currentFileName)
+                        ? '<div class="hint-raw">филиал не распознан — проверьте</div>'
+                        : '<div class="hint-exact">филиал из названия</div>';
+
+                html +=
+                    "<tr>" +
+                    '<td><input type="checkbox" class="row-on" data-i="' + i +
+                    '" ' + (guess ? "checked" : "") + "></td>" +
+                    '<td class="sheet-name">' + name + "</td>" +
+                    '<td class="rows-count">' + rows.length + "</td>" +
+                    '<td><select class="row-target" data-i="' + i + '">' +
+                    '<option value="">— не импортировать —</option>' +
+                    TARGETS.map(
+                        (t) =>
+                            '<option value="' + t.key + '"' +
+                            (t.key === guess ? " selected" : "") + ">" +
+                            t.title + "</option>",
+                    ).join("") +
+                    "</select>" + hint + "</td>" +
+                    '<td><select class="row-branch" data-i="' + i + '">' +
+                    BRANCHES.map(
+                        (b) =>
+                            '<option value="' + b.key + '"' +
+                            (b.key === branchGuess ? " selected" : "") + ">" +
+                            b.label + "</option>",
+                    ).join("") +
+                    "</select>" + branchHint + "</td>" +
+                    "</tr>";
+            });
+
+            body.innerHTML = html;
+            document.getElementById("mapBlock").hidden = false;
+            buildViewer();
+
+            // подсказка при смене страницы
+            body.querySelectorAll(".row-target").forEach((sel) => {
+                sel.addEventListener("change", () => {
+                    const i = sel.getAttribute("data-i");
+                    const cb = body.querySelector('.row-on[data-i="' + i + '"]');
+                    if (cb) cb.checked = !!sel.value;
+                });
+            });
+        }
+
+        /* ── Просмотр листа как в Excel ───────────────────────────── */
+        // sheet_to_html сохраняет объединения (colspan/rowspan) — то, чего
+        // не видно в построчном логе
+        function buildViewer() {
+            const sel = document.getElementById("viewSheet");
+            sel.innerHTML = workbook.SheetNames.map(
+                (n) => '<option value="' + n + '">' + n.trim() + "</option>",
+            ).join("");
+            document.getElementById("viewBlock").hidden = false;
+            renderSheet(workbook.SheetNames[0]);
+        }
+
+        function renderSheet(name) {
+            const ws = workbook.Sheets[name];
+            if (!ws) return;
+            document.getElementById("xlView").innerHTML = XLSX.utils.sheet_to_html(
+                ws,
+                { editable: false },
+            );
+        }
+
+        document.getElementById("viewSheet").addEventListener("change", function () {
+            renderSheet(this.value);
+        });
+
+        document.getElementById("bulkBranch").addEventListener("change", function () {
+            if (!this.value) return;
+            document
+                .querySelectorAll(".row-branch")
+                .forEach((sel) => (sel.value = this.value));
+            addLog(
+                "Филиал для всех листов: " +
+                    BRANCHES.find((b) => b.key === this.value).label,
+                "info",
+            );
+        });
+
+        document.getElementById("selectAllBtn").addEventListener("click", () => {
+            document.querySelectorAll(".row-on").forEach((cb) => {
+                const i = cb.getAttribute("data-i");
+                const sel = document.querySelector('.row-target[data-i="' + i + '"]');
+                cb.checked = !!(sel && sel.value);
+            });
+        });
+
+        document.getElementById("selectNoneBtn").addEventListener("click", () => {
+            document.querySelectorAll(".row-on").forEach((cb) => (cb.checked = false));
+        });
+
+        function selectedJobs() {
+            const jobs = [];
+            document.querySelectorAll(".row-on").forEach((cb) => {
+                if (!cb.checked) return;
+                const i = cb.getAttribute("data-i");
+                const targetKey = document.querySelector(
+                    '.row-target[data-i="' + i + '"]',
+                ).value;
+                if (!targetKey) return;
+                const branch = document.querySelector(
+                    '.row-branch[data-i="' + i + '"]',
+                ).value;
+                jobs.push({
+                    sheet: workbook.SheetNames[Number(i)],
+                    target: TARGETS.find((t) => t.key === targetKey),
+                    branch: branch,
+                });
+            });
+            return jobs;
+        }
+
+        document.getElementById("previewBtn").addEventListener("click", () => {
+            const jobs = selectedJobs();
+            if (!jobs.length) {
+                addLog("Нечего показывать — ни один лист не отмечен", "warning");
+                return;
+            }
+            jobs.forEach((job) => {
+                const rows = sheetRows[job.sheet] || [];
+                addLog(`— ${job.sheet} → ${job.target.title}`, "info");
+                rows.slice(0, 3).forEach((r, idx) => {
+                    addLog(
+                        `   строка ${idx + 1}: ` +
+                            r.slice(0, 8).map((v) => (v === "" ? "·" : v)).join(" | "),
+                        "info",
                     );
-                    
-                    if (foundSheet) {
-                        const worksheet = workbook.Sheets[foundSheet];
-                        const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ''});
-                        
-                        // Сохраняем сырые данные
-                        localStorage.setItem(config.data, JSON.stringify(rawData));
-                        
-                        // Конвертируем для каждого филиала
-                        for (const branch of branches) {
-                            if (config.special) {
-                                // Специальная обработка для rb-svodnaya
-                                const pageData = await convertExcelToSvodnaya(rawData, branch);
-                                localStorage.setItem(`rb_svodnaya_${branch}`, JSON.stringify(pageData));
-                                
-                                // Устанавливаем флаг импорта для блокировки автоматических формул
-                                localStorage.setItem('rb_svodnaya_import_flag', 'true');
-                            } else {
-                                // Стандартная обработка - преобразуем Excel в формат {A1: value, B1: value}
-                                const cells = {};
-                                rawData.forEach((row, rowIndex) => {
-                                    if (rowIndex < 1) return; // Пропускаем заголовок
-                                    row.forEach((cellValue, colIndex) => {
-                                        const colLetter = String.fromCharCode(65 + colIndex); // A, B, C...
-                                        const cellId = `${colLetter}${rowIndex + 1}`;
-                                        const value = cellValue === '' ? 0 : (isNaN(cellValue) ? cellValue : Number(cellValue));
-                                        cells[cellId] = value;
-                                    });
+                });
+            });
+        });
+
+        document.getElementById("importBtn").addEventListener("click", async () => {
+            const jobs = selectedJobs();
+            if (!jobs.length) {
+                addLog("Ни один лист не отмечен для импорта", "warning");
+                return;
+            }
+
+            let sheets = 0;
+            let rowsTotal = 0;
+            let errors = 0;
+            const report = [];
+            const landed = []; // куда что легло — для итогового сообщения
+            const derived = []; // что разнесено по связанным страницам
+
+            addLog(`Импорт: ${jobs.length} лист(ов)`, "info");
+
+            for (let i = 0; i < jobs.length; i++) {
+                const job = jobs[i];
+                const rows = sheetRows[job.sheet] || [];
+                const branchLabel = BRANCHES.find((b) => b.key === job.branch).label;
+
+                try {
+                    const conv = job.target.conv || convRaw;
+                    const data = await conv(rows);
+                    const storageKey = job.target.key + "_" + job.branch;
+                    localStorage.setItem(storageKey, JSON.stringify(data));
+
+                    if (job.target.key === "rb_svodnaya") {
+                        localStorage.setItem("rb_svodnaya_import_flag", "true");
+                        // «Свод расходов» в исходной книге не вводится руками:
+                        // его строки — ссылки на итоги разделов «Сводной общей».
+                        // Повторяем это здесь, иначе после импорта «Свод»
+                        // остался бы пустым.
+                        if (window.FinkaDerive) {
+                            // Цепочка книги целиком: ФЗП → Свод,
+                            // Сводная общая → Свод, Свод → Калькуляция
+                            window.FinkaDerive.chain(job.branch);
+                            const d = window.FinkaDerive.toSvod(job.branch);
+                            const k = window.FinkaDerive.toKalkulyacia(job.branch);
+                            if (k.ok && k.moved.length) {
+                                derived.push({
+                                    from: "РБ · Свод расходов",
+                                    to: "РБ · Калькуляция расходов",
+                                    branch: branchLabel,
+                                    count: k.moved.length,
+                                    page: "rb-kalkulyacia.html",
                                 });
-                                
-                                // Сохраняем в формате страниц
-                                const pageData = {
-                                    branch: branch,
-                                    sheet: config.key,
-                                    lastModified: new Date().toISOString(),
-                                    cells: cells
-                                };
-                                localStorage.setItem(`${config.key}_${branch}`, JSON.stringify(pageData));
+                            }
+                            if (d.ok && d.moved.length) {
+                                derived.push({
+                                    from: job.target.title,
+                                    to: "РБ · Свод расходов",
+                                    branch: branchLabel,
+                                    count: d.moved.length,
+                                    page: "rb-svod.html",
+                                });
+                                addLog(
+                                    `→ из «${job.sheet}» разнесено в «Свод расходов»: ` +
+                                        `строк ${d.moved.length}, итого ` +
+                                        d.total.toLocaleString("ru-RU", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                        }),
+                                    "success",
+                                );
                             }
                         }
-                        
-                        sheets++;
-                        rows += rawData.length;
-                        addLog(`✓ ${sheetName}: ${rawData.length} строк → ${branches.length} филиала`, 'success');
-                        
-                        updateProgress(Math.round((sheets / Object.keys(sheetMapping).length) * 50));
-                    } else {
-                        addLog(`⚠️ Лист "${sheetName}" не найден в файле РБ`, 'warning');
                     }
-                } catch (error) {
-                    addLog(`❌ Ошибка обработки листа "${sheetName}": ${error.message}`, 'error');
-                    errors++;
-                }
-            }
 
-            // Добавляем информационное сообщение о флаге импорта для РБ
-            if (sheets > 0) {
-                addLog(`ℹ️ Установлен флаг импорта - автоматические формулы консолидации отключены`, 'info');
-                addLog(`💡 Для активации формул начните редактировать любую ячейку в rb-svodnaya.html`, 'info');
-            }
-
-            return {sheets, rows, errors};
-        }
-
-        async function importPUData(workbook) {
-            let sheets = 0;
-            let rows = 0;
-            let errors = 0;
-
-            const sheetMapping = {
-                'СВОД общий 2026': { key: 'pu_svod_2026', data: 'pu_svod_2026_data' },
-                'СС Дотация': { key: 'pu_ss_dotacia', data: 'pu_ss_dotacia_data' },
-                'ДОХОДНАЯ ЧАСТЬ ПУ': { key: 'pu_income_pu', data: 'pu_income_pu_data' },
-                'ДОХОДНАЯ ЧАСТЬ ДТ': { key: 'pu_income_dt', data: 'pu_income_dt_data' },
-                'ДОХОДНАЯ ЧАСТЬ доп': { key: 'pu_income_dop', data: 'pu_income_dop_data' },
-                'Свод ФОТ Алматы': { key: 'pu_fot_almaty', data: 'pu_fot_almaty_data' },
-                'График род. оплаты Алматы ': { key: 'pu_grafik_almaty', data: 'pu_grafik_almaty_data' },
-                ' Калькуляция Алматы': { key: 'pu_kalkulyacia_almaty', data: 'pu_kalkulyacia_almaty_data' },
-                'План команд в пред РК': { key: 'pu_plan_rk', data: 'pu_plan_rk_data' },
-                'План команд за пределы РК': { key: 'pu_plan_abroad', data: 'pu_plan_abroad_data' },
-                'СС Алматы': { key: 'pu_ss_almaty', data: 'pu_ss_almaty_data' }
-            };
-
-            for (const [sheetName, config] of Object.entries(sheetMapping)) {
-                try {
-                    let foundSheet = workbook.SheetNames.find(name => 
-                        name.trim() === sheetName.trim() || name === sheetName
-                    );
-                    
-                    if (foundSheet) {
-                        const worksheet = workbook.Sheets[foundSheet];
-                        const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ''});
-                        
-                        localStorage.setItem(config.data, JSON.stringify(rawData));
-                        
-                        for (const branch of branches) {
-                            // Преобразуем Excel в формат {A1: value, B1: value}
-                            const cells = {};
-                            rawData.forEach((row, rowIndex) => {
-                                if (rowIndex < 1) return; // Пропускаем заголовок
-                                row.forEach((cellValue, colIndex) => {
-                                    const colLetter = String.fromCharCode(65 + colIndex); // A, B, C...
-                                    const cellId = `${colLetter}${rowIndex + 1}`;
-                                    const value = cellValue === '' ? 0 : (isNaN(cellValue) ? cellValue : Number(cellValue));
-                                    cells[cellId] = value;
-                                });
-                            });
-                            
-                            // Сохраняем в формате страниц
-                            const pageData = {
-                                branch: branch,
-                                sheet: config.key,
-                                lastModified: new Date().toISOString(),
-                                cells: cells
-                            };
-                            localStorage.setItem(`${config.key}_${branch}`, JSON.stringify(pageData));
+                    // Страницы со своим разбором берут из листа только нужные
+                    // им колонки. Чтобы остальное не пропадало, лист целиком
+                    // кладём рядом отдельным ключом — оттуда его видно в
+                    // выгрузке и по нему сходится сверка.
+                    let fullNote = "";
+                    if (job.target.conv) {
+                        const full = JSON.stringify(convRaw(rows));
+                        if (full.length <= FULL_SHEET_LIMIT) {
+                            localStorage.setItem(storageKey + "_full", full);
+                            fullNote = ", лист целиком сохранён";
+                        } else {
+                            fullNote =
+                                ", лист целиком не сохранён — крупнее " +
+                                Math.round(FULL_SHEET_LIMIT / 1024) + " КБ";
                         }
-                        
-                        sheets++;
-                        rows += rawData.length;
-                        addLog(`✓ ${sheetName}: ${rawData.length} строк → ${branches.length} филиала`, 'success');
-                        
-                        updateProgress(50 + Math.round((sheets / Object.keys(sheetMapping).length) * 50));
-                    } else {
-                        addLog(`⚠️ Лист "${sheetName}" не найден в файле ПУ`, 'warning');
                     }
-                } catch (error) {
-                    addLog(`❌ Ошибка обработки листа "${sheetName}": ${error.message}`, 'error');
+
+                    report.push(verify(job, rows, data));
+                    landed.push({
+                        sheet: job.sheet,
+                        title: job.target.title,
+                        branch: branchLabel,
+                        page: pageOf(job.target.key),
+                    });
+
+                    sheets++;
+                    rowsTotal += rows.length;
+                    addLog(
+                        `✓ «${job.sheet}» → ${job.target.title} · ${branchLabel} ` +
+                            `(${rows.length} строк, ключ ${storageKey}${fullNote})`,
+                        "success",
+                    );
+                } catch (err) {
                     errors++;
+                    addLog(
+                        `✗ «${job.sheet}»: ${err.message}`,
+                        "error",
+                    );
                 }
+                updateProgress(Math.round(((i + 1) / jobs.length) * 100));
             }
 
-            return {sheets, rows, errors};
-        }
+            updateStats(sheets, rowsTotal, errors);
 
-        document.getElementById('clearBtn').addEventListener('click', function() {
-            if (confirm('Вы уверены, что хотите удалить ВСЕ данные из localStorage?')) {
-                const keys = Object.keys(localStorage);
-                const dataKeys = keys.filter(key => 
-                    key.endsWith('_data') || 
-                    key.includes('rb_') || 
-                    key.includes('pu_') ||
-                    key.includes('fot_')
+            if (report.length) {
+                renderReport(report);
+                const bad = report.filter((r) => r.state === "bad");
+                bad.forEach((r) =>
+                    addLog(
+                        `⚠ «${r.sheet}»: в файле ${r.xlSum.toLocaleString("ru-RU")}, ` +
+                            `в системе ${r.gotSum.toLocaleString("ru-RU")} — ` +
+                            `разница ${r.diff.toLocaleString("ru-RU")}`,
+                        "error",
+                    ),
                 );
-                
-                dataKeys.forEach(key => localStorage.removeItem(key));
-                
-                addLog(`🗑️ Очищено ${dataKeys.length} ключей из localStorage`, 'success');
-                updateStats(0, 0, 0);
-                document.getElementById('stats').style.display = 'none';
-                document.getElementById('progress').style.display = 'none';
+                addLog(
+                    bad.length
+                        ? `Сверка: расхождений — ${bad.length}. Смотрите таблицу «Сверка с файлом».`
+                        : "Сверка: все числа из файла на месте.",
+                    bad.length ? "warning" : "success",
+                );
             }
+
+            addLog(
+                errors === 0
+                    ? "Импорт завершён. Данные записаны только в выбранные филиалы."
+                    : `Импорт завершён с ошибками: ${errors}`,
+                errors === 0 ? "success" : "warning",
+            );
+
+            showResult({
+                sheets: sheets,
+                rows: rowsTotal,
+                errors: errors,
+                landed: landed,
+                derived: derived,
+                mismatched: report.filter((r) => r.state === "bad").length,
+            });
         });
 
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            const exportData = {};
-            const keys = Object.keys(localStorage);
-            
-            keys.forEach(key => {
-                if (key.endsWith('_data') || key.includes('rb_') || key.includes('pu_')) {
-                    try {
-                        exportData[key] = JSON.parse(localStorage.getItem(key));
-                    } catch (e) {
-                        exportData[key] = localStorage.getItem(key);
-                    }
-                }
-            });
+        /* ── Обслуживание ─────────────────────────────────────────── */
+        document.getElementById("clearBtn").addEventListener("click", () => {
+            if (!confirm("Удалить ВСЕ данные бюджета из этого браузера?")) return;
+            const keys = Object.keys(localStorage).filter(
+                (k) => k.startsWith("rb_") || k.startsWith("pu_") || k.startsWith("fot"),
+            );
+            keys.forEach((k) => localStorage.removeItem(k));
+            addLog(`Удалено ключей: ${keys.length}`, "success");
+        });
 
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `budget_export_${new Date().toISOString().split('T')[0]}.json`;
+        document.getElementById("exportBtn").addEventListener("click", () => {
+            const out = {};
+            Object.keys(localStorage)
+                .filter((k) => k.startsWith("rb_") || k.startsWith("pu_"))
+                .forEach((k) => {
+                    try {
+                        out[k] = JSON.parse(localStorage.getItem(k));
+                    } catch (e) {
+                        out[k] = localStorage.getItem(k);
+                    }
+                });
+            const blob = new Blob([JSON.stringify(out, null, 2)], {
+                type: "application/json",
+            });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download =
+                "budget_export_" + new Date().toISOString().split("T")[0] + ".json";
             link.click();
-            
-            addLog(`💾 Экспорт выполнен: ${Object.keys(exportData).length} таблиц`, 'success');
+            addLog(`Выгружено таблиц: ${Object.keys(out).length}`, "success");
         });
     </script>
+    <script src="sheet-ux.js"></script>
+    <script src="shared-nav.js"></script>
+    <script src="formulas.js"></script>
+    <script src="ui-kit.js"></script>
 </body>
 </html>

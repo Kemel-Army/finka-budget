@@ -4,8 +4,9 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>Доходная часть ПУ - Бюджет ПУ 2026</title>
-        <script src="editable-table.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -155,7 +156,7 @@
                 <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <div class="budget-table-wrapper">
-                    <table id="budgetTable">
+                    <table id="budgetTable" data-sheet data-sticky-cols="3">
                         <thead>
                             <tr>
                                 <th class="num-col">№</th>
@@ -177,740 +178,231 @@
                                 <th class="month-col">Итого</th>
                             </tr>
                         </thead>
-                        <tbody id="tableBody">
-                            <tr>
-                                <td class="num-col">1</td>
-                                <td>Тариф ДОТ "РФМШ" в г Алматы</td>
-                                <td>менее класс 7 кл</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-cont"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m1"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m2"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m3"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m4"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m5"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m6"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m7"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m8"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m9"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m10"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m11"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-1-m12"
-                                        value="0"
-                                        oninput="updateRow(1)"
-                                    />
-                                </td>
-                                <td class="formula-cell" id="row-1-total">
-                                    0.00
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="num-col">2</td>
-                                <td>Тариф ДОТ "РФМШ" в г Алматы</td>
-                                <td>7 классы</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-cont"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m1"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m2"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m3"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m4"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m5"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m6"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m7"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m8"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m9"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m10"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m11"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-2-m12"
-                                        value="0"
-                                        oninput="updateRow(2)"
-                                    />
-                                </td>
-                                <td class="formula-cell" id="row-2-total">
-                                    0.00
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="num-col">3</td>
-                                <td>Тариф ДОТ "РФМШ" в г Алматы</td>
-                                <td>с 8 по 11 кл</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-cont"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m1"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m2"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m3"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m4"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m5"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m6"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m7"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m8"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m9"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m10"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m11"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-3-m12"
-                                        value="0"
-                                        oninput="updateRow(3)"
-                                    />
-                                </td>
-                                <td class="formula-cell" id="row-3-total">
-                                    0.00
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="num-col">4</td>
-                                <td>
-                                    Тариф ДОТ "РФМШ" в г Алматы вечерняя
-                                    подгруппа
-                                </td>
-                                <td>с 8 по 11 кл</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-cont"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m1"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m2"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m3"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m4"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m5"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m6"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m7"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m8"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m9"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m10"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m11"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-4-m12"
-                                        value="0"
-                                        oninput="updateRow(4)"
-                                    />
-                                </td>
-                                <td class="formula-cell" id="row-4-total">
-                                    0.00
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="num-col">5</td>
-                                <td>
-                                    Тариф ДОТ "РФМШ" в г Алматы вечерний формат
-                                </td>
-                                <td>с 8 по 11 кл</td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-cont"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m1"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m2"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m3"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m4"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m5"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m6"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m7"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m8"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m9"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m10"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m11"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        id="row-5-m12"
-                                        value="0"
-                                        oninput="updateRow(5)"
-                                    />
-                                </td>
-                                <td class="formula-cell" id="row-5-total">
-                                    0.00
-                                </td>
-                            </tr>
-                            <tr class="total-row">
-                                <td colspan="3">
-                                    <strong>Итого по доходам</strong>
-                                </td>
-                                <td class="formula-cell" id="total-cont">0</td>
-                                <td class="formula-cell" id="total-m1">0.00</td>
-                                <td class="formula-cell" id="total-m2">0.00</td>
-                                <td class="formula-cell" id="total-m3">0.00</td>
-                                <td class="formula-cell" id="total-m4">0.00</td>
-                                <td class="formula-cell" id="total-m5">0.00</td>
-                                <td class="formula-cell" id="total-m6">0.00</td>
-                                <td class="formula-cell" id="total-m7">0.00</td>
-                                <td class="formula-cell" id="total-m8">0.00</td>
-                                <td class="formula-cell" id="total-m9">0.00</td>
-                                <td class="formula-cell" id="total-m10">
-                                    0.00
-                                </td>
-                                <td class="formula-cell" id="total-m11">
-                                    0.00
-                                </td>
-                                <td class="formula-cell" id="total-m12">
-                                    0.00
-                                </td>
-                                <td class="formula-cell" id="grand-total">
-                                    0.00
-                                </td>
-                            </tr>
-                        </tbody>
+                        <tbody id="tableBody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
 
         <script>
+            /* ─────────────────────────────────────────────────────────────
+               Лист Excel «ДОХОДНАЯ ЧАСТЬ ПУ» (Бюджет ПУ 2026).
+               Формулы воспроизведены построчно:
+                 T = SUM(F:Q)            — строки с помесячным планом
+                 T = E * S               — строки со стоимостью за год
+                                           (вступ. взнос, АР)
+                 E17 = E10+E11+E12       — контингент только по трём строкам
+                                           с классами, взносы и АР не в счёт
+                 F17..Q17, T17 = SUM     — итог по столбцу
+                 строка 18 = строка 17 * 8%   — рентабельность
+                 строка 19 = строка 17 - 18   — всего со скидкой
+               ───────────────────────────────────────────────────────────── */
             const SHEET_KEY = "pu_income_pu";
-            const ROWS = 5;
+            const PROFIT_RATE = 0.08; // рентабельность 8%
+            const MONTHS = 12;
+
+            // Порядок и признаки строк — как в Excel (строки 9..16)
+            const ROW_DEFS = [
+                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "Вступ взнос 7 кл", mode: "annual", inCont: false },
+                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "7 классы", mode: "months", inCont: true },
+                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 8 по 11 кл", mode: "months", inCont: true },
+                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — обучение', cls: "с 8 по 11 кл", mode: "months", inCont: true },
+                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — проживание', cls: "с 8 по 11 кл", mode: "months", inCont: false },
+                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — питание', cls: "с 8 по 11 кл", mode: "months", inCont: false },
+                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 10 по 11 кл АР", mode: "annual", inCont: false },
+                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 10 по 11 кл АР, предмет по выбору", mode: "months", inCont: false },
+            ];
+            const ROWS = ROW_DEFS.length;
+
             let currentBranch = "nao";
             let saveTimeout;
 
-            function updateRow(rowNum) {
-                let rowTotal = 0;
-                for (let m = 1; m <= 12; m++) {
-                    const val =
-                        parseFloat(
-                            document.getElementById(`row-${rowNum}-m${m}`)
-                                .value,
-                        ) || 0;
-                    rowTotal += val;
-                }
-                document.getElementById(`row-${rowNum}-total`).textContent =
-                    rowTotal.toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    });
+            function fmt(n) {
+                return n.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
 
+            function num(id) {
+                const el = document.getElementById(id);
+                return el ? parseFloat(el.value) || 0 : 0;
+            }
+
+            /* ── Разметка ─────────────────────────────────────────────── */
+            function buildTable() {
+                const tbody = document.getElementById("tableBody");
+                let html = "";
+
+                ROW_DEFS.forEach((def, i) => {
+                    const r = i + 1;
+                    const annual = def.mode === "annual";
+                    html += '<tr data-row="' + r + '">';
+                    html += '<td class="num-col">' + r + "</td>";
+                    html += "<td>" + def.name + "</td>";
+                    html += "<td>" + def.cls + "</td>";
+                    html +=
+                        '<td><input type="number" id="row-' + r +
+                        '-cont" value="0" oninput="updateRow(' + r + ')"></td>';
+                    for (let m = 1; m <= MONTHS; m++) {
+                        // У строк «за год» помесячного плана нет
+                        html += annual
+                            ? '<td class="formula-cell">—</td>'
+                            : '<td><input type="number" id="row-' + r + "-m" + m +
+                              '" value="0" oninput="updateRow(' + r + ')"></td>';
+                    }
+                    html +=
+                        '<td><input type="number" id="row-' + r +
+                        '-pm" value="0" oninput="updateRow(' + r + ')"></td>';
+                    html +=
+                        '<td><input type="number" id="row-' + r +
+                        '-py" value="0" oninput="updateRow(' + r + ')"></td>';
+                    html +=
+                        '<td class="formula-cell" id="row-' + r +
+                        '-total">0,00</td>';
+                    html += "</tr>";
+                });
+
+                // Итог, рентабельность, всего
+                const spanCells = (prefix, cls) => {
+                    let s = '<td class="formula-cell" id="' + prefix + '-cont">0</td>';
+                    for (let m = 1; m <= MONTHS; m++)
+                        s += '<td class="formula-cell" id="' + prefix + "-m" + m + '">0,00</td>';
+                    s += '<td class="formula-cell">—</td><td class="formula-cell">—</td>';
+                    s += '<td class="formula-cell" id="' + prefix + '-total">0,00</td>';
+                    return s;
+                };
+
+                html +=
+                    '<tr class="total-row"><td colspan="3"><strong>Итого</strong></td>' +
+                    spanCells("total") + "</tr>";
+                html +=
+                    '<tr class="sub-row"><td colspan="3"><strong>Рентабельность 8%</strong></td>' +
+                    spanCells("profit") + "</tr>";
+                html +=
+                    '<tr class="grand-row"><td colspan="3"><strong>ВСЕГО с учётом скидки и рентабельности</strong></td>' +
+                    spanCells("net") + "</tr>";
+
+                tbody.innerHTML = html;
+            }
+
+            /* ── Расчёт ───────────────────────────────────────────────── */
+            function rowTotal(r) {
+                const def = ROW_DEFS[r - 1];
+                if (def.mode === "annual") {
+                    // T = контингент * стоимость в год
+                    return num("row-" + r + "-cont") * num("row-" + r + "-py");
+                }
+                let s = 0;
+                for (let m = 1; m <= MONTHS; m++) s += num("row-" + r + "-m" + m);
+                return s;
+            }
+
+            function updateRow(r) {
+                document.getElementById("row-" + r + "-total").textContent =
+                    fmt(rowTotal(r));
                 updateTotals();
                 scheduleAutoSave();
             }
 
             function updateTotals() {
+                // Контингент — только строки с классами (Excel: E10+E11+E12)
                 let totalCont = 0;
-                let monthTotals = Array(12).fill(0);
-                let grandTotal = 0;
+                ROW_DEFS.forEach((def, i) => {
+                    if (def.inCont) totalCont += num("row-" + (i + 1) + "-cont");
+                });
+
+                const monthTotals = new Array(MONTHS).fill(0);
+                let grand = 0;
 
                 for (let r = 1; r <= ROWS; r++) {
-                    const cont =
-                        parseFloat(
-                            document.getElementById(`row-${r}-cont`).value,
-                        ) || 0;
-                    totalCont += cont;
-
-                    for (let m = 1; m <= 12; m++) {
-                        const val =
-                            parseFloat(
-                                document.getElementById(`row-${r}-m${m}`).value,
-                            ) || 0;
-                        monthTotals[m - 1] += val;
-                        grandTotal += val;
+                    if (ROW_DEFS[r - 1].mode !== "annual") {
+                        for (let m = 1; m <= MONTHS; m++)
+                            monthTotals[m - 1] += num("row-" + r + "-m" + m);
                     }
+                    grand += rowTotal(r);
                 }
+
+                const put = (id, v) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = fmt(v);
+                };
 
                 document.getElementById("total-cont").textContent = totalCont;
-                for (let m = 1; m <= 12; m++) {
-                    document.getElementById(`total-m${m}`).textContent =
-                        monthTotals[m - 1].toLocaleString("ru-RU", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                        });
+                document.getElementById("profit-cont").textContent = "—";
+                document.getElementById("net-cont").textContent = "—";
+
+                for (let m = 1; m <= MONTHS; m++) {
+                    const t = monthTotals[m - 1];
+                    put("total-m" + m, t);
+                    put("profit-m" + m, t * PROFIT_RATE);
+                    put("net-m" + m, t - t * PROFIT_RATE);
                 }
-                document.getElementById("grand-total").textContent =
-                    grandTotal.toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    });
+
+                put("total-total", grand);
+                put("profit-total", grand * PROFIT_RATE);
+                put("net-total", grand - grand * PROFIT_RATE);
             }
 
+            /* ── Сохранение ───────────────────────────────────────────── */
             function scheduleAutoSave() {
-                document.getElementById("saveStatus").textContent =
-                    "Сохраняю...";
-                document.getElementById("saveStatus").style.background =
-                    "#fff3cd";
-                document.getElementById("saveStatus").style.color = "#856404";
-
+                const st = document.getElementById("saveStatus");
+                st.textContent = "Сохраняю...";
+                st.className = "auto-save-status saving";
                 clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => {
-                    saveData();
-                }, 1000);
+                saveTimeout = setTimeout(saveData, 1000);
             }
 
             function saveData() {
-                // Не сохранять в режиме консолидации
                 if (currentBranch === "consolidated") return;
-
                 const data = { rows: {} };
-
                 for (let r = 1; r <= ROWS; r++) {
-                    data.rows[r] = {
-                        cont: document.getElementById(`row-${r}-cont`).value,
+                    const row = {
+                        cont: num("row-" + r + "-cont"),
+                        pm: num("row-" + r + "-pm"),
+                        py: num("row-" + r + "-py"),
                     };
-                    for (let m = 1; m <= 12; m++) {
-                        data.rows[r][`m${m}`] = document.getElementById(
-                            `row-${r}-m${m}`,
-                        ).value;
-                    }
+                    for (let m = 1; m <= MONTHS; m++)
+                        row["m" + m] = num("row-" + r + "-m" + m);
+                    data.rows[r] = row;
                 }
-
                 localStorage.setItem(
-                    `${SHEET_KEY}_${currentBranch}`,
+                    SHEET_KEY + "_" + currentBranch,
                     JSON.stringify(data),
                 );
+                const st = document.getElementById("saveStatus");
+                st.textContent = "Сохранено";
+                st.className = "auto-save-status saved";
+            }
 
-                document.getElementById("saveStatus").textContent = "Сохранено";
-                document.getElementById("saveStatus").style.background =
-                    "#d4edda";
-                document.getElementById("saveStatus").style.color = "#155724";
+            function applyRow(r, row, readOnly) {
+                const set = (suffix, v) => {
+                    const el = document.getElementById("row-" + r + "-" + suffix);
+                    if (!el) return;
+                    el.value = v === undefined || v === null ? "" : v;
+                    el.disabled = !!readOnly;
+                };
+                set("cont", row ? row.cont : "");
+                set("pm", row ? row.pm : "");
+                set("py", row ? row.py : "");
+                for (let m = 1; m <= MONTHS; m++)
+                    set("m" + m, row ? row["m" + m] : "");
             }
 
             function loadData() {
                 const saved = localStorage.getItem(
-                    `${SHEET_KEY}_${currentBranch}`,
+                    SHEET_KEY + "_" + currentBranch,
                 );
+                const data = saved ? JSON.parse(saved) : { rows: {} };
+                for (let r = 1; r <= ROWS; r++)
+                    applyRow(r, (data.rows || {})[r], false);
+                updateAllRows();
+            }
 
-                // Рассчитываем все поля
-                for (let r = 1; r <= ROWS; r++) {
-                    document.getElementById(`row-${r}-cont`).disabled = false;
-                    document.getElementById(`row-${r}-cont`).value = "";
-                    for (let m = 1; m <= 12; m++) {
-                        document.getElementById(`row-${r}-m${m}`).disabled =
-                            false;
-                        document.getElementById(`row-${r}-m${m}`).value = "";
-                    }
-                }
-
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    for (let r = 1; r <= ROWS; r++) {
-                        if (data.rows && data.rows[r]) {
-                            document.getElementById(`row-${r}-cont`).value =
-                                data.rows[r].cont || "";
-                            for (let m = 1; m <= 12; m++) {
-                                document.getElementById(
-                                    `row-${r}-m${m}`,
-                                ).value = data.rows[r][`m${m}`] || "";
-                            }
-                        }
-                    }
-                }
-
+            function updateAllRows() {
+                for (let r = 1; r <= ROWS; r++)
+                    document.getElementById("row-" + r + "-total").textContent =
+                        fmt(rowTotal(r));
                 updateTotals();
             }
 
@@ -925,80 +417,52 @@
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
-                if (currentBranch === "consolidated") {
-                    loadConsolidatedData();
-                } else {
-                    document.querySelectorAll("input").forEach((input) => {
-                        input.disabled = false;
-                    });
-                    loadData();
-                }
+                if (window.event && window.event.target)
+                    window.event.target.classList.add("active");
+                if (currentBranch === "consolidated") loadConsolidatedData();
+                else loadData();
             }
 
             function loadConsolidatedData() {
                 const branches = ["almaty", "uralsk", "astana", "nao"];
-                const consolidated = { rows: {} };
-
-                // Форматирование для вывода
+                const acc = {};
                 for (let r = 1; r <= ROWS; r++) {
-                    consolidated.rows[r] = { cont: 0 };
-                    for (let m = 1; m <= 12; m++) {
-                        consolidated.rows[r][`m${m}`] = 0;
-                    }
+                    acc[r] = { cont: 0, pm: 0, py: 0 };
+                    for (let m = 1; m <= MONTHS; m++) acc[r]["m" + m] = 0;
                 }
 
-                // Обновляем данные по всем разделам
                 branches.forEach((b) => {
-                    const key = `${SHEET_KEY}_${b}`;
-                    const saved = localStorage.getItem(key);
-                    if (saved) {
-                        try {
-                            const data = JSON.parse(saved);
-                            if (data.rows) {
-                                for (let r = 1; r <= ROWS; r++) {
-                                    if (data.rows[r]) {
-                                        consolidated.rows[r].cont +=
-                                            parseFloat(data.rows[r].cont) || 0;
-                                        for (let m = 1; m <= 12; m++) {
-                                            consolidated.rows[r][`m${m}`] +=
-                                                parseFloat(
-                                                    data.rows[r][`m${m}`],
-                                                ) || 0;
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Error loading " + b, e);
+                    const saved = localStorage.getItem(SHEET_KEY + "_" + b);
+                    if (!saved) return;
+                    try {
+                        const data = JSON.parse(saved);
+                        for (let r = 1; r <= ROWS; r++) {
+                            const row = (data.rows || {})[r];
+                            if (!row) continue;
+                            acc[r].cont += parseFloat(row.cont) || 0;
+                            // Стоимость на одного не суммируется — берём последнюю
+                            if (parseFloat(row.pm)) acc[r].pm = parseFloat(row.pm);
+                            if (parseFloat(row.py)) acc[r].py = parseFloat(row.py);
+                            for (let m = 1; m <= MONTHS; m++)
+                                acc[r]["m" + m] += parseFloat(row["m" + m]) || 0;
                         }
+                    } catch (e) {
+                        console.error("Ошибка чтения " + b, e);
                     }
                 });
 
-                // Обновляем свод в интерфейсе ПУ
-                for (let r = 1; r <= ROWS; r++) {
-                    document.getElementById(`row-${r}-cont`).value =
-                        consolidated.rows[r].cont;
-                    document.getElementById(`row-${r}-cont`).disabled = true;
-                    for (let m = 1; m <= 12; m++) {
-                        document.getElementById(`row-${r}-m${m}`).value =
-                            consolidated.rows[r][`m${m}`];
-                        document.getElementById(`row-${r}-m${m}`).disabled =
-                            true;
-                    }
-                }
-
-                updateTotals();
+                for (let r = 1; r <= ROWS; r++) applyRow(r, acc[r], true);
+                updateAllRows();
             }
 
             window.addEventListener("load", () => {
+                buildTable();
                 loadData();
             });
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова
-                console.log(' Таблица готова к работе');
-            });
+            console.log(' Таблица готова к работе');
             function addDetailToggles() {
                 // Удаляем существующие детальные строки и иконки
                 document.querySelectorAll('.detail-row').forEach(row => row.remove());
@@ -1102,6 +566,10 @@
                 });
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

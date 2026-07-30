@@ -4,6 +4,9 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <script src="derive.js"></script>
         <title>Сводная общая 2026 - Полная версия (572 строки)</title>
         <style>
             /* Column width overrides for svodnaya tables */
@@ -35,6 +38,7 @@
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="container">
             <div class="header">
                 <h1>📊 Сводная общая 2026 - Полная версия</h1>
@@ -123,6 +127,22 @@
                         "
                     >
                         🖨️ Печать
+                    </button>
+                    <button
+                        onclick="spreadToPages()"
+                        title="Заполнить связанные страницы итогами разделов, как в исходной книге"
+                        style="
+                            padding: 6px 14px;
+                            border-radius: 6px;
+                            border: 1px solid #2563eb;
+                            background: #eff6ff;
+                            color: #1d4ed8;
+                            font-weight: 600;
+                            cursor: pointer;
+                            font-size: 13px;
+                        "
+                    >
+                        ➕ Разнести по страницам
                     </button>
                 </div>
             </div>
@@ -832,6 +852,60 @@
                 });
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+        <script>
+            /* Разнесение по связанным страницам.
+
+               В исходной книге лист «Свод» руками не заполняется: каждая его
+               строка — ссылка на итог раздела этой страницы. Здесь то же
+               самое, адреса ячеек взяты из формул книги (см. derive.js). */
+            function spreadToPages() {
+                if (!window.FinkaDerive) return;
+                var branch =
+                    typeof currentBranch !== "undefined" ? currentBranch : "nao";
+                if (branch === "consolidated") {
+                    alert(
+                        "Разнести можно из данных конкретного филиала — " +
+                            "выберите филиал вместо сводного вида.",
+                    );
+                    return;
+                }
+
+                var res = window.FinkaDerive.toSvod(branch);
+                if (!res.ok) {
+                    alert(res.reason);
+                    return;
+                }
+
+                var money = function (v) {
+                    return v.toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    });
+                };
+
+                var msg = res.moved.length
+                    ? "В «Свод расходов» перенесено строк: " +
+                      res.moved.length +
+                      ". Итого " +
+                      money(res.total)
+                    : "«Свод расходов» уже совпадает со «Сводной общей». Итого " +
+                      money(res.total);
+
+                if (window.finkaToast) window.finkaToast(msg, "success");
+                else alert(msg);
+
+                if (res.missing.length) {
+                    var warn =
+                        "Не нашлись итоги разделов: " + res.missing.join(", ") +
+                        ". Похоже, лист загружен не полностью.";
+                    if (window.finkaToast) window.finkaToast(warn, "warning");
+                }
+            }
+        </script>
     </body>
 </html>

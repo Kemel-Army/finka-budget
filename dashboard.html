@@ -4,265 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Бюджетная система НАО "РФМШ"</title>
+    <link rel="stylesheet" href="shared.css">
+    <script src="auth.js"></script>
+    <script src="db-sync.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 2.5rem;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #7f8c8d;
-            margin-bottom: 40px;
-            font-size: 1.1rem;
-        }
-
-        .section {
-            margin-bottom: 40px;
-        }
-
-        .section h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 3px solid #667eea;
-            font-size: 1.8rem;
-        }
-
+        /* Оформление берётся из shared.css */
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
         }
 
         .card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            transition: all 0.3s;
-            border-left: 5px solid #667eea;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 13px 15px;
+            background: #fff;
+            border: 1px solid var(--c-gray-200);
+            border-left: 3px solid var(--c-primary);
+            border-radius: var(--radius);
         }
 
         .card h3 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 1.2rem;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--c-gray-900);
         }
 
         .card p {
-            color: #555;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
+            font-size: 11.5px;
+            line-height: 1.45;
+            color: var(--c-gray-500);
         }
 
         .card a {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 550;
+            color: var(--c-primary);
             text-decoration: none;
-            transition: background 0.3s;
-            font-weight: 500;
         }
 
         .card a:hover {
-            background: #764ba2;
+            text-decoration: underline;
         }
 
         .utilities {
-            background: #fff3cd;
-            padding: 20px;
-            border-radius: 12px;
-            margin-top: 40px;
-            border-left: 5px solid #ffc107;
+            padding: 14px 16px;
+            margin-top: 22px;
+            background: var(--c-gray-50);
+            border: 1px solid var(--c-gray-200);
+            border-left: 3px solid var(--c-gray-400);
+            border-radius: var(--radius-lg);
         }
 
         .utilities h3 {
-            color: #856404;
-            margin-bottom: 15px;
+            margin: 0 0 8px;
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--c-gray-500);
         }
 
         .utilities ul {
             list-style: none;
+            padding: 0;
         }
 
         .utilities li {
-            margin: 10px 0;
-        }
-
-        .utilities a {
-            color: #856404;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .utilities a:hover {
-            text-decoration: underline;
-        }
-    
-        /* Mobile adaptation - Tablets */
-        @media (max-width: 1200px) {
-            .container {
-                max-width: 100%;
-            }
-            
-            .table-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-        }
-
-        /* Mobile adaptation - Medium screens */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .header, .container {
-                padding: 15px 20px;
-                margin-bottom: 15px;
-            }
-
-            h1 {
-                font-size: 20px;
-                margin-bottom: 8px;
-            }
-
-            h2 {
-                font-size: 16px;
-            }
-
-            .subtitle {
-                font-size: 12px;
-            }
-
-            .branch-selector, .btn-group, .controls {
-                gap: 8px;
-                margin-top: 10px;
-            }
-
-            .btn, button, .branch-btn {
-                padding: 10px 16px;
-                font-size: 12px;
-            }
-
-            .info-bar, .status-bar {
-                padding: 12px 15px;
-                gap: 10px;
-            }
-            
-            table {
-                font-size: 11px;
-            }
-
-            th, td {
-                padding: 6px 4px;
-            }
-
-            .section-footer {
-                padding: 12px;
-                gap: 8px;
-            }
-
-            input, select, textarea {
-                padding: 6px;
-                font-size: 12px;
-            }
-        }
-
-        /* Mobile adaptation - Small screens */
-        @media (max-width: 480px) {
-            body {
-                padding: 5px;
-            }
-
-            .header, .container {
-                padding: 12px 15px;
-                border-radius: 10px;
-            }
-
-            h1 {
-                font-size: 18px;
-            }
-
-            h2 {
-                font-size: 14px;
-            }
-
-            .subtitle {
-                font-size: 11px;
-                margin-bottom: 10px;
-            }
-
-            .branch-selector, .btn-group, .controls {
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .btn, button, .branch-btn {
-                width: 100%;
-                padding: 10px;
-                font-size: 13px;
-            }
-
-            .info-bar, .status-bar {
-                flex-direction: column;
-                padding: 10px;
-                gap: 8px;
-            }
-
-            table {
-                font-size: 10px;
-            }
-
-            th, td {
-                padding: 4px 2px;
-            }
-
-            .section-footer {
-                flex-direction: column;
-                padding: 10px;
-            }
-
-            input, select, textarea {
-                font-size: 11px;
-                padding: 5px;
-            }
+            padding: 3px 0;
+            font-size: 12.5px;
         }
     </style>
 </head>
-<body>
+<body class="page-util">
     <div class="container">
         <h1>🏛️ Бюджетная система НАО "РФМШ"</h1>
         <p class="subtitle">Республиканский бюджет и Подушевое финансирование 2026-2028</p>
@@ -365,18 +182,13 @@
         </div>
 
         <div class="utilities">
-            <h3>🛠️ Утилиты и инструменты</h3>
-            <ul>                <li>📤 <a href="import-excel.html"><strong>ИМПОРТ ИЗ EXCEL</strong></a> - массовая загрузка данных из Excel файлов (РБ и ПУ)</li>                <li>� <a href="fill-all-budgets.html"><strong>ЗАПОЛНИТЬ ВСЕ БЮДЖЕТЫ (РБ + ПУ)</strong></a> - универсальное заполнение всех данных</li>
-                <li>📝 <a href="fill-test-data.html">Заполнение только РБ</a> - тестовые данные для республиканского бюджета</li>
-                <li>🏫 <a href="fill-pu-data.html">Заполнение только ПУ</a> - тестовые данные для собственных средств</li>
-                <li>📊 <a href="fill-rb-svodnaya.html">Заполнение rb-svodnaya</a> - данные для сводной таблицы</li>
-                <li>🔄 <a href="reset-and-refill.html">Полный сброс и перезаполнение</a> - очистка и заполнение заново</li>
-                <li>🔍 <a href="test-rb-income.html">Тест консолидации rb-income</a> - проверка работы консолидации</li>
-                <li>📊 <a href="diagnose-consolidation.html">Диагностика консолидации</a> - полная проверка всех данных</li>
-                <li>🧹 <a href="clear-consolidated-data.html">Очистка консолидированных данных</a></li>
-                <li>🔄 <a href="migrate-localStorage.html">Миграция localStorage</a> - перенос старых данных</li>
+            <h3>📤 Импорт данных</h3>
+            <ul>
+                <li>📤 <a href="import-excel.html"><strong>ИМПОРТ ИЗ EXCEL</strong></a> - массовая загрузка данных из Excel файлов (РБ и ПУ)</li>
             </ul>
         </div>
     </div>
+    <script src="formulas.js"></script>
+    <script src="ui-kit.js"></script>
 </body>
 </html>

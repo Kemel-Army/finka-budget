@@ -4,130 +4,19 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
         <title>Свод ФОТ — НАО «РФМШ»</title>
         <style>
-            .summary-cards {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                gap: 14px;
-                margin-bottom: 20px;
-            }
-            .summary-card {
-                background: #fff;
-                border-radius: 10px;
-                padding: 16px 18px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-                border-left: 4px solid #6366f1;
-            }
-            .summary-card.rb {
-                border-left-color: #3b82f6;
-            }
-            .summary-card.pu {
-                border-left-color: #10b981;
-            }
-            .summary-card.tot {
-                border-left-color: #f59e0b;
-            }
-            .summary-card .sc-label {
-                font-size: 12px;
-                color: #64748b;
-                font-weight: 500;
-            }
-            .summary-card .sc-value {
-                font-size: 20px;
-                font-weight: 700;
-                color: #1e293b;
-                margin-top: 4px;
-            }
-
-            table {
-                border-collapse: collapse;
-                width: 100%;
-                font-size: 13px;
-            }
-            table th,
-            table td {
-                border: 1px solid #cbd5e1;
-                padding: 5px 6px;
-                text-align: right;
-            }
-            table th {
-                background: #f1f5f9;
-                text-align: center;
-                font-size: 12px;
-            }
+            /* Ширины служебных колонок — остальное в shared.css */
             td:nth-child(1) {
-                text-align: center;
                 width: 36px;
             }
             td:nth-child(2) {
                 text-align: left;
                 min-width: 200px;
-            }
-
-            .section-hdr td {
-                background: #f8f9fb;
-                text-align: left !important;
-                font-weight: 600;
-                padding: 10px 8px !important;
-            }
-            .col-hdr td {
-                background: #eef2f7;
-                text-align: center !important;
-                font-weight: 600;
-                font-size: 11px;
-            }
-
-            .sub-row td {
-                background: #fef9ee;
-                font-weight: 600;
-            }
-            .grand-row td {
-                background: #fef3cd;
-                font-weight: 700;
-            }
-            .mega-row td {
-                background: #ffe0b2;
-                font-weight: 700;
-                font-size: 14px;
-            }
-
-            input[type="number"] {
-                width: 100%;
-                border: none;
-                background: transparent;
-                text-align: right;
-                font-size: 13px;
-                padding: 2px 0;
-                -moz-appearance: textfield;
-                appearance: textfield;
-            }
-            input[type="number"]::-webkit-outer-spin-button,
-            input[type="number"]::-webkit-inner-spin-button {
-                -webkit-appearance: none;
-            }
-            input[type="number"]:focus {
-                background: #eff6ff;
-                outline: 1px solid #93c5fd;
-                border-radius: 2px;
-            }
-
-            .formula-cell {
-                color: #1e40af;
-                font-weight: 600;
-            }
-
-            @media print {
-                .controls,
-                .back-link {
-                    display: none !important;
-                }
-                input[type="number"] {
-                    border: none !important;
-                    background: none !important;
-                }
             }
         </style>
     </head>
@@ -1081,6 +970,10 @@
                 setTimeout(() => style.remove(), 1000);
             }
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

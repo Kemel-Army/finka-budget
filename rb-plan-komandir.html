@@ -4,12 +4,14 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
         <title>План командировок 2026</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
-        <script src="editable-table.js"></script>
     </head>
     <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
             <h1>📋 План командировок и служебных поездок 2026</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
@@ -55,344 +57,75 @@
         </div>
 
         <div class="table-container">
-            <table id="mainTable">
+            <table id="mainTable" data-sheet data-sticky-cols="3">
                 <thead>
                     <tr>
-                        <th rowspan="2" style="width: 50px">№</th>
-                        <th rowspan="2" style="width: 30%">
+                        <th rowspan="3" style="width: 44px">№</th>
+                        <th rowspan="3" style="min-width: 260px">
                             Перечень мероприятий
                         </th>
-                        <th rowspan="2" style="width: 15%">Пункт назначения</th>
+                        <th rowspan="3" style="min-width: 130px">
+                            Пункт назначения
+                        </th>
                         <th colspan="5">Исходные данные</th>
-                        <th rowspan="2" style="width: 12%">Суточные (МРП)</th>
+                        <th colspan="2">Суточные</th>
+                        <th colspan="3">Проезд в оба конца</th>
+                        <th colspan="3">Проживание</th>
+                        <th rowspan="3">Организа­ционный взнос</th>
+                        <th rowspan="3">Всего, тенге</th>
                     </tr>
                     <tr>
-                        <th style="width: 8%">Размер МРП (тенге)</th>
-                        <th style="width: 8%">Кол-во поездок</th>
-                        <th style="width: 8%">Кол-во дней</th>
-                        <th style="width: 8%">в т.ч. дней в пути</th>
-                        <th style="width: 8%">Кол-во чел.</th>
+                        <th rowspan="2">Размер МРП, тенге</th>
+                        <th rowspan="2">Кол-во поездок</th>
+                        <th rowspan="2">Кол-во дней</th>
+                        <th rowspan="2">в т.ч. дней в пути</th>
+                        <th rowspan="2">Кол-во чел.</th>
+                        <th rowspan="2">норма МРП</th>
+                        <th rowspan="2">итого</th>
+                        <th colspan="2">на одного</th>
+                        <th rowspan="2">итого</th>
+                        <th rowspan="2">норма МРП</th>
+                        <th rowspan="2">кол-во суток</th>
+                        <th rowspan="2">итого</th>
+                    </tr>
+                    <tr>
+                        <th>туда</th>
+                        <th>обратно</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody">
-                    <tr data-row="1">
-                        <td class="label-cell">1</td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="B18"
-                                value="Служебная поездка для участия в заключительном этапе Республиканской олимпиады по физике и по биологии"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="C18"
-                                value="г.Алматы-г.Астана"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="D18"
-                                step="1"
-                                value="4325"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="E18"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="F18"
-                                step="1"
-                                value="5"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="G18"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="H18"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="formula-cell" id="I18">0.00</td>
-                    </tr>
-
-                    <tr data-row="2">
-                        <td class="label-cell">2</td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="B19"
-                                value="Служебная поездка для участия в заключительном этапе Республиканской олимпиады по математике и по химии"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="C19"
-                                value="г.Алматы-г.Астана"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="D19"
-                                step="1"
-                                value="4325"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="E19"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="F19"
-                                step="1"
-                                value="5"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="G19"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="H19"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="formula-cell" id="I19">0.00</td>
-                    </tr>
-
-                    <tr data-row="3">
-                        <td class="label-cell">3</td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="B20"
-                                value="Служебная поездка для участия в заключительном этапе Республиканской олимпиады по казахскому языку и литературе"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="C20"
-                                value="г.Алматы-г.Орал"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="D20"
-                                step="1"
-                                value="4325"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="E20"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="F20"
-                                step="1"
-                                value="5"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="G20"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="H20"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="formula-cell" id="I20">0.00</td>
-                    </tr>
-
-                    <tr data-row="4">
-                        <td class="label-cell">4</td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="B21"
-                                value="Служебная поездка для участия в заключительном этапе Республиканской олимпиады по русскому языку и литературе"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="C21"
-                                value="г.Алматы-г.Караганда"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="D21"
-                                step="1"
-                                value="4325"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="E21"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="F21"
-                                step="1"
-                                value="5"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="G21"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="H21"
-                                step="1"
-                                value="2"
-                            />
-                        </td>
-                        <td class="formula-cell" id="I21">0.00</td>
-                    </tr>
-
-                    <tr data-row="5">
-                        <td class="label-cell">5</td>
-                        <td class="editable">
-                            <input
-                                type="text"
-                                data-cell="B22"
-                                value="Прочие служебные поездки"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input type="text" data-cell="C22" value="по РК" />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="D22"
-                                step="1"
-                                value="4325"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="E22"
-                                step="1"
-                                value="5"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="F22"
-                                step="1"
-                                value="3"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="G22"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="editable">
-                            <input
-                                type="number"
-                                data-cell="H22"
-                                step="1"
-                                value="1"
-                            />
-                        </td>
-                        <td class="formula-cell" id="I22">0.00</td>
-                    </tr>
-                </tbody>
+                <tbody id="tableBody"></tbody>
                 <tfoot>
-                    <tr class="total-row">
-                        <td
-                            colspan="8"
-                            class="label-cell"
-                            style="text-align: right; padding-right: 20px"
-                        >
-                            Итого:
+                    <tr class="grand-row">
+                        <td colspan="3" class="label-cell">
+                            <strong>Итого</strong>
                         </td>
-                        <td class="formula-cell" id="totalSum">0.00</td>
+                        <td class="formula-cell" id="tot-mrp">0,00</td>
+                        <td class="formula-cell" id="tot-trips">0,00</td>
+                        <td class="formula-cell" id="tot-days">0,00</td>
+                        <td class="formula-cell" id="tot-road">0,00</td>
+                        <td class="formula-cell" id="tot-people">0,00</td>
+                        <td class="formula-cell" id="tot-perNorm">0,00</td>
+                        <td class="formula-cell" id="tot-perDiem">0,00</td>
+                        <td class="formula-cell" id="tot-tripTo">0,00</td>
+                        <td class="formula-cell" id="tot-tripBack">0,00</td>
+                        <td class="formula-cell" id="tot-tripSum">0,00</td>
+                        <td class="formula-cell" id="tot-stayNorm">0,00</td>
+                        <td class="formula-cell" id="tot-stayNights">0,00</td>
+                        <td class="formula-cell" id="tot-staySum">0,00</td>
+                        <td class="formula-cell" id="tot-fee">0,00</td>
+                        <td class="formula-cell" id="totalSum">0,00</td>
                     </tr>
                 </tfoot>
             </table>
 
-            <div
-                style="
-                    margin-top: 20px;
-                    padding: 15px;
-                    background: #e8f5e9;
-                    border-radius: 8px;
-                "
-            >
-                <span style="font-weight: bold">Последнее изменение:</span>
-                <p style="font-size: 13px">
-                    Суточные = МРП × поездки × дни × кол-во чел.
+            <div class="info" style="margin-top: 16px">
+                <strong>Как считается (лист «План командир 2026»)</strong>
+                <p style="margin-top: 6px">
+                    Суточные итого = норма МРП × размер МРП × кол-во дней ×
+                    кол-во чел. Количество поездок в суточные не входит.<br />
+                    Всего по строке = суточные + проезд итого + проживание итого
+                    + организационный взнос.
                 </p>
-                <span>3 692 тенге</span>
             </div>
         </div>
 
@@ -404,7 +137,7 @@
                 💾 Сохранить данные
             </button>
             <button class="btn btn-success" onclick="exportToExcel()">
-                � Excel
+                📥 Excel
             </button>
             <button
                 class="btn btn-success"
@@ -429,434 +162,219 @@
         </div>
 
         <script>
-            var MRP_BY_YEAR = {
-                2024: 3692,
-                2025: 3932,
-                2026: 4325,
-                2027: 4325,
-                2028: 4325,
-            };
-            function getCurrentMRP() {
-                var y =
-                    parseInt(localStorage.getItem("budget_year")) ||
-                    new Date().getFullYear();
-                return MRP_BY_YEAR[y] || 4325;
-            }
-            let currentBranch = "nao"; // Текущий филиал
+            /* ─────────────────────────────────────────────────────────────
+               Лист Excel «План командир 2026» (Бюджет РБ 2026).
 
-            let tableData = {
-                branch: "almaty",
-                sheet: "rb_plan_komandir",
-                lastModified: new Date().toISOString(),
-                cells: {},
-                rowCount: 5,
-            };
+                 J = I * D * F * H
+                     норма МРП × размер МРП × кол-во дней × кол-во чел.
+                     Кол-во поездок (E) в суточные НЕ входит — в Excel его
+                     в формуле нет.
 
-            document.addEventListener("DOMContentLoaded", function () {
-                // Update МРП label and default values based on year
-                var mrpVal = getCurrentMRP();
-                var lbl = document.getElementById("mrpLabel");
-                if (lbl)
-                    lbl.textContent = mrpVal.toLocaleString("ru-RU") + " тенге";
+                 R = J + M + P + Q
+                     суточные + проезд итого + проживание итого + оргвзнос.
 
-                loadData();
-                setupEventListeners();
-                calculateTotals();
+               Проезд (M) и проживание (P) в Excel вводятся вручную, а не
+               выводятся из «на одного» и «нормы» — колонки K, L, N, O
+               справочные. Здесь так же.
 
-                // НЕ инициализируем редактируемые таблицы - структура уже готова
-                console.log(" Таблица готова к работе");
-            });
+               Строка 33 = SUM(18:32) по каждому столбцу.
+               ───────────────────────────────────────────────────────────── */
+            const SHEET_KEY = "rb_plan_komandir";
+            const MRP_2026 = 3932; // размер МРП по умолчанию
 
-            function setupEventListeners() {
-                document.querySelectorAll("input").forEach((input) => {
-                    input.addEventListener("input", function () {
-                        this.parentElement.classList.add("changed");
-                        calculateTotals();
-                        autoSave();
-                    });
-                });
+            // Поля строки в порядке столбцов Excel D..R
+            const FIELDS = [
+                { id: "mrp", label: "Размер МРП" },
+                { id: "trips", label: "Кол-во поездок" },
+                { id: "days", label: "Кол-во дней" },
+                { id: "road", label: "в т.ч. дней в пути" },
+                { id: "people", label: "Кол-во чел." },
+                { id: "perNorm", label: "Суточные: норма МРП" },
+                { id: "perDiem", label: "Суточные: итого", calc: true },
+                { id: "tripTo", label: "Проезд: на одного туда" },
+                { id: "tripBack", label: "Проезд: на одного обратно" },
+                { id: "tripSum", label: "Проезд: итого" },
+                { id: "stayNorm", label: "Проживание: норма МРП" },
+                { id: "stayNights", label: "Проживание: кол-во суток" },
+                { id: "staySum", label: "Проживание: итого" },
+                { id: "fee", label: "Организационный взнос" },
+                { id: "total", label: "Всего", calc: true },
+            ];
 
-                document.querySelectorAll(".branch-btn").forEach((btn) => {
-                    btn.addEventListener("click", function () {
-                        document
-                            .querySelectorAll(".branch-btn")
-                            .forEach((b) => b.classList.remove("active"));
-                        this.classList.add("active");
-                        switchBranch(this.dataset.branch);
-                    });
-                });
-            }
-
-            function getValue(cell) {
-                const input = document.querySelector(
-                    `input[data-cell="${cell}"]`,
-                );
-                return parseFloat(input?.value || 0) || 0;
-            }
-
-            function calculateRowTotal(rowNum) {
-                const baseRow = 17 + rowNum;
-                const mrp = getValue(`D${baseRow}`);
-                const trips = getValue(`E${baseRow}`);
-                const days = getValue(`F${baseRow}`);
-                const people = getValue(`H${baseRow}`);
-
-                const total = mrp * trips * days * people;
-
-                const cell = document.getElementById(`I${baseRow}`);
-                if (cell) {
-                    cell.textContent = total.toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    });
-                }
-
-                return total;
-            }
-
-            function calculateTotals() {
-                let grandTotal = 0;
-
-                // ...
-                const rows = document.querySelectorAll("#tableBody tr");
-                rows.forEach((row, idx) => {
-                    grandTotal += calculateRowTotal(idx + 1);
-                });
-
-                const totalCell = document.getElementById("totalSum");
-                if (totalCell) {
-                    totalCell.textContent = grandTotal.toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    });
-                }
-            }
-
-            function addRow() {
-                tableData.rowCount++;
-                const tbody = document.getElementById("tableBody");
-                const newRowNum = tableData.rowCount;
-                const baseRow = 17 + newRowNum;
-
-                const tr = document.createElement("tr");
-                tr.setAttribute("data-row", newRowNum);
-                tr.innerHTML = `
-                <td class="label-cell">${newRowNum}</td>
-                <td class="editable"><input type="text" data-cell="B${baseRow}" value=""></td>
-                <td class="editable"><input type="text" data-cell="C${baseRow}" value=""></td>
-                <td class="editable"><input type="number" data-cell="D${baseRow}" step="1" value="${getCurrentMRP()}"></td>
-                <td class="editable"><input type="number" data-cell="E${baseRow}" step="1" value="1"></td>
-                <td class="editable"><input type="number" data-cell="F${baseRow}" step="1" value="3"></td>
-                <td class="editable"><input type="number" data-cell="G${baseRow}" step="1" value="1"></td>
-                <td class="editable"><input type="number" data-cell="H${baseRow}" step="1" value="1"></td>
-                <td class="formula-cell" id="I${baseRow}">0.00</td>
-            `;
-
-                tbody.appendChild(tr);
-
-                // ...
-                tr.querySelectorAll("input").forEach((input) => {
-                    input.addEventListener("input", function () {
-                        this.parentElement.classList.add("changed");
-                        calculateTotals();
-                        autoSave();
-                    });
-                });
-
-                calculateTotals();
-            }
-
+            let rows = [];
             let saveTimeout;
-            function autoSave() {
+
+            function fmt(n) {
+                return n.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            function num(r, id) {
+                const el = document.getElementById("r" + r + "-" + id);
+                return el ? parseFloat(el.value) || 0 : 0;
+            }
+
+            function emptyRow() {
+                return { name: "", dest: "", mrp: MRP_2026 };
+            }
+
+            /* ── Разметка ─────────────────────────────────────────────── */
+            function buildTable() {
+                let html = "";
+                rows.forEach((row, i) => {
+                    const r = i + 1;
+                    html +=
+                        '<tr data-row="' + r + '">' +
+                        "<td>" + r + "</td>" +
+                        '<td><input type="text" id="r' + r + '-name" value="' +
+                        (row.name || "").replace(/"/g, "&quot;") +
+                        '" oninput="onEdit()"></td>' +
+                        '<td><input type="text" id="r' + r + '-dest" value="' +
+                        (row.dest || "").replace(/"/g, "&quot;") +
+                        '" oninput="onEdit()"></td>';
+                    FIELDS.forEach((f) => {
+                        html += f.calc
+                            ? '<td class="formula-cell" id="r' + r + "-" + f.id +
+                              '">0,00</td>'
+                            : '<td><input type="number" id="r' + r + "-" + f.id +
+                              '" value="' + (row[f.id] ?? 0) +
+                              '" oninput="onEdit()"></td>';
+                    });
+                    html += "</tr>";
+                });
+                document.getElementById("tableBody").innerHTML = html;
+            }
+
+            /* ── Расчёт ───────────────────────────────────────────────── */
+            function perDiemOf(r) {
+                // J = I * D * F * H
+                return (
+                    num(r, "perNorm") *
+                    num(r, "mrp") *
+                    num(r, "days") *
+                    num(r, "people")
+                );
+            }
+
+            function rowTotalOf(r, perDiem) {
+                // R = J + M + P + Q
+                return (
+                    perDiem + num(r, "tripSum") + num(r, "staySum") + num(r, "fee")
+                );
+            }
+
+            function calc() {
+                const totals = {};
+                FIELDS.forEach((f) => (totals[f.id] = 0));
+
+                for (let r = 1; r <= rows.length; r++) {
+                    const perDiem = perDiemOf(r);
+                    const total = rowTotalOf(r, perDiem);
+
+                    const pd = document.getElementById("r" + r + "-perDiem");
+                    if (pd) pd.textContent = fmt(perDiem);
+                    const tt = document.getElementById("r" + r + "-total");
+                    if (tt) tt.textContent = fmt(total);
+
+                    FIELDS.forEach((f) => {
+                        if (f.id === "perDiem") totals.perDiem += perDiem;
+                        else if (f.id === "total") totals.total += total;
+                        else totals[f.id] += num(r, f.id);
+                    });
+                }
+
+                FIELDS.forEach((f) => {
+                    const el = document.getElementById(
+                        f.id === "total" ? "totalSum" : "tot-" + f.id,
+                    );
+                    if (el) el.textContent = fmt(totals[f.id]);
+                });
+            }
+
+            function onEdit() {
+                calc();
+                scheduleSave();
+            }
+
+            /* ── Строки ───────────────────────────────────────────────── */
+            function addRow() {
+                collect();
+                rows.push(emptyRow());
+                buildTable();
+                calc();
+                scheduleSave();
+            }
+
+            function collect() {
+                rows = rows.map((row, i) => {
+                    const r = i + 1;
+                    const nameEl = document.getElementById("r" + r + "-name");
+                    const destEl = document.getElementById("r" + r + "-dest");
+                    const out = {
+                        name: nameEl ? nameEl.value : row.name,
+                        dest: destEl ? destEl.value : row.dest,
+                    };
+                    FIELDS.filter((f) => !f.calc).forEach((f) => {
+                        out[f.id] = num(r, f.id);
+                    });
+                    return out;
+                });
+            }
+
+            /* ── Сохранение ───────────────────────────────────────────── */
+            function scheduleSave() {
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохраняю...";
+                    st.className = "auto-save-status saving";
+                }
                 clearTimeout(saveTimeout);
-
-                const status = document.getElementById("saveStatus");
-                status.className = "auto-save-status";
-                status.style.background = "#fff3cd";
-                status.style.color = "#856404";
-                status.textContent = "⏳ Сохранение...";
-
-                saveTimeout = setTimeout(() => {
-                    saveData();
-                    status.className = "auto-save-status saved";
-                    status.textContent = "✓ Сохранено";
-                }, 1000);
+                saveTimeout = setTimeout(saveData, 1000);
             }
 
             function saveData() {
-                // ...
-                if (currentBranch === "consolidated") return;
-
-                document.querySelectorAll("input").forEach((input) => {
-                    if (input.dataset.cell) {
-                        tableData.cells[input.dataset.cell] = input.value;
-                        input.parentElement.classList.remove("changed");
-                    }
-                });
-
-                tableData.lastModified = new Date().toISOString();
-
-                const storageKey = `${tableData.sheet}_${tableData.branch}`;
-                localStorage.setItem(storageKey, JSON.stringify(tableData));
-
-                document.getElementById("lastUpdate").textContent =
-                    new Date().toLocaleString("ru-RU");
+                collect();
+                localStorage.setItem(
+                    SHEET_KEY + "_nao",
+                    JSON.stringify({ rows: rows }),
+                );
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохранено";
+                    st.className = "auto-save-status saved";
+                }
             }
 
             function loadData() {
-                const storageKey = `${tableData.sheet}_${tableData.branch}`;
-                const saved = localStorage.getItem(storageKey);
-
+                const saved = localStorage.getItem(SHEET_KEY + "_nao");
                 if (saved) {
-                    const data = JSON.parse(saved);
-                    tableData = data;
-
-                    Object.keys(data.cells).forEach((cell) => {
-                        const input = document.querySelector(
-                            `input[data-cell="${cell}"]`,
-                        );
-                        if (input) {
-                            input.value = data.cells[cell];
-                        }
-                    });
-
-                    document.getElementById("lastUpdate").textContent =
-                        new Date(data.lastModified).toLocaleString("ru-RU");
-                } else {
-                    document.getElementById("нет данных").textContent =
-                        "нет данных";
-                }
-
-                calculateTotals();
-            }
-
-            function switchBranch(branch) {
-                // ...
-                if (currentBranch !== "consolidated") {
-                    saveData();
-                }
-                tableData.branch = branch;
-                // Удаляем детали при переключении с консолидации
-                if (
-                    currentBranch === "consolidated" &&
-                    branch !== "consolidated"
-                ) {
-                    removeDetailToggles();
-                }
-
-                currentBranch = branch;
-
-                document.querySelectorAll(".branch-btn").forEach((btn) => {
-                    btn.classList.remove("active");
-                    if (btn.dataset.branch === branch) {
-                        btn.classList.add("active");
+                    try {
+                        const d = JSON.parse(saved);
+                        rows = Array.isArray(d.rows) && d.rows.length
+                            ? d.rows
+                            : [emptyRow()];
+                    } catch (e) {
+                        rows = [emptyRow()];
                     }
-                });
-
-                const branchNames = {
-                    almaty: "Алматы",
-                    uralsk: "Уральск",
-                    astana: "Астана",
-                    nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
-                };
-
-                document.getElementById("currentBranch").textContent =
-                    branchNames[branch];
-
-                if (branch === "consolidated") {
-                    document.querySelectorAll("input").forEach((input) => {
-                        input.disabled = true;
-                    });
-                    loadConsolidatedData();
                 } else {
-                    document.querySelectorAll("input").forEach((input) => {
-                        input.disabled = false;
-                    });
-                    loadData();
+                    rows = [emptyRow()];
                 }
-            }
-
-            function loadConsolidatedData() {
-                const branches = ["almaty", "uralsk", "astana", "nao"];
-                const allData = {};
-
-                // Сохраняем данные для детализации
-                window.branchDetailsData = {};
-
-                branches.forEach((b) => {
-                    const key = `rb_plan_komandir_${b}`;
-                    const saved = localStorage.getItem(key);
-                    if (saved) {
-                        allData[b] = JSON.parse(saved).cells || {};
-                    }
-                });
-
-                document.querySelectorAll("input").forEach((input) => {
-                    const cellId = input.dataset.cell;
-                    let sum = 0;
-                    branches.forEach((b) => {
-                        if (allData[b]?.[cellId]) {
-                            sum += parseFloat(allData[b][cellId]) || 0;
-                        }
-                    });
-                    input.value = sum.toFixed(2);
-                });
-
-                calculateTotals();
-                document.getElementById("нет данных").textContent =
-                    "нет данных";
+                buildTable();
+                calc();
             }
 
             function exportToExcel() {
-                const branchNames = {
-                    almaty: "Алматы",
-                    uralsk: "Уральск",
-                    astana: "Астана",
-                    nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
-                };
-                const brName = branchNames[currentBranch] || "";
-                SharedExport.exportTableToExcel({
-                    title: "План командировок 2026 — " + brName,
-                    fileName:
-                        "План_командировок_2026_" +
-                        brName +
-                        "_" +
-                        new Date().toISOString().slice(0, 10) +
-                        ".xlsx",
-                    sheetName: "Командировки",
-                });
-            }
-            function addDetailToggles() {
-                // Удаляем существующие детальные строки и иконки
-                document
-                    .querySelectorAll(".detail-row")
-                    .forEach((row) => row.remove());
-                document
-                    .querySelectorAll(".toggle-detail")
-                    .forEach((toggle) => toggle.remove());
-                document
-                    .querySelectorAll(".expandable")
-                    .forEach((cell) => cell.classList.remove("expandable"));
-
-                const dataRows = document.querySelectorAll("tbody tr");
-                const branches = ["almaty", "uralsk", "astana", "nao"];
-                const branchNames = {
-                    almaty: "Алматы",
-                    uralsk: "Уральск",
-                    astana: "Астана",
-                    nao: "НАО «РФМШ»",
-                };
-
-                let processedCount = 0;
-
-                dataRows.forEach((row, index) => {
-                    const labelCell =
-                        row.querySelector("td.label-cell:nth-child(2)") ||
-                        row.querySelector("td:nth-child(2)");
-                    const firstInput = row.querySelector("input[data-cell]");
-
-                    const isTotalRow =
-                        row.classList.contains("total-row") ||
-                        row.textContent.includes("Итого") ||
-                        row.textContent.includes("ИТОГО");
-
-                    if (labelCell && firstInput && !isTotalRow) {
-                        const rowNum = firstInput.dataset.row || index;
-
-                        labelCell.classList.add("expandable");
-                        const toggle = document.createElement("span");
-                        toggle.className = "toggle-detail";
-                        toggle.textContent = "▶";
-                        toggle.dataset.row = rowNum;
-
-                        labelCell.insertBefore(toggle, labelCell.firstChild);
-
-                        const detailRow = document.createElement("tr");
-                        detailRow.className = "detail-row";
-                        detailRow.dataset.row = rowNum;
-
-                        const emptyCell = document.createElement("td");
-                        emptyCell.style.background = "#f8f9fa";
-                        detailRow.appendChild(emptyCell);
-
-                        const branchListCell = document.createElement("td");
-                        branchListCell.className = "detail-cell";
-                        branchListCell.style.verticalAlign = "top";
-
-                        let branchList = '<div style="padding: 5px 0;">';
-                        branches.forEach((b) => {
-                            branchList += `<div style="margin: 5px 0; line-height: 22px;"><strong style="color: #3498db;">${branchNames[b]}:</strong></div>`;
-                        });
-                        branchList += "</div>";
-                        branchListCell.innerHTML = branchList;
-                        detailRow.appendChild(branchListCell);
-
-                        const inputs = row.querySelectorAll("input[data-cell]");
-                        inputs.forEach((input) => {
-                            const yearCell = document.createElement("td");
-                            yearCell.className = "detail-cell";
-                            yearCell.style.verticalAlign = "top";
-                            yearCell.style.textAlign = "right";
-
-                            let yearData = '<div style="padding: 5px 0;">';
-                            branches.forEach((b) => {
-                                const cellId = input.dataset.cell;
-                                const value =
-                                    window.branchDetailsData &&
-                                    window.branchDetailsData[b] &&
-                                    window.branchDetailsData[b][cellId]
-                                        ? parseFloat(
-                                              window.branchDetailsData[b][
-                                                  cellId
-                                              ],
-                                          )
-                                        : 0;
-                                yearData += `<div style="margin: 5px 0; line-height: 22px; color: #555;">${value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
-                            });
-                            yearData += "</div>";
-                            yearCell.innerHTML = yearData;
-                            detailRow.appendChild(yearCell);
-                        });
-
-                        row.parentNode.insertBefore(detailRow, row.nextSibling);
-
-                        labelCell.addEventListener("click", function (e) {
-                            const toggle = this.querySelector(".toggle-detail");
-                            const detailRow =
-                                this.parentElement.nextElementSibling;
-
-                            if (
-                                detailRow &&
-                                detailRow.classList.contains("detail-row")
-                            ) {
-                                detailRow.classList.toggle("show");
-                                toggle.classList.toggle("expanded");
-                            }
-                        });
-
-                        processedCount++;
-                    }
-                });
-
-                console.log(
-                    `✅ Добавлено ${processedCount} раскрывающихся блоков с детализацией`,
-                );
+                SharedExport.exportTableToExcel({ title: document.title });
             }
 
-            function removeDetailToggles() {
-                document
-                    .querySelectorAll(".toggle-detail")
-                    .forEach((el) => el.remove());
-                document
-                    .querySelectorAll(".detail-row")
-                    .forEach((row) => row.remove());
-                document.querySelectorAll(".expandable").forEach((cell) => {
-                    cell.classList.remove("expandable");
-                });
-            }
+            window.addEventListener("load", loadData);
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Вход · Бюджетная система НАО «РФМШ»</title>
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <style>
+            body {
+                padding: 0 !important;
+                min-height: 100vh;
+                display: grid;
+                grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+                background: #fff;
+                color: var(--c-gray-800);
+            }
+
+            /* ── Левая панель ─────────────────────────────────── */
+            .aside {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding: 44px 48px;
+                background: var(--c-brand);
+                color: #fff;
+                overflow: hidden;
+            }
+
+            /* Сетка на фоне — намёк на бухгалтерскую разлиновку */
+            .aside::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(
+                        rgba(255, 255, 255, 0.035) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(255, 255, 255, 0.035) 1px,
+                        transparent 1px
+                    );
+                background-size: 100% 34px, 128px 100%;
+                pointer-events: none;
+            }
+
+            .aside > * {
+                position: relative;
+                z-index: 1;
+            }
+
+            .aside-brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .aside-logo {
+                width: 38px;
+                height: 38px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: var(--radius);
+                background: var(--c-primary);
+                font-size: 20px;
+                font-weight: 700;
+                flex-shrink: 0;
+            }
+
+            .aside-brand-name {
+                font-size: 14px;
+                font-weight: 650;
+                letter-spacing: -0.01em;
+            }
+
+            .aside-brand-sub {
+                font-size: 12px;
+                color: #94a3b8;
+                margin-top: 1px;
+            }
+
+            .aside-headline {
+                max-width: 460px;
+            }
+
+            .aside-headline h1 {
+                font-size: 30px;
+                font-weight: 650;
+                line-height: 1.2;
+                letter-spacing: -0.03em;
+                color: #fff;
+            }
+
+            .aside-headline p {
+                margin-top: 12px;
+                font-size: 14px;
+                line-height: 1.6;
+                color: #94a3b8;
+            }
+
+            .aside-figures {
+                display: flex;
+                gap: 40px;
+                margin-top: 28px;
+                padding-top: 22px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .figure-label {
+                font-size: 10.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+                color: #64748b;
+            }
+
+            .figure-value {
+                margin-top: 3px;
+                font-family: var(--font-mono);
+                font-size: 20px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                color: #e2e8f0;
+            }
+
+            .aside-foot {
+                font-size: 11.5px;
+                color: #64748b;
+                line-height: 1.6;
+            }
+
+            /* ── Правая панель ────────────────────────────────── */
+            .pane {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 44px 32px;
+            }
+
+            .auth-card {
+                width: 100%;
+                max-width: 372px;
+            }
+
+            .auth-eyebrow {
+                font-size: 10.5px;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0.09em;
+                color: var(--c-gray-400);
+            }
+
+            .auth-heading {
+                margin-top: 6px;
+                font-size: 22px;
+                font-weight: 650;
+                letter-spacing: -0.025em;
+                color: var(--c-gray-900);
+            }
+
+            .auth-hint {
+                margin-top: 6px;
+                margin-bottom: 26px;
+                font-size: 13px;
+                line-height: 1.55;
+                color: var(--c-gray-500);
+            }
+
+            .field {
+                margin-bottom: 14px;
+            }
+
+            .field label {
+                display: block;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--c-gray-600);
+                margin-bottom: 5px;
+            }
+
+            .field input {
+                display: block;
+                width: 100%;
+                height: 40px !important;
+                padding: 0 12px !important;
+                font-family: var(--font) !important;
+                font-size: 13.5px !important;
+                text-align: left !important;
+                color: var(--c-gray-900);
+                background: #fff;
+                border: 1px solid var(--c-gray-300) !important;
+                border-radius: var(--radius) !important;
+                transition: all var(--transition);
+            }
+
+            .field input::placeholder {
+                color: var(--c-gray-400);
+            }
+
+            .field input:focus {
+                outline: none;
+                border-color: var(--c-primary) !important;
+                box-shadow: 0 0 0 3px var(--c-primary-light) !important;
+            }
+
+            .field-pass {
+                position: relative;
+            }
+
+            .field-pass input {
+                padding-right: 68px !important;
+            }
+
+            .toggle-pass {
+                position: absolute;
+                right: 5px;
+                bottom: 5px;
+                height: 30px;
+                padding: 0 9px;
+                border: 0;
+                background: transparent;
+                font-family: var(--font);
+                font-size: 11.5px;
+                font-weight: 550;
+                color: var(--c-gray-500);
+                cursor: pointer;
+                border-radius: var(--radius-sm);
+                transition: all var(--transition);
+            }
+
+            .toggle-pass:hover {
+                background: var(--c-gray-100);
+                color: var(--c-gray-800);
+            }
+
+            .btn-submit {
+                width: 100%;
+                height: 40px;
+                margin-top: 6px;
+                font-family: var(--font);
+                font-size: 13.5px;
+                font-weight: 600;
+                color: #fff;
+                background: var(--c-gray-900);
+                border: 1px solid var(--c-gray-900);
+                border-radius: var(--radius);
+                cursor: pointer;
+                transition: all var(--transition);
+            }
+
+            .btn-submit:hover:not(:disabled) {
+                background: var(--c-gray-800);
+                border-color: var(--c-gray-800);
+            }
+
+            .btn-submit:disabled {
+                opacity: 0.55;
+                cursor: default;
+            }
+
+            .link-btn {
+                border: 0;
+                background: transparent;
+                font-family: var(--font);
+                font-size: 12.5px;
+                font-weight: 500;
+                color: var(--c-gray-500);
+                cursor: pointer;
+                padding: 0;
+                transition: color var(--transition);
+            }
+
+            .link-btn:hover {
+                color: var(--c-primary);
+            }
+
+            .auth-actions {
+                display: flex;
+                justify-content: center;
+                margin-top: 16px;
+            }
+
+            .alert {
+                display: none;
+                align-items: flex-start;
+                gap: 8px;
+                font-size: 12.5px;
+                line-height: 1.5;
+                padding: 10px 12px;
+                border: 1px solid;
+                border-left-width: 3px;
+                border-radius: var(--radius);
+                margin-bottom: 16px;
+            }
+
+            .alert.show {
+                display: flex;
+            }
+
+            .alert.error {
+                color: #991b1b;
+                background: var(--c-danger-light);
+                border-color: #fecaca;
+                border-left-color: var(--c-danger);
+            }
+
+            .alert.success {
+                color: #065f46;
+                background: var(--c-success-light);
+                border-color: #a7f3d0;
+                border-left-color: var(--c-success);
+            }
+
+            .auth-foot {
+                margin-top: 26px;
+                padding-top: 16px;
+                border-top: 1px solid var(--c-gray-200);
+                font-size: 11.5px;
+                line-height: 1.6;
+                color: var(--c-gray-400);
+            }
+
+            [hidden] {
+                display: none !important;
+            }
+
+            /* ── Быстрый вход (только localhost) ──────────────── */
+            .devbox {
+                display: none;
+                margin-top: 22px;
+                padding: 12px 14px;
+                background: var(--c-gray-50);
+                border: 1px dashed var(--c-gray-300);
+                border-radius: var(--radius);
+            }
+
+            .devbox.show {
+                display: block;
+            }
+
+            .devbox-head {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                margin-bottom: 10px;
+                font-size: 10.5px;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+                color: var(--c-gray-400);
+            }
+
+            .devbox-tag {
+                padding: 1px 6px;
+                font-size: 9.5px;
+                color: #92400e;
+                background: var(--c-warning-light);
+                border: 1px solid #fde68a;
+                border-radius: 20px;
+                letter-spacing: 0.04em;
+            }
+
+            .devrow {
+                display: grid;
+                grid-template-columns: 68px 1fr;
+                align-items: center;
+                gap: 6px;
+                margin-bottom: 5px;
+            }
+
+            .devrow-label {
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--c-gray-500);
+                white-space: nowrap;
+            }
+
+            .devrow-btns {
+                display: flex;
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+            .devbtn {
+                height: 24px;
+                padding: 0 9px;
+                font-family: var(--font);
+                font-size: 11px;
+                font-weight: 550;
+                color: var(--c-gray-600);
+                background: #fff;
+                border: 1px solid var(--c-gray-200);
+                border-radius: var(--radius-sm);
+                cursor: pointer;
+                transition: all var(--transition);
+            }
+
+            .devbtn:hover:not(:disabled) {
+                color: var(--c-gray-900);
+                border-color: var(--c-gray-400);
+                background: var(--c-gray-50);
+            }
+
+            .devbtn:disabled {
+                opacity: 0.5;
+                cursor: default;
+            }
+
+            .devbox-note {
+                margin-top: 9px;
+                font-size: 10.5px;
+                line-height: 1.5;
+                color: var(--c-gray-400);
+            }
+
+            /* ── Адаптив ──────────────────────────────────────── */
+            @media (max-width: 900px) {
+                body {
+                    grid-template-columns: 1fr;
+                }
+
+                .aside {
+                    padding: 24px 24px 26px;
+                    gap: 20px;
+                }
+
+                .aside-headline h1 {
+                    font-size: 21px;
+                }
+
+                .aside-headline p,
+                .aside-figures,
+                .aside-foot {
+                    display: none;
+                }
+
+                .pane {
+                    padding: 32px 22px 44px;
+                    align-items: flex-start;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ── Левая панель ───────────────────────────────────── -->
+        <aside class="aside">
+            <div class="aside-brand">
+                <div class="aside-logo">₸</div>
+                <div>
+                    <div class="aside-brand-name">Бюджетная система</div>
+                    <div class="aside-brand-sub">НАО «РФМШ»</div>
+                </div>
+            </div>
+
+            <div class="aside-headline">
+                <h1>
+                    Республиканский бюджет<br />
+                    и подушевое финансирование
+                </h1>
+                <p>
+                    Планирование, консолидация и контроль исполнения бюджета
+                    по центральному аппарату и филиалам.
+                </p>
+
+                <div class="aside-figures">
+                    <div>
+                        <div class="figure-label">Период</div>
+                        <div class="figure-value">2026–2028</div>
+                    </div>
+                    <div>
+                        <div class="figure-label">Филиалов</div>
+                        <div class="figure-value">3</div>
+                    </div>
+                    <div>
+                        <div class="figure-label">Форм бюджета</div>
+                        <div class="figure-value">18</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="aside-foot">
+                Доступ выдаёт администратор системы.<br />
+                НАО «РФМШ» · Бюджетная система
+            </div>
+        </aside>
+
+        <!-- ── Форма ──────────────────────────────────────────── -->
+        <main class="pane">
+            <div class="auth-card">
+                <div class="alert error" id="alertError"></div>
+                <div class="alert success" id="alertSuccess"></div>
+
+                <!-- Вход -->
+                <form id="formLogin" novalidate>
+                    <div class="auth-eyebrow">Авторизация</div>
+                    <h2 class="auth-heading">Вход в систему</h2>
+                    <p class="auth-hint">
+                        Самостоятельная регистрация закрыта. Учётные записи
+                        создаёт администратор.
+                    </p>
+
+                    <div class="field">
+                        <label for="loginEmail">Email</label>
+                        <input
+                            type="email"
+                            id="loginEmail"
+                            autocomplete="username"
+                            required
+                            placeholder="name@rfmsh.kz"
+                        />
+                    </div>
+
+                    <div class="field field-pass">
+                        <label for="loginPassword">Пароль</label>
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            autocomplete="current-password"
+                            required
+                            placeholder="••••••••"
+                        />
+                        <button
+                            type="button"
+                            class="toggle-pass"
+                            data-target="loginPassword"
+                        >
+                            Показать
+                        </button>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btnLogin">
+                        Войти
+                    </button>
+
+                    <div class="auth-actions">
+                        <button type="button" class="link-btn" id="btnForgot">
+                            Забыли пароль?
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Восстановление: запрос письма -->
+                <form id="formForgot" novalidate hidden>
+                    <div class="auth-eyebrow">Восстановление</div>
+                    <h2 class="auth-heading">Сброс пароля</h2>
+                    <p class="auth-hint">
+                        Укажите email — отправим ссылку для установки нового
+                        пароля.
+                    </p>
+
+                    <div class="field">
+                        <label for="forgotEmail">Email</label>
+                        <input
+                            type="email"
+                            id="forgotEmail"
+                            autocomplete="username"
+                            required
+                            placeholder="name@rfmsh.kz"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="btn-submit"
+                        id="btnForgotSend"
+                    >
+                        Отправить ссылку
+                    </button>
+
+                    <div class="auth-actions">
+                        <button
+                            type="button"
+                            class="link-btn"
+                            id="btnBackToLogin"
+                        >
+                            ← Назад ко входу
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Восстановление: новый пароль -->
+                <form id="formReset" novalidate hidden>
+                    <div class="auth-eyebrow">Восстановление</div>
+                    <h2 class="auth-heading">Новый пароль</h2>
+                    <p class="auth-hint">
+                        Минимум 8 символов. После сохранения вход выполнится
+                        автоматически.
+                    </p>
+
+                    <div class="field field-pass">
+                        <label for="resetPassword">Новый пароль</label>
+                        <input
+                            type="password"
+                            id="resetPassword"
+                            autocomplete="new-password"
+                            required
+                            minlength="8"
+                            placeholder="••••••••"
+                        />
+                        <button
+                            type="button"
+                            class="toggle-pass"
+                            data-target="resetPassword"
+                        >
+                            Показать
+                        </button>
+                    </div>
+
+                    <div class="field field-pass">
+                        <label for="resetPassword2">Повторите пароль</label>
+                        <input
+                            type="password"
+                            id="resetPassword2"
+                            autocomplete="new-password"
+                            required
+                            minlength="8"
+                            placeholder="••••••••"
+                        />
+                        <button
+                            type="button"
+                            class="toggle-pass"
+                            data-target="resetPassword2"
+                        >
+                            Показать
+                        </button>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btnReset">
+                        Сохранить пароль
+                    </button>
+                </form>
+
+                <!-- Быстрый вход: появляется только на localhost -->
+                <div class="devbox" id="devBox">
+                    <div class="devbox-head">
+                        <span class="devbox-tag">DEV</span>
+                        Быстрый вход
+                    </div>
+                    <div id="devRows"></div>
+                    <div class="devbox-note">
+                        Пароли берутся из <code>dev-logins.js</code> — файл не
+                        в git и не деплоится. На проде блок не появится.
+                    </div>
+                </div>
+
+                <div class="auth-foot">
+                    Нет доступа? Обратитесь к администратору системы.
+                </div>
+            </div>
+        </main>
+
+        <script>
+            (function () {
+                "use strict";
+
+                var forms = {
+                    login: document.getElementById("formLogin"),
+                    forgot: document.getElementById("formForgot"),
+                    reset: document.getElementById("formReset"),
+                };
+                var alertError = document.getElementById("alertError");
+                var alertSuccess = document.getElementById("alertSuccess");
+
+                /* ── Куда вернуться после входа ─────────────────── */
+                function safeNext() {
+                    var raw = new URLSearchParams(location.search).get("next");
+                    if (!raw) return "index.html";
+                    // Только относительный путь внутри сайта: защита от
+                    // open redirect на чужой домен.
+                    if (
+                        /^[a-z][a-z0-9+.-]*:/i.test(raw) ||
+                        raw.indexOf("//") === 0 ||
+                        raw.indexOf("\\") !== -1
+                    ) {
+                        return "index.html";
+                    }
+                    return raw;
+                }
+
+                /* ── UI helpers ─────────────────────────────────── */
+                function show(name) {
+                    for (var k in forms) {
+                        forms[k].hidden = k !== name;
+                    }
+                }
+
+                function clearAlerts() {
+                    alertError.classList.remove("show");
+                    alertSuccess.classList.remove("show");
+                }
+
+                function fail(msg) {
+                    alertSuccess.classList.remove("show");
+                    alertError.textContent = msg;
+                    alertError.classList.add("show");
+                }
+
+                function ok(msg) {
+                    alertError.classList.remove("show");
+                    alertSuccess.textContent = msg;
+                    alertSuccess.classList.add("show");
+                }
+
+                function busy(btn, isBusy, idleText) {
+                    btn.disabled = isBusy;
+                    btn.textContent = isBusy ? "Подождите…" : idleText;
+                }
+
+                /* ── Перевод ошибок Supabase ────────────────────── */
+                function translate(err) {
+                    var msg = (err && err.message) || "";
+                    var code = (err && err.code) || "";
+                    if (
+                        code === "invalid_credentials" ||
+                        /invalid login credentials/i.test(msg)
+                    ) {
+                        return "Неверный email или пароль.";
+                    }
+                    if (/email not confirmed/i.test(msg)) {
+                        return "Email не подтверждён. Проверьте почту или обратитесь к администратору.";
+                    }
+                    if (
+                        code === "over_request_rate_limit" ||
+                        /rate limit|too many requests/i.test(msg)
+                    ) {
+                        return "Слишком много попыток. Подождите минуту и попробуйте снова.";
+                    }
+                    if (/password should be at least/i.test(msg)) {
+                        return "Пароль слишком короткий — минимум 8 символов.";
+                    }
+                    if (
+                        /same as the old password|should be different/i.test(
+                            msg,
+                        )
+                    ) {
+                        return "Новый пароль должен отличаться от старого.";
+                    }
+                    if (/failed to fetch|network/i.test(msg)) {
+                        return "Нет связи с сервером. Проверьте интернет-соединение.";
+                    }
+                    return msg || "Не удалось выполнить операцию.";
+                }
+
+                /* ── Показать/скрыть пароль ─────────────────────── */
+                document
+                    .querySelectorAll(".toggle-pass")
+                    .forEach(function (btn) {
+                        btn.addEventListener("click", function () {
+                            var input = document.getElementById(
+                                btn.getAttribute("data-target"),
+                            );
+                            var hidden = input.type === "password";
+                            input.type = hidden ? "text" : "password";
+                            btn.textContent = hidden ? "Скрыть" : "Показать";
+                        });
+                    });
+
+                /* ── Переключение экранов ───────────────────────── */
+                document
+                    .getElementById("btnForgot")
+                    .addEventListener("click", function () {
+                        clearAlerts();
+                        document.getElementById("forgotEmail").value =
+                            document.getElementById("loginEmail").value;
+                        show("forgot");
+                    });
+
+                document
+                    .getElementById("btnBackToLogin")
+                    .addEventListener("click", function () {
+                        clearAlerts();
+                        show("login");
+                    });
+
+                /* ── Supabase ───────────────────────────────────── */
+                var clientPromise = window.finkaAuth.getClient();
+                var recoveryMode = /type=recovery/.test(location.hash);
+
+                if (recoveryMode) show("reset");
+
+                clientPromise
+                    .then(function (client) {
+                        client.auth.onAuthStateChange(function (event) {
+                            if (event === "PASSWORD_RECOVERY") {
+                                recoveryMode = true;
+                                clearAlerts();
+                                show("reset");
+                            }
+                        });
+
+                        // Уже вошли и это не переход по ссылке восстановления —
+                        // сразу внутрь.
+                        if (recoveryMode) return;
+                        return client.auth.getSession().then(function (res) {
+                            if (res.data.session) {
+                                location.replace(safeNext());
+                            }
+                        });
+                    })
+                    .catch(function (err) {
+                        fail(translate(err));
+                    });
+
+                /* ── Вход ───────────────────────────────────────── */
+                /* Отметка для auth.js: страница входа сразу уводит внутрь, и
+                   без неё непонятно, вошёл ты или тебя просто перекинуло.
+                   На той стороне по этой отметке показывается «Вы вошли
+                   как …», после чего она удаляется. */
+                function markSignedIn(email) {
+                    try {
+                        sessionStorage.setItem("finka-just-signed-in", email || "1");
+                    } catch (e) {
+                        /* приватный режим — обойдёмся без приветствия */
+                    }
+                }
+
+                function signIn(email, password) {
+                    return clientPromise
+                        .then(function (client) {
+                            return client.auth.signInWithPassword({
+                                email: email,
+                                password: password,
+                            });
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            markSignedIn(email);
+                            location.replace(safeNext());
+                        });
+                }
+
+                forms.login.addEventListener("submit", function (e) {
+                    e.preventDefault();
+                    clearAlerts();
+
+                    var email = document
+                        .getElementById("loginEmail")
+                        .value.trim();
+                    var password =
+                        document.getElementById("loginPassword").value;
+
+                    if (!email || !password) {
+                        fail("Заполните email и пароль.");
+                        return;
+                    }
+
+                    var btn = document.getElementById("btnLogin");
+                    busy(btn, true, "Войти");
+
+                    signIn(email, password).catch(function (err) {
+                        busy(btn, false, "Войти");
+                        fail(translate(err));
+                    });
+                });
+
+                /* ── Запрос письма восстановления ───────────────── */
+                forms.forgot.addEventListener("submit", function (e) {
+                    e.preventDefault();
+                    clearAlerts();
+
+                    var email = document
+                        .getElementById("forgotEmail")
+                        .value.trim();
+                    if (!email) {
+                        fail("Укажите email.");
+                        return;
+                    }
+
+                    var btn = document.getElementById("btnForgotSend");
+                    busy(btn, true, "Отправить ссылку");
+
+                    var redirectTo =
+                        location.origin +
+                        location.pathname.replace(/[^/]*$/, "") +
+                        "login.html";
+
+                    clientPromise
+                        .then(function (client) {
+                            return client.auth.resetPasswordForEmail(email, {
+                                redirectTo: redirectTo,
+                            });
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            busy(btn, false, "Отправить ссылку");
+                            show("login");
+                            ok(
+                                "Если такой аккаунт существует, письмо со ссылкой отправлено на " +
+                                    email +
+                                    ".",
+                            );
+                        })
+                        .catch(function (err) {
+                            busy(btn, false, "Отправить ссылку");
+                            fail(translate(err));
+                        });
+                });
+
+                /* ── Установка нового пароля ────────────────────── */
+                forms.reset.addEventListener("submit", function (e) {
+                    e.preventDefault();
+                    clearAlerts();
+
+                    var p1 = document.getElementById("resetPassword").value;
+                    var p2 = document.getElementById("resetPassword2").value;
+
+                    if (p1.length < 8) {
+                        fail("Пароль должен быть не короче 8 символов.");
+                        return;
+                    }
+                    if (p1 !== p2) {
+                        fail("Пароли не совпадают.");
+                        return;
+                    }
+
+                    var btn = document.getElementById("btnReset");
+                    busy(btn, true, "Сохранить пароль");
+
+                    clientPromise
+                        .then(function (client) {
+                            return client.auth.updateUser({ password: p1 });
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            history.replaceState(
+                                null,
+                                "",
+                                location.pathname + location.search,
+                            );
+                            markSignedIn("");
+                            location.replace(safeNext());
+                        })
+                        .catch(function (err) {
+                            busy(btn, false, "Сохранить пароль");
+                            fail(translate(err));
+                        });
+                });
+
+                /* ── Быстрый вход для разработки ────────────────── */
+                // Два независимых условия: страница открыта локально
+                // И файл dev-logins.js существует (в git и в деплой
+                // он не попадает). На проде не выполнится ни одно.
+                var host = location.hostname;
+                var isLocal =
+                    host === "localhost" ||
+                    host === "127.0.0.1" ||
+                    host === "[::1]" ||
+                    host === "" ||
+                    /\.local$/.test(host) ||
+                    /^192\.168\./.test(host) ||
+                    /^10\./.test(host);
+
+                if (isLocal) {
+                    var loader = document.createElement("script");
+                    loader.src = "dev-logins.js";
+                    loader.onload = renderDevBox;
+                    loader.onerror = function () {
+                        /* файла нет — блок просто не появится */
+                    };
+                    document.head.appendChild(loader);
+                }
+
+                function renderDevBox() {
+                    var groups = window.FINKA_DEV_LOGINS;
+                    if (!Array.isArray(groups) || !groups.length) return;
+
+                    var rows = document.getElementById("devRows");
+                    var allBtns = [];
+
+                    groups.forEach(function (group) {
+                        var usable = (group.accounts || []).filter(
+                            function (a) {
+                                return a.email && a.password;
+                            },
+                        );
+                        if (!usable.length) return;
+
+                        var row = document.createElement("div");
+                        row.className = "devrow";
+
+                        var label = document.createElement("div");
+                        label.className = "devrow-label";
+                        label.textContent = group.role;
+
+                        var box = document.createElement("div");
+                        box.className = "devrow-btns";
+
+                        usable.forEach(function (acc) {
+                            var b = document.createElement("button");
+                            b.type = "button";
+                            b.className = "devbtn";
+                            b.textContent = acc.branch;
+                            b.title = acc.email;
+                            b.addEventListener("click", function () {
+                                clearAlerts();
+                                allBtns.forEach(function (x) {
+                                    x.disabled = true;
+                                });
+                                b.textContent = "…";
+                                signIn(acc.email, acc.password).catch(
+                                    function (err) {
+                                        allBtns.forEach(function (x) {
+                                            x.disabled = false;
+                                        });
+                                        b.textContent = acc.branch;
+                                        fail(
+                                            acc.email + " — " + translate(err),
+                                        );
+                                    },
+                                );
+                            });
+                            allBtns.push(b);
+                            box.appendChild(b);
+                        });
+
+                        row.appendChild(label);
+                        row.appendChild(box);
+                        rows.appendChild(row);
+                    });
+
+                    if (allBtns.length) {
+                        document.getElementById("devBox").classList.add("show");
+                    }
+                }
+            })();
+        </script>
+    </body>
+</html>

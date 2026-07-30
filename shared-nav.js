@@ -17,6 +17,26 @@
                     title: "КБ НАО РФМШ — Для руководства",
                     key: "kb_svod",
                 },
+                {
+                    href: "plan-finansirovaniya.html",
+                    title: "План финансирования по платежам",
+                    key: "plan_fin",
+                },
+                {
+                    href: "spravki.html",
+                    title: "Справки на передвижку",
+                    key: "spravka_peredvizhka",
+                },
+                {
+                    href: "shtatnoe.html",
+                    title: "Штатное расписание",
+                    key: "shtat",
+                },
+                {
+                    href: "osnovaniya.html",
+                    title: "Основания (приказы)",
+                    key: "osnovaniya",
+                },
             ],
         },
         rb: {
@@ -124,32 +144,28 @@
                     title: "План командировок за рубеж",
                     key: "pu_plan_abroad",
                 },
+                {
+                    href: "plan-fact-pu.html",
+                    title: "План-Факт ПУ",
+                    key: "plan_fact_pu",
+                },
+                {
+                    href: "plan-fact-dt.html",
+                    title: "План-Факт ДТ",
+                    key: "plan_fact_dt",
+                },
+                {
+                    href: "plan-fact-pu-dt.html",
+                    title: "План-Факт ПУ + ДТ (свод)",
+                    key: "plan_fact_pu_dt",
+                },
             ],
         },
         util: {
-            label: "Утилиты",
-            short: "Утилиты",
+            label: "Импорт",
+            short: "Импорт",
             items: [
                 { href: "import-excel.html", title: "Импорт из Excel" },
-                { href: "check-import.html", title: "Проверка импорта" },
-                { href: "check-formulas.html", title: "Проверка формул" },
-                {
-                    href: "fill-all-budgets.html",
-                    title: "Заполнить все бюджеты",
-                },
-                { href: "fill-test-data.html", title: "Тестовые данные РБ" },
-                { href: "fill-pu-data.html", title: "Тестовые данные ПУ" },
-                { href: "fill-rb-svodnaya.html", title: "Заполнение сводной" },
-                {
-                    href: "reset-and-refill.html",
-                    title: "Сброс и перезаполнение",
-                },
-                {
-                    href: "clear-consolidated-data.html",
-                    title: "Очистка данных",
-                },
-                { href: "diagnose-consolidation.html", title: "Диагностика" },
-                { href: "migrate-localStorage.html", title: "Миграция данных" },
             ],
         },
     };
@@ -172,19 +188,10 @@
         if (currentSection) break;
     }
 
-    /* ── Calculate localStorage Size ───────────────────────────── */
-    function getStorageSize() {
-        var total = 0;
-        try {
-            for (var i = 0; i < localStorage.length; i++) {
-                var k = localStorage.key(i);
-                total += k.length + (localStorage.getItem(k) || "").length;
-            }
-        } catch (e) {
-            /* ignore */
-        }
-        return ((total * 2) / 1024 / 1024).toFixed(1);
-    }
+    /* ── Состояние обмена с базой ──────────────────────────────── */
+    // Раньше здесь считался объём localStorage. Данные теперь хранятся
+    // в базе (схема budget), localStorage остался лишь кэшем, и его
+    // размер пользователю ничего не говорит. Состояние пишет db-sync.js.
 
     /* ── Build Navigation HTML ─────────────────────────────────── */
     function buildDropdown(section) {
@@ -232,11 +239,8 @@
         "" +
         "    </div>" +
         '    <div class="finka-nav-right">' +
-        '      <span class="finka-nav-storage">' +
-        '        <span class="finka-nav-storage-icon">\uD83D\uDCBE</span>' +
-        '        <span id="finkaStorageSize">' +
-        getStorageSize() +
-        " МБ</span>" +
+        '      <span class="finka-nav-storage" title="Данные хранятся в базе">' +
+        '        <span id="finkaSyncState">☁ База данных</span>' +
         "      </span>" +
         '      <button class="finka-nav-mobile-btn" aria-label="Меню">\u2630</button>' +
         "    </div>" +
@@ -356,9 +360,8 @@
         }
     });
 
-    /* ── Update Storage Size Periodically ──────────────────────── */
-    setInterval(function () {
-        var el = document.getElementById("finkaStorageSize");
-        if (el) el.textContent = getStorageSize() + " МБ";
-    }, 10000);
+    /* ── Состояние обмена ──────────────────────────────────────── */
+    // db-sync.js стартует раньше навигации и успевает нарисовать
+    // состояние в углу экрана — просим перерисовать его сюда, в шапку
+    if (window.finkaSync && window.finkaSync.paint) window.finkaSync.paint();
 })();

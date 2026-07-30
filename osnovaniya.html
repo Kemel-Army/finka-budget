@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>Основания</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+        <style>
+            #osTable td {
+                vertical-align: top;
+            }
+            #osTable td.col-name input,
+            #osTable td.col-note input {
+                min-width: 200px;
+            }
+            .os-files {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+                min-width: 220px;
+            }
+            .os-file {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+                font-size: 11.5px;
+                max-width: 260px;
+            }
+            .os-file a {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .os-file-size {
+                color: var(--c-gray-400);
+                font-family: var(--font-mono);
+                font-size: 10.5px;
+                white-space: nowrap;
+            }
+            .os-file-del {
+                border: none;
+                background: none;
+                color: #e74c3c;
+                cursor: pointer;
+                font-size: 13px;
+                line-height: 1;
+                padding: 0 2px;
+            }
+            .os-attach {
+                font-size: 11.5px;
+                cursor: pointer;
+                color: var(--c-primary);
+                text-decoration: underline;
+            }
+            .os-attach input {
+                display: none;
+            }
+            .os-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+            .os-toolbar input[type="search"] {
+                min-width: 260px;
+            }
+        </style>
+    </head>
+    <body class="page-util">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+
+        <div class="header">
+            <h1>📎 Основания</h1>
+            <p>
+                Реестр приказов, решений и служебных записок, на которые
+                опираются суммы бюджета. К каждой записи прикрепляются файлы.
+            </p>
+
+            <div class="branch-selector" id="osBranches">
+                <button class="branch-btn" data-branch="nao">НАО «РФМШ»</button>
+                <button class="branch-btn active" data-branch="almaty">
+                    Алматы
+                </button>
+                <button class="branch-btn" data-branch="astana">Астана</button>
+                <button class="branch-btn" data-branch="uralsk">Уральск</button>
+            </div>
+        </div>
+
+        <div class="info-bar os-toolbar">
+            <input
+                type="search"
+                id="osSearch"
+                class="editable-cell"
+                placeholder="Поиск по номеру, названию, разделу…"
+            />
+            <div>
+                Записей: <strong id="osCount">0</strong> • вложений:
+                <strong id="osFileCount">0</strong> •
+                <span id="osSize">0 МБ</span>
+            </div>
+            <div class="auto-save-status saved" id="osSaveStatus">
+                ✓ Сохранено
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="osTable" data-sheet data-sticky-cols="2">
+                <thead>
+                    <tr>
+                        <th style="min-width: 40px">№</th>
+                        <th style="min-width: 110px">Вид документа</th>
+                        <th style="min-width: 110px">Номер</th>
+                        <th style="min-width: 140px">Дата</th>
+                        <th style="min-width: 220px">Наименование / содержание</th>
+                        <th style="min-width: 190px">К какому разделу относится</th>
+                        <th style="min-width: 130px">Сумма, тенге</th>
+                        <th style="min-width: 180px">Примечание</th>
+                        <th style="min-width: 230px">Вложения</th>
+                        <th style="min-width: 56px">—</th>
+                    </tr>
+                </thead>
+                <tbody id="osBody"></tbody>
+            </table>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-add-row" id="osAdd">➕ Добавить основание</button>
+            <button class="btn btn-primary" id="osSave">💾 Сохранить</button>
+            <button class="btn btn-success" id="osExcel">📥 Реестр в Excel</button>
+            <button class="btn btn-secondary" id="osPrint">🖨️ Печать</button>
+        </div>
+
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script>
+            (function () {
+                "use strict";
+
+                /* ═══════════════════════════════════════════════════════
+                   Основания — приказы и решения, которыми подтверждаются
+                   суммы бюджета.
+
+                   Карточки записей лежат в localStorage, а сами файлы — в
+                   IndexedDB: приказ в PDF легко весит несколько мегабайт, а
+                   в localStorage помещается около пяти на весь домен, и туда
+                   уже пишутся все таблицы бюджета.
+                   ═══════════════════════════════════════════════════════ */
+
+                var DOC_TYPES = [
+                    "Приказ",
+                    "Решение Правления",
+                    "Протокол",
+                    "Служебная записка",
+                    "Договор",
+                    "Письмо",
+                    "Иное",
+                ];
+
+                var SECTIONS = [
+                    "",
+                    "РБ · Свод расходов",
+                    "РБ · Сводная общая",
+                    "РБ · Доходы",
+                    "РБ · Фонд заработной платы",
+                    "РБ · Калькуляция расходов",
+                    "РБ · План командировок",
+                    "ПУ · Свод ПУ",
+                    "ПУ · Собственные средства",
+                    "ПУ · Дотация",
+                    "ПУ · Доходы",
+                    "План финансирования по платежам",
+                    "Справка на передвижку",
+                    "План-Факт",
+                    "Штатное расписание",
+                    "Тарификация",
+                    "Иное",
+                ];
+
+                var FIELDS = [
+                    { key: "type", t: "select", options: DOC_TYPES },
+                    { key: "num", t: "text" },
+                    { key: "date", t: "date" },
+                    { key: "name", t: "text", cls: "col-name" },
+                    { key: "section", t: "select", options: SECTIONS },
+                    { key: "amount", t: "number" },
+                    { key: "note", t: "text", cls: "col-note" },
+                ];
+
+                var STORAGE = "osnovaniya";
+                var DB_NAME = "finka-osnovaniya";
+                var DB_STORE = "files";
+                var branch = "almaty";
+                var rows = [];
+                var saveTimer = null;
+                var dbPromise = null;
+
+                function key() {
+                    return STORAGE + "_" + branch;
+                }
+
+                /* ── IndexedDB для файлов ──────────────────────────── */
+                function db() {
+                    if (dbPromise) return dbPromise;
+                    dbPromise = new Promise(function (resolve, reject) {
+                        var req = indexedDB.open(DB_NAME, 1);
+                        req.onupgradeneeded = function () {
+                            if (!req.result.objectStoreNames.contains(DB_STORE)) {
+                                req.result.createObjectStore(DB_STORE);
+                            }
+                        };
+                        req.onsuccess = function () {
+                            resolve(req.result);
+                        };
+                        req.onerror = function () {
+                            reject(req.error);
+                        };
+                    });
+                    return dbPromise;
+                }
+
+                function dbPut(id, blob) {
+                    return db().then(function (d) {
+                        return new Promise(function (resolve, reject) {
+                            var tx = d.transaction(DB_STORE, "readwrite");
+                            tx.objectStore(DB_STORE).put(blob, id);
+                            tx.oncomplete = resolve;
+                            tx.onerror = function () {
+                                reject(tx.error);
+                            };
+                        });
+                    });
+                }
+
+                function dbGet(id) {
+                    return db().then(function (d) {
+                        return new Promise(function (resolve, reject) {
+                            var req = d
+                                .transaction(DB_STORE, "readonly")
+                                .objectStore(DB_STORE)
+                                .get(id);
+                            req.onsuccess = function () {
+                                resolve(req.result);
+                            };
+                            req.onerror = function () {
+                                reject(req.error);
+                            };
+                        });
+                    });
+                }
+
+                function dbDel(id) {
+                    return db().then(function (d) {
+                        return new Promise(function (resolve, reject) {
+                            var tx = d.transaction(DB_STORE, "readwrite");
+                            tx.objectStore(DB_STORE).delete(id);
+                            tx.oncomplete = resolve;
+                            tx.onerror = function () {
+                                reject(tx.error);
+                            };
+                        });
+                    });
+                }
+
+                /* ── Хранение реестра ──────────────────────────────── */
+                function load() {
+                    try {
+                        rows = JSON.parse(localStorage.getItem(key())) || [];
+                    } catch (e) {
+                        rows = [];
+                    }
+                    if (!Array.isArray(rows)) rows = [];
+                    render();
+                }
+
+                function save() {
+                    localStorage.setItem(key(), JSON.stringify(rows));
+                    setStatus("✓ Сохранено", "saved");
+                }
+                window.saveData = save;
+
+                function scheduleSave() {
+                    clearTimeout(saveTimer);
+                    setStatus("⏳ Сохранение...", "saving");
+                    saveTimer = setTimeout(save, 700);
+                }
+
+                function setStatus(text, cls) {
+                    var el = document.getElementById("osSaveStatus");
+                    el.textContent = text;
+                    el.className = "auto-save-status " + cls;
+                }
+
+                function emptyRow() {
+                    return {
+                        id: "o" + Date.now() + Math.random().toString(36).slice(2, 7),
+                        type: "Приказ",
+                        num: "",
+                        date: "",
+                        name: "",
+                        section: "",
+                        amount: 0,
+                        note: "",
+                        files: [],
+                    };
+                }
+
+                /* ── Отрисовка ─────────────────────────────────────── */
+                function matches(row, q) {
+                    if (!q) return true;
+                    return [row.type, row.num, row.name, row.section, row.note]
+                        .join(" ")
+                        .toLowerCase()
+                        .includes(q);
+                }
+
+                function render() {
+                    var q = document
+                        .getElementById("osSearch")
+                        .value.trim()
+                        .toLowerCase();
+                    var tbody = document.getElementById("osBody");
+                    tbody.innerHTML = "";
+                    var shown = 0;
+                    var files = 0;
+                    var bytes = 0;
+
+                    rows.forEach(function (row, idx) {
+                        files += (row.files || []).length;
+                        (row.files || []).forEach(function (f) {
+                            bytes += f.size || 0;
+                        });
+                        if (!matches(row, q)) return;
+                        shown++;
+
+                        var tr = document.createElement("tr");
+
+                        var tdN = document.createElement("td");
+                        tdN.className = "label-cell";
+                        tdN.style.textAlign = "center";
+                        tdN.textContent = idx + 1;
+                        tr.appendChild(tdN);
+
+                        FIELDS.forEach(function (f) {
+                            tr.appendChild(fieldCell(row, f));
+                        });
+
+                        tr.appendChild(filesCell(row));
+
+                        var tdDel = document.createElement("td");
+                        var del = document.createElement("button");
+                        del.className = "btn-delete-row";
+                        del.type = "button";
+                        del.textContent = "✕";
+                        del.title = "Удалить основание";
+                        del.addEventListener("click", function () {
+                            if (
+                                !confirm(
+                                    "Удалить основание «" +
+                                        (row.name || row.num || "") +
+                                        "» вместе с вложениями?",
+                                )
+                            )
+                                return;
+                            (row.files || []).forEach(function (f) {
+                                dbDel(f.id).catch(function () {});
+                            });
+                            rows.splice(idx, 1);
+                            save();
+                            render();
+                        });
+                        tdDel.appendChild(del);
+                        tr.appendChild(tdDel);
+
+                        tbody.appendChild(tr);
+                    });
+
+                    document.getElementById("osCount").textContent = shown;
+                    document.getElementById("osFileCount").textContent = files;
+                    document.getElementById("osSize").textContent =
+                        (bytes / 1024 / 1024).toFixed(1) + " МБ";
+                }
+
+                function fieldCell(row, f) {
+                    var td = document.createElement("td");
+                    td.className = "editable" + (f.cls ? " " + f.cls : "");
+                    var el;
+                    if (f.t === "select") {
+                        el = document.createElement("select");
+                        el.className = "editable-cell";
+                        f.options.forEach(function (o) {
+                            var opt = document.createElement("option");
+                            opt.value = o;
+                            opt.textContent = o || "— не указан —";
+                            el.appendChild(opt);
+                        });
+                    } else {
+                        el = document.createElement("input");
+                        el.className = "editable-cell";
+                        el.type = f.t;
+                        if (f.t === "number") el.step = "0.01";
+                    }
+                    el.value = row[f.key] != null ? row[f.key] : "";
+                    el.addEventListener("change", function () {
+                        row[f.key] =
+                            f.t === "number"
+                                ? parseFloat(el.value) || 0
+                                : el.value;
+                        scheduleSave();
+                    });
+                    el.addEventListener("input", function () {
+                        row[f.key] =
+                            f.t === "number"
+                                ? parseFloat(el.value) || 0
+                                : el.value;
+                        scheduleSave();
+                    });
+                    td.appendChild(el);
+                    return td;
+                }
+
+                function filesCell(row) {
+                    var td = document.createElement("td");
+                    var box = document.createElement("div");
+                    box.className = "os-files";
+
+                    (row.files || []).forEach(function (f) {
+                        var line = document.createElement("div");
+                        line.className = "os-file";
+
+                        var a = document.createElement("a");
+                        a.href = "#";
+                        a.textContent = f.name;
+                        a.title = "Открыть " + f.name;
+                        a.addEventListener("click", function (e) {
+                            e.preventDefault();
+                            openFile(f);
+                        });
+                        line.appendChild(a);
+
+                        var size = document.createElement("span");
+                        size.className = "os-file-size";
+                        size.textContent = humanSize(f.size);
+                        line.appendChild(size);
+
+                        var del = document.createElement("button");
+                        del.className = "os-file-del";
+                        del.type = "button";
+                        del.textContent = "✕";
+                        del.title = "Открепить файл";
+                        del.addEventListener("click", function () {
+                            if (!confirm("Открепить «" + f.name + "»?")) return;
+                            dbDel(f.id).catch(function () {});
+                            row.files = row.files.filter(function (x) {
+                                return x.id !== f.id;
+                            });
+                            save();
+                            render();
+                        });
+                        line.appendChild(del);
+
+                        box.appendChild(line);
+                    });
+
+                    var label = document.createElement("label");
+                    label.className = "os-attach";
+                    label.textContent = "＋ прикрепить файл";
+                    var inp = document.createElement("input");
+                    inp.type = "file";
+                    inp.multiple = true;
+                    inp.addEventListener("change", function () {
+                        attach(row, inp.files);
+                        inp.value = "";
+                    });
+                    label.appendChild(inp);
+                    box.appendChild(label);
+
+                    td.appendChild(box);
+                    return td;
+                }
+
+                function attach(row, fileList) {
+                    if (!fileList || !fileList.length) return;
+                    var pending = Array.prototype.map.call(fileList, function (file) {
+                        var id =
+                            "f" + Date.now() + Math.random().toString(36).slice(2, 8);
+                        return dbPut(id, file).then(function () {
+                            return {
+                                id: id,
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                                added: new Date().toLocaleString("ru-RU"),
+                            };
+                        });
+                    });
+
+                    Promise.all(pending)
+                        .then(function (metas) {
+                            row.files = (row.files || []).concat(metas);
+                            save();
+                            render();
+                            if (window.finkaToast)
+                                window.finkaToast(
+                                    "Прикреплено файлов: " + metas.length,
+                                    "success",
+                                );
+                        })
+                        .catch(function (err) {
+                            alert("Не удалось сохранить файл: " + err);
+                        });
+                }
+
+                function openFile(meta) {
+                    dbGet(meta.id)
+                        .then(function (blob) {
+                            if (!blob) {
+                                alert(
+                                    "Файл не найден в этом браузере. Вложения хранятся локально: " +
+                                        "на другом компьютере их нужно прикрепить заново.",
+                                );
+                                return;
+                            }
+                            var url = URL.createObjectURL(blob);
+                            var a = document.createElement("a");
+                            a.href = url;
+                            a.download = meta.name;
+                            a.click();
+                            setTimeout(function () {
+                                URL.revokeObjectURL(url);
+                            }, 30000);
+                        })
+                        .catch(function (err) {
+                            alert("Не удалось открыть файл: " + err);
+                        });
+                }
+
+                function humanSize(n) {
+                    n = n || 0;
+                    if (n < 1024) return n + " Б";
+                    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " КБ";
+                    return (n / 1024 / 1024).toFixed(1) + " МБ";
+                }
+
+                /* ── Экспорт реестра ───────────────────────────────── */
+                function exportExcel() {
+                    var head = [
+                        ["Реестр оснований"],
+                        ["Филиал: " + branch],
+                        [],
+                        [
+                            "№", "Вид документа", "Номер", "Дата",
+                            "Наименование / содержание", "Раздел", "Сумма, тенге",
+                            "Примечание", "Вложения",
+                        ],
+                    ];
+                    var body = rows.map(function (r, i) {
+                        return [
+                            i + 1, r.type, r.num, r.date, r.name, r.section,
+                            r.amount,
+                            r.note,
+                            (r.files || [])
+                                .map(function (f) {
+                                    return f.name;
+                                })
+                                .join("; "),
+                        ];
+                    });
+                    var ws = XLSX.utils.aoa_to_sheet(head.concat(body));
+                    ws["!cols"] = [
+                        { wch: 5 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
+                        { wch: 46 }, { wch: 28 }, { wch: 16 }, { wch: 30 },
+                        { wch: 40 },
+                    ];
+                    var wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Основания");
+                    XLSX.writeFile(wb, "Основания_" + branch + ".xlsx");
+                }
+                window.exportExcel = exportExcel;
+
+                /* ── События ───────────────────────────────────────── */
+                document
+                    .getElementById("osBranches")
+                    .addEventListener("click", function (e) {
+                        var btn = e.target.closest(".branch-btn");
+                        if (!btn) return;
+                        save();
+                        this.querySelectorAll(".branch-btn").forEach(function (b) {
+                            b.classList.remove("active");
+                        });
+                        btn.classList.add("active");
+                        branch = btn.dataset.branch;
+                        load();
+                    });
+
+                document.getElementById("osAdd").addEventListener("click", function () {
+                    rows.push(emptyRow());
+                    save();
+                    render();
+                    var last = document.querySelector(
+                        "#osBody tr:last-child input[type=text]",
+                    );
+                    if (last) last.focus();
+                });
+
+                document.getElementById("osSearch").addEventListener("input", render);
+                document.getElementById("osSave").addEventListener("click", save);
+                document
+                    .getElementById("osExcel")
+                    .addEventListener("click", exportExcel);
+                document
+                    .getElementById("osPrint")
+                    .addEventListener("click", function () {
+                        window.print();
+                    });
+
+                load();
+            })();
+        </script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

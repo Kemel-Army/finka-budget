@@ -1,0 +1,39 @@
+.git
+.gitignore
+.vercel
+.vercelignore
+.env*
+node_modules
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Скрипты разработки и анализа
+*.py
+*.ps1
+__pycache__/
+*.pyc
+
+# Документация и исходные выгрузки
+*.md
+*.xlsx
+*.txt
+*.yaml
+package.json
+pnpm-lock.yaml
+.htmlhintrc
+
+# Пароли быстрого входа — только для локальной разработки
+dev-logins.js
+dev-logins.example.js
+scripts/
+
+# Служебное
+*.log
+*.tmp
+*.bak
+Thumbs.db
+desktop.ini
+
+# Исходные книги Excel — только для разработки
+excel/

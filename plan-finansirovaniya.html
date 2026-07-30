@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>План финансирования по платежам</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+    </head>
+    <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+        <div id="mpRoot"></div>
+
+        <script src="budget-rows.js"></script>
+        <script src="monthly-plan-core.js"></script>
+        <script>
+            MonthlyPlan.init({
+                storageKey: "plan_fin",
+                icon: "🗓️",
+                title: "План финансирования по платежам",
+                subtitle:
+                    "Индивидуальный план финансирования • НАО «РФМШ» • суммы в тенге",
+                docFields: [
+                    { key: "period", label: "Период", width: 90 },
+                    { key: "admin", label: "Администратор бюджетных программ", width: 280 },
+                    { key: "director", label: "Директор филиала", width: 220 },
+                    { key: "economist", label: "Экономист", width: 220 },
+                ],
+                variants: [
+                    {
+                        key: "rb",
+                        label: "Республиканский бюджет",
+                        rows: BUDGET_ROWS.PLAN_RB,
+                    },
+                    {
+                        key: "pu",
+                        label: "Подушевое (ПУ)",
+                        rows: BUDGET_ROWS.PU,
+                    },
+                    {
+                        key: "dt",
+                        label: "Дотация (ФИНЦЕНТР)",
+                        rows: BUDGET_ROWS.DT,
+                    },
+                ],
+                sumVariant: {
+                    key: "svod",
+                    label: "📈 Свод ПУ + ДТ",
+                    of: ["pu", "dt"],
+                },
+            });
+        </script>
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>
