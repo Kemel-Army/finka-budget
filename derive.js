@@ -254,6 +254,102 @@
                  target: "Свод расходов" };
     }
 
+    /* ── Фонд оплаты труда «Сводной общей» → «Свод расходов» ─────
+       Запасной путь для строк 10–15. В книге они приходят из «СВОД ФЗП»,
+       но тот лист загружают не всегда — а те же суммы есть в первом
+       разделе «Сводной общей» (Фонд оплаты труда). Без этого на «Своде»
+       по налогам стоят нули, хотя в «Сводной общей» они заполнены.
+
+       Ищем по наименованию строки, а не по её номеру: в разных версиях
+       книги налоги в разделе идут в разном порядке (в одной ОПВ третьей
+       строкой, в другой — последней). */
+    var FOT_ROWS = [
+        { to: "C10", test: /штатн|тарификац/i, many: true, name: "Оплата труда" },
+        { to: "C11", test: /компенсац/i, name: "Компенсационные выплаты" },
+        { to: "C12", test: /пенсионн/i, name: "Обязательные пенсионные взносы" },
+        // \w кириллицу не ловит, поэтому между словами — точка
+        { to: "C13", test: /социальн.*налог/i, name: "Социальный налог" },
+        { to: "C14", test: /социальн.*отчислен/i, name: "Социальные отчисления" },
+        { to: "C15", test: /медицинск/i, name: "Обязательное медицинское страхование" },
+    ];
+
+    var FOT_NAME_COL = 2; // C — наименование расхода
+    var FOT_SUM_COL = 7;  // H — сумма затрат в рамках лимита
+
+    /** Строки первого раздела «Сводной общей»: наименование и сумма. */
+    function fotLines(svodnaya) {
+        var out = [];
+        Object.keys(svodnaya).forEach(function (key) {
+            var m = /^sec1_row(\d+)_col(\d+)$/.exec(key);
+            if (!m || Number(m[2]) !== FOT_NAME_COL) return;
+            var row = m[1];
+            var name = String(svodnaya[key] || "");
+            if (!name.trim()) return;
+            var sum = toNumber(svodnaya["sec1_row" + row + "_col" + FOT_SUM_COL]);
+            if (sum === null) return;
+            out.push({ row: Number(row), name: name, sum: sum });
+        });
+        return out.sort(function (a, b) {
+            return a.row - b.row;
+        });
+    }
+
+    function fotFromSvodnaya(branch, options) {
+        var opts = options || {};
+        var svodnaya = read("rb_svodnaya_" + branch);
+        if (!svodnaya) {
+            return { ok: false, reason: "Сводная общая по этому филиалу ещё не заполнена" };
+        }
+
+        var lines = fotLines(svodnaya).filter(function (l) {
+            // строку итога раздела в слагаемые не берём
+            return !/^\s*(итого|всего)/i.test(l.name);
+        });
+        if (!lines.length) {
+            return { ok: false, reason: "В «Сводной общей» не заполнен раздел «Фонд оплаты труда»" };
+        }
+
+        var key = "rb_svod_" + branch;
+        var target = read(key) || { sheet: "rb_svod", branch: branch, cells: {} };
+        if (!target.cells) target.cells = {};
+
+        var moved = [];
+        var missing = [];
+        var used = [];
+
+        FOT_ROWS.forEach(function (m) {
+            var hits = lines.filter(function (l) {
+                return m.test.test(l.name) && used.indexOf(l.row) === -1;
+            });
+            if (!m.many) hits = hits.slice(0, 1);
+            if (!hits.length) {
+                missing.push(m.name);
+                return;
+            }
+            var value = 0;
+            hits.forEach(function (l) {
+                value += l.sum;
+                used.push(l.row);
+            });
+            if (toNumber(target.cells[m.to]) === value) return;
+            moved.push({ cell: m.to, name: m.name, was: toNumber(target.cells[m.to]), now: value });
+            target.cells[m.to] = value;
+        });
+
+        var total = 0;
+        TOTAL_FROM.forEach(function (c) {
+            var n = toNumber(target.cells[c]);
+            if (n !== null) total += n;
+        });
+        target.cells[TOTAL_CELL] = total;
+        target.lastModified = new Date().toISOString();
+
+        if (!opts.dryRun) localStorage.setItem(key, JSON.stringify(target));
+
+        return { ok: true, branch: branch, moved: moved, missing: missing,
+                 total: total, target: "Свод расходов" };
+    }
+
     /** Разносит по всем филиалам, где «Сводная общая» заполнена. */
     function all(options) {
         return ["nao", "almaty", "astana", "uralsk"]
@@ -269,6 +365,9 @@
     function chain(branch, options) {
         var out = [];
         var fzp = fzpToSvod(branch, options);   // ФЗП → строки 10–15 «Свода»
+        // «СВОД ФЗП» загружают не всегда — тогда те же суммы берём из
+        // раздела «Фонд Оплаты Труда» «Сводной общей»
+        if (!fzp.ok) fzp = fotFromSvodnaya(branch, options);
         if (fzp.ok) out.push(fzp);
         var svod = toSvod(branch, options);     // Сводная общая → строки 16–25
         if (svod.ok) out.push(svod);
@@ -281,6 +380,7 @@
         toSvod: toSvod,
         toKalkulyacia: toKalkulyacia,
         fzpToSvod: fzpToSvod,
+        fotFromSvodnaya: fotFromSvodnaya,
         chain: chain,
         all: all,
         MAP: MAP,

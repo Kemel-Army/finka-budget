@@ -6,6 +6,7 @@
         <link rel="stylesheet" href="shared.css" />
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
+        <script src="derive.js"></script>
         <title>Свод РБ 2026-2028</title>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
@@ -687,6 +688,14 @@
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
             </button>
+            <button
+                class="btn btn-primary"
+                style="background: #2563eb"
+                onclick="pullFromSources()"
+                title="Строки 10–15 — из «Свода ФЗП» (если он не загружен, из раздела ФОТ «Сводной общей»), строки 16–25 — из итогов разделов «Сводной общей»"
+            >
+                🔄 Подтянуть из ФЗП и Сводной общей
+            </button>
             <button class="btn btn-success" onclick="exportToExcel()">
                 📥 Excel
             </button>
@@ -904,6 +913,52 @@
                 }
 
                 calculateTotals();
+            }
+
+            /* Лист «Свод» в книге руками не заполняется: строки 10–15 —
+               фонд оплаты труда с налогами, строки 16–25 — итоги разделов
+               «Сводной общей». Адреса ячеек и порядок шагов — в derive.js. */
+            function pullFromSources() {
+                if (!window.FinkaDerive) {
+                    alert("Модуль разнесения не загрузился");
+                    return;
+                }
+                if (currentBranch === "consolidated") {
+                    alert(
+                        "Подтянуть можно по конкретному филиалу — " +
+                            "выберите филиал вместо консолидации.",
+                    );
+                    return;
+                }
+
+                var fot = window.FinkaDerive.fzpToSvod(currentBranch);
+                var fromSvodnaya = false;
+                if (!fot.ok) {
+                    fot = window.FinkaDerive.fotFromSvodnaya(currentBranch);
+                    fromSvodnaya = fot.ok;
+                }
+                var res = window.FinkaDerive.toSvod(currentBranch);
+
+                loadData();
+
+                var parts = [];
+                if (fot.ok) {
+                    parts.push(
+                        "фонд оплаты труда и налоги — из " +
+                            (fromSvodnaya ? "«Сводной общей»" : "«Свода ФЗП»"),
+                    );
+                } else {
+                    parts.push("ФОТ не подтянулся: " + fot.reason);
+                }
+                parts.push(
+                    res.ok
+                        ? "разделы — из «Сводной общей»"
+                        : "разделы не подтянулись: " + res.reason,
+                );
+
+                var msg = parts.join("; ");
+                if (window.finkaToast) window.finkaToast(msg, res.ok ? "success" : "warning");
+                else alert(msg);
             }
 
             function switchBranch(branch) {

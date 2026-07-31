@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/unit.mjs && node tests/run.mjs && node tests/import.mjs && node tests/import-all.mjs && node tests/pages.mjs && node tests/sheet-edit.mjs && node tests/db-sync.mjs && node tests/derive.mjs",
+    "test": "node tests/unit.mjs && node tests/run.mjs && node tests/import.mjs && node tests/import-all.mjs && node tests/pages.mjs && node tests/sheet-edit.mjs && node tests/db-sync.mjs && node tests/derive.mjs && node tests/svodnaya.mjs",
     "lint": "htmlhint *.html",
     "lint:fix": "htmlhint *.html --format compact",
     "test:rls": "node tests/rls-live.mjs",

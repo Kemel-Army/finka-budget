@@ -196,6 +196,10 @@
        определяется по всей таблице в columnKinds(). */
     function numeric(cell) {
         if (!cell) return null;
+        // Колонка ставки (3,5%, 6%) и собственные итоги страницы: числа
+        // есть, но складывать их бессмысленно — страница помечает такие
+        // ячейки data-nosum
+        if (cell.querySelector("[data-nosum]")) return null;
         var inp = cell.querySelector("input");
         if (inp) {
             if (inp.type === "date" || inp.type === "checkbox") return null;

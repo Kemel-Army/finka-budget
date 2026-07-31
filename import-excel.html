@@ -1510,9 +1510,10 @@
 
         /* ── Обслуживание ─────────────────────────────────────────── */
         document.getElementById("clearBtn").addEventListener("click", () => {
-            if (!confirm("Удалить ВСЕ данные бюджета из этого браузера?")) return;
+            if (!confirm("Удалить данные бюджета из этого браузера? В базе они останутся.")) return;
             const keys = Object.keys(localStorage).filter(
-                (k) => k.startsWith("rb_") || k.startsWith("pu_") || k.startsWith("fot"),
+                (k) =>
+                    /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|sheet_edits_)/.test(k),
             );
             keys.forEach((k) => localStorage.removeItem(k));
             addLog(`Удалено ключей: ${keys.length}`, "success");

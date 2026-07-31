@@ -33,6 +33,36 @@
             .section-container td[data-col="1"] input {
                 text-align: center;
             }
+            /* Итог всей страницы — последняя строка книги */
+            .grand-total-bar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: center;
+                justify-content: space-between;
+                margin: 24px 0 12px;
+                padding: 18px 22px;
+                border: 2px solid #2563eb;
+                border-radius: 12px;
+                background: #eff6ff;
+            }
+            .grand-total-label {
+                font-size: 15px;
+                font-weight: 700;
+                color: #1e293b;
+            }
+            .grand-total-label span {
+                display: block;
+                font-size: 12px;
+                font-weight: 400;
+                color: #64748b;
+            }
+            .grand-total-value {
+                font-size: 22px;
+                font-weight: 800;
+                color: #1d4ed8;
+                font-variant-numeric: tabular-nums;
+            }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="shared-export.js"></script>
@@ -160,6 +190,14 @@
 
             <div id="sections-container"></div>
 
+            <div class="grand-total-bar">
+                <div class="grand-total-label">
+                    Итого расходы на 1186 обучающихся по Гос.З.
+                    <span>фонд оплаты труда + итоги разделов, как на листе «Свод»</span>
+                </div>
+                <div class="grand-total-value" id="grand-total-value">0,00 ₸</div>
+            </div>
+
             <button
                 class="back-to-top"
                 onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
@@ -277,9 +315,12 @@
 
                     // Генерируем разделы
                     generateSections(data.sections);
+                    fillSectionValues(data.sections);
+                    markGrandTotalRow();
 
                     // Загружаем сохраненные данные
                     loadData();
+                    updateGrandTotal();
                 } catch (error) {
                     console.error("Ошибка загрузки данных:", error);
                     // Fallback - генерируем пустую структуру
@@ -326,20 +367,123 @@
                     .join("");
             }
 
+            /* ── Колонки, числа и проценты ──────────────────────────────
+
+               Раньше пустые ячейки при отрисовке пропускались, и строка,
+               где заполнены не все колонки, съезжала влево: ставка налога
+               вставала в колонку суммы, а сама сумма — в «Действия».
+               Поэтому таблица строится по единой сетке колонок раздела:
+               пустая ячейка тоже занимает своё место. */
+
+            // Колонка ставки: в разделе «Фонд Оплаты Труда» это доли
+            // (0,035 → 3,5%), заголовка у неё в книге нет
+            const RATE_COLS = { 1: [6] };
+
+            // Денежная колонка — по заголовку, как в книге
+            const MONEY_HEADER = /сумм|тенге|стоимост/i;
+
+            function sectionCols(section) {
+                const cols = [];
+                section.rows.forEach((r) =>
+                    r.data.forEach((c, i) => {
+                        if (c !== "" && cols.indexOf(i) === -1) cols.push(i);
+                    }),
+                );
+                return cols.sort((a, b) => a - b);
+            }
+
+            function isRateCol(sectionNum, colIdx) {
+                const list = RATE_COLS[sectionNum] || [];
+                return list.indexOf(colIdx) !== -1;
+            }
+
+            function parseNum(v) {
+                if (v === null || v === undefined) return null;
+                const t = String(v)
+                    .replace(/[\s  ₸%]/g, "")
+                    .replace(",", ".");
+                if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return null;
+                const n = parseFloat(t);
+                return Number.isFinite(n) ? n : null;
+            }
+
+            function fmtMoney(n) {
+                return n.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            // Целое показываем без копеек: «2 510» бутылей, а не «2 510,00»
+            function fmtPlain(n) {
+                return n.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            // В книге ставка записана долей: 0,035 → «3,5%»
+            function fmtRate(n) {
+                const p = Math.abs(n) <= 1 ? n * 100 : n;
+                return (
+                    p.toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + "%"
+                );
+            }
+
+            function cellDisplay(input) {
+                const raw = input.dataset.raw || "";
+                const n = parseNum(raw);
+                if (n === null) return raw; // наименование — как есть
+                if (input.dataset.kind === "rate") return fmtRate(n);
+                if (input.dataset.kind === "money") return fmtMoney(n);
+                if (input.dataset.kind === "id") return raw;
+                return fmtPlain(n);
+            }
+
+            // Значение для хранения: без пробелов, точка как разделитель
+            function cellNormalize(input, typed) {
+                const n = parseNum(typed);
+                if (n === null) return String(typed).trim();
+                if (input.dataset.kind === "rate" && Math.abs(n) > 1) {
+                    return String(n / 100); // ввели «3,5» — это 3,5%
+                }
+                return String(n);
+            }
+
+            function setCellValue(input, raw) {
+                input.dataset.raw = raw === null || raw === undefined ? "" : String(raw);
+                input.value = cellDisplay(input);
+            }
+
+            function cellFocus(input) {
+                input.value = input.dataset.raw || "";
+            }
+
+            function cellBlur(input) {
+                input.dataset.raw = cellNormalize(input, input.value);
+                input.value = cellDisplay(input);
+                updateGrandTotal();
+            }
+
             // Генерация таблицы раздела
             function generateSectionTable(section) {
                 if (!section.rows || section.rows.length === 0) {
                     return '<p style="padding: 20px; color: #7f8c8d;">Нет данных</p>';
                 }
 
-                // Определяем количество столбцов из первой строки
-                const maxCols = Math.max(
-                    ...section.rows.map(
-                        (r) => r.data.filter((c) => c !== "").length,
-                    ),
-                );
+                const cols = sectionCols(section);
+                const header = section.rows[0] ? section.rows[0].data : [];
 
-                let html = "<table>";
+                const kindOf = (colIdx) => {
+                    if (colIdx === 1) return "id"; // № п.п
+                    if (colIdx === 2) return "text"; // наименование
+                    if (isRateCol(section.num, colIdx)) return "rate";
+                    return MONEY_HEADER.test(header[colIdx] || "")
+                        ? "money"
+                        : "num";
+                };
+
+                let html = '<table data-cols="' + cols.join(",") + '">';
 
                 section.rows.forEach((row, idx) => {
                     const isHeader =
@@ -347,9 +491,11 @@
                         row.data[1] === "№ п.п" ||
                         row.data[1] === "№ п/п" ||
                         row.data[1] === "№ ";
-                    const isSummary =
-                        row.data[2]?.includes("Всего") ||
-                        row.data[2]?.includes("ИТОГО");
+                    // Собственные итоги листа не должны попадать в сумму
+                    // колонки — иначе итог удвоится
+                    const isSummary = /^\s*(итого|всего)/i.test(
+                        row.data[2] || "",
+                    );
                     const rowId = `sec${section.num}_row${row.idx}`;
 
                     html +=
@@ -359,21 +505,22 @@
                         (isSummary ? ' class="summary-row"' : "") +
                         ">";
 
-                    row.data.forEach((cell, colIdx) => {
-                        if (cell === "") return; // Пропускаем пустые ячейки
-
-                        const cellTag = isHeader ? "th" : "td";
+                    cols.forEach((colIdx) => {
+                        const cell = row.data[colIdx] || "";
                         const cellId = `sec${section.num}_row${row.idx}_col${colIdx}`;
 
                         if (isHeader) {
-                            html += `<${cellTag} data-col="${colIdx}">${cell}</${cellTag}>`;
-                        } else {
-                            // Все ячейки теперь редактируемые
-                            html += `<td data-col="${colIdx}"><input type="text" class="editable-cell" id="${cellId}" 
-                                value="${cell}" 
-                                oninput="handleInput('${cellId}')" 
-                                placeholder="-"></td>`;
+                            html += `<th data-col="${colIdx}">${cell}</th>`;
+                            return;
                         }
+
+                        const kind = kindOf(colIdx);
+                        html +=
+                            `<td data-col="${colIdx}"><input type="text" class="editable-cell" id="${cellId}"` +
+                            ` data-kind="${kind}"${kind === "rate" ? " data-nosum=\"1\"" : ""}` +
+                            ` oninput="handleInput('${cellId}')"` +
+                            ` onfocus="cellFocus(this)" onblur="cellBlur(this)"` +
+                            ` placeholder="-"></td>`;
                     });
 
                     // Добавляем кнопку удаления для не-заголовочных строк
@@ -390,6 +537,140 @@
 
                 html += "</table>";
                 return html;
+            }
+
+            /* Значения проставляем после вставки разметки: их надо не просто
+               подставить в value, а разложить на «как хранится» и «как
+               показывается» */
+            function fillSectionValues(sections) {
+                sections.forEach((section) => {
+                    section.rows.forEach((row, idx) => {
+                        const isHeader =
+                            idx === 0 ||
+                            row.data[1] === "№ п.п" ||
+                            row.data[1] === "№ п/п" ||
+                            row.data[1] === "№ ";
+                        if (isHeader) return;
+                        row.data.forEach((cell, colIdx) => {
+                            const input = document.getElementById(
+                                `sec${section.num}_row${row.idx}_col${colIdx}`,
+                            );
+                            if (input) setCellValue(input, cell);
+                        });
+                    });
+                });
+            }
+
+            /* ── Общий итог страницы ────────────────────────────────────
+
+               В книге лист заканчивается строкой «Итого расходы на 1186
+               обучающихся по Гос.З.» — это те же слагаемые, что и на листе
+               «Свод»: фонд оплаты труда плюс итоги остальных разделов
+               (адреса ячеек — в derive.js, MAP). Считаем по тем же адресам,
+               чтобы страница и «Свод» не расходились. */
+            /* Итоги разделов лежат в строке-заголовке раздела: на странице
+               она стала подписью с ▼, поля ввода у неё нет. Поэтому берём
+               снимок: что сохранено при импорте, поверх — что сейчас в
+               полях. */
+            function currentCells() {
+                let data = {};
+                try {
+                    data =
+                        JSON.parse(
+                            localStorage.getItem(
+                                "rb_svodnaya_" + currentBranch,
+                            ),
+                        ) || {};
+                } catch (e) {
+                    data = {};
+                }
+                document
+                    .querySelectorAll('input[type="text"]')
+                    .forEach((input) => {
+                        if (!input.id) return;
+                        data[input.id] =
+                            input.dataset.raw !== undefined
+                                ? input.dataset.raw
+                                : input.value;
+                    });
+                return data;
+            }
+
+            function cellValueAt(cells, excelRow, col) {
+                const suffix = `_row${excelRow - 1}_col${col}`;
+                const keys = Object.keys(cells);
+                for (let i = 0; i < keys.length; i++) {
+                    if (keys[i].slice(-suffix.length) !== suffix) continue;
+                    const n = parseNum(cells[keys[i]]);
+                    if (n !== null) return n;
+                }
+                return null;
+            }
+
+            // Фонд оплаты труда: на листе «Свод» это шесть строк, здесь —
+            // весь первый раздел без строки итога
+            function fotTotal() {
+                let sum = 0;
+                document
+                    .querySelectorAll('#section-1 tr:not(.summary-row) input[data-kind="money"]')
+                    .forEach((input) => {
+                        const n = parseNum(input.dataset.raw);
+                        if (n !== null) sum += n;
+                    });
+                return sum;
+            }
+
+            function grandTotal() {
+                const cells = currentCells();
+                let sum = fotTotal();
+                const map = (window.FinkaDerive && window.FinkaDerive.MAP) || [];
+                map.forEach((m) => {
+                    const v = cellValueAt(cells, m.row, m.col);
+                    if (v !== null) sum += v;
+                });
+                return sum;
+            }
+
+            function updateGrandTotal() {
+                const total = grandTotal();
+                const text = total.toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+
+                const box = document.getElementById("grand-total-value");
+                if (box) box.textContent = text + " ₸";
+
+                // Та же сумма — в последнюю строку раздела 11, как в книге
+                const row = document.querySelector('input[data-grand-total="1"]');
+                if (row) {
+                    row.dataset.raw = String(total);
+                    row.value = cellDisplay(row);
+                }
+            }
+
+            // Строку «Итого расходы на 1186 обучающихся» страница считает
+            // сама — руками её не правят
+            function markGrandTotalRow() {
+                document
+                    .querySelectorAll("#sections-container tr")
+                    .forEach((tr) => {
+                        const label = tr.querySelector('input[data-kind="text"]');
+                        if (!label) return;
+                        if (!/итого расходы на/i.test(label.dataset.raw || "")) {
+                            return;
+                        }
+                        tr.classList.add("summary-row");
+                        const cells = tr.querySelectorAll(
+                            'input[data-kind="money"]',
+                        );
+                        const last = cells[cells.length - 1];
+                        if (!last) return;
+                        last.readOnly = true;
+                        last.title = "Считается страницей: ФОТ + итоги разделов";
+                        last.dataset.nosum = "1";
+                        last.dataset.grandTotal = "1";
+                    });
             }
 
             // Сворачивание/разворачивание раздела
@@ -415,9 +696,12 @@
                 const lastRow = rows[rows.length - 1];
                 const newRowIndex = rows.length;
 
-                // Определяем количество столбцов (исключая колонку действий)
-                const headerCells = rows[0].querySelectorAll("th, td");
-                const numCols = headerCells.length - 1; // Минус колонка действий
+                // Колонки берём те же, по которым построена таблица —
+                // иначе ячейки новой строки встанут не под свои заголовки
+                const cols = (table.dataset.cols || "")
+                    .split(",")
+                    .filter((c) => c !== "")
+                    .map(Number);
 
                 // Создаем новую строку
                 const newRow = document.createElement("tr");
@@ -425,15 +709,22 @@
                 newRow.id = rowId;
 
                 // Добавляем ячейки
-                for (let i = 0; i < numCols; i++) {
+                cols.forEach((colIdx, i) => {
                     const td = document.createElement("td");
-                    const cellId = `sec${sectionNum}_row${newRowIndex}_col${i}`;
-                    td.innerHTML = `<input type="text" class="editable-cell" id="${cellId}" 
-                    value="" 
-                    oninput="handleInput('${cellId}')" 
-                    placeholder="${i === 0 ? "№" : i === 1 ? "Наименование" : "-"}">`;
+                    td.dataset.col = String(colIdx);
+                    const cellId = `sec${sectionNum}_row${newRowIndex}_col${colIdx}`;
+                    const model = document.querySelector(
+                        `#section-${sectionNum} td[data-col="${colIdx}"] input`,
+                    );
+                    const kind = model ? model.dataset.kind || "num" : "num";
+                    td.innerHTML = `<input type="text" class="editable-cell" id="${cellId}"
+                    data-kind="${kind}"${kind === "rate" ? ' data-nosum="1"' : ""}
+                    value=""
+                    oninput="handleInput('${cellId}')"
+                    onfocus="cellFocus(this)" onblur="cellBlur(this)"
+                    placeholder="${colIdx === 1 ? "№" : colIdx === 2 ? "Наименование" : "-"}">`;
                     newRow.appendChild(td);
-                }
+                });
 
                 // Добавляем кнопку удаления
                 const actionTd = document.createElement("td");
@@ -526,6 +817,12 @@
 
             // Обработка ввода
             function handleInput(cellId) {
+                /* Пока поле в фокусе, оно показывает число как есть, без
+                   разрядов. Хранимое значение обновляем сразу: автосохранение
+                   срабатывает раньше, чем поле потеряет фокус. */
+                const cell = document.getElementById(cellId);
+                if (cell) cell.dataset.raw = cellNormalize(cell, cell.value);
+
                 // Сбрасываем флаг импорта при первом ручном редактировании
                 if (isDataImported) {
                     isDataImported = false;
@@ -545,6 +842,7 @@
                 clearTimeout(saveTimeout);
                 saveTimeout = setTimeout(() => {
                     saveData();
+                    updateGrandTotal();
                     status.textContent = "✅ Сохранено";
                     status.className = "auto-save-status saved";
                 }, 1000);
@@ -557,12 +855,17 @@
 
                 const data = {};
 
-                // Собираем все input элементы
+                // Собираем все input элементы. Храним не то, что видно
+                // («746 224 709,70»), а число: страницы «Свод» и
+                // «Калькуляция» читают эти ключи напрямую
                 document
                     .querySelectorAll('input[type="text"]')
                     .forEach((input) => {
                         if (input.id) {
-                            data[input.id] = input.value;
+                            data[input.id] =
+                                input.dataset.raw !== undefined
+                                    ? input.dataset.raw
+                                    : input.value;
                         }
                     });
 
@@ -589,9 +892,10 @@
                     Object.keys(data).forEach((id) => {
                         const input = document.getElementById(id);
                         if (input) {
-                            input.value = data[id];
+                            setCellValue(input, data[id]);
                         }
                     });
+                    updateGrandTotal();
                     console.log(`✅ Данные загружены для ${currentBranch}`);
 
                     if (isDataImported) {
@@ -646,10 +950,10 @@
 
                             branches.forEach((b) => {
                                 if (allData[b] && allData[b][input.id]) {
-                                    const value = parseFloat(
+                                    const value = parseNum(
                                         allData[b][input.id],
                                     );
-                                    if (!isNaN(value) && value !== 0) {
+                                    if (value !== null && value !== 0) {
                                         sum += value;
                                         hasNumericData = true;
                                     }
@@ -658,7 +962,7 @@
 
                             // Обновляем только если есть числовые данные
                             if (hasNumericData) {
-                                input.value = sum;
+                                setCellValue(input, sum);
                             }
                             // Иначе оставляем поле как есть (не трогаем текстовые наименования)
                         }
@@ -666,6 +970,7 @@
 
                 // Добавляем кнопки раскрытия деталей
                 addDetailToggles();
+                updateGrandTotal();
 
                 console.log(
                     `✅ Консолидация загружена из ${branches.length} филиалов`,
@@ -735,10 +1040,10 @@
                                     window.branchDetailsData[b] &&
                                     window.branchDetailsData[b][input.id]
                                 ) {
-                                    const val = parseFloat(
+                                    const val = parseNum(
                                         window.branchDetailsData[b][input.id],
                                     );
-                                    if (!isNaN(val) && val !== 0) {
+                                    if (val !== null && val !== 0) {
                                         hasData = true;
                                     }
                                 }
@@ -796,10 +1101,10 @@
                                     window.branchDetailsData[b] &&
                                     window.branchDetailsData[b][cellId]
                                 ) {
-                                    const val = parseFloat(
+                                    const val = parseNum(
                                         window.branchDetailsData[b][cellId],
                                     );
-                                    if (!isNaN(val)) value = val;
+                                    if (val !== null) value = val;
                                 }
                                 cellData += `<div style="margin: 5px 0; line-height: 20px; color: #555; font-size: 12px;">${value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
                             });
@@ -875,11 +1180,19 @@
                     return;
                 }
 
+                // Сначала фонд оплаты труда со всеми налогами (строки 10–15
+                // «Свода»), потом итоги разделов: без первого шага на «Своде»
+                // остаются нули по налогам
+                var fot = window.FinkaDerive.fzpToSvod(branch);
+                if (!fot.ok) fot = window.FinkaDerive.fotFromSvodnaya(branch);
+
                 var res = window.FinkaDerive.toSvod(branch);
                 if (!res.ok) {
                     alert(res.reason);
                     return;
                 }
+                if (fot.ok) res.moved = res.moved.concat(fot.moved);
+                else res.missing = res.missing.concat(["фонд оплаты труда"]);
 
                 var money = function (v) {
                     return v.toLocaleString("ru-RU", {
