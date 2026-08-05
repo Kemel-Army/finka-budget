@@ -521,6 +521,57 @@
             return out;
         }
 
+        /* Заголовок раздела в присланном листе.
+
+           Номера строк в разметке страницы взяты из книги-заготовки, а в
+           рабочей книге разделы стоят на строку ниже: там на одну позицию
+           больше в подписке раздела 5. Без поиска заголовка всё, начиная
+           с коммунальных услуг, приезжало со сдвигом — электроэнергия
+           оказывалась пустой, а командировочные нулевыми. */
+        function normTitle(s) {
+            return String(s === null || s === undefined ? "" : s)
+                .toLowerCase()
+                .replace(/[^а-яёa-z0-9]+/g, " ")
+                .trim()
+                // «6.1. Водоснабжение…» → «водоснабжение…»
+                .replace(/^(\d+\s+)+/, "")
+                .trim();
+        }
+
+        function findSectionRow(rows, section) {
+            const needle = normTitle(section.title);
+            if (!needle || section.start_row === undefined) return null;
+            const from = Math.max(0, section.start_row - 15);
+            const to = Math.min(rows.length - 1, section.start_row + 15);
+            let best = null;
+            for (let i = from; i <= to; i++) {
+                const r = rows[i] || [];
+                for (let c = 0; c < r.length && c < 4; c++) {
+                    /* Заголовок в книге бывает короче того, что попало в
+                       разметку («…питанием учащихся» против «…питанием
+                       учащихся, проживающих в интернате»), поэтому
+                       сравниваем по началу в обе стороны. */
+                    const t = normTitle(r[c]);
+                    if (!t) continue;
+                    const common = Math.min(t.length, needle.length);
+                    if (common < 10) continue;
+                    if (t.indexOf(needle) !== 0 && needle.indexOf(t) !== 0) {
+                        continue;
+                    }
+                    // из нескольких совпадений берём ближайшее к ожидаемому
+                    if (
+                        best === null ||
+                        Math.abs(i - section.start_row) <
+                            Math.abs(best - section.start_row)
+                    ) {
+                        best = i;
+                    }
+                    break;
+                }
+            }
+            return best;
+        }
+
         async function convSvodnaya(rows) {
             // Разделы берутся из svodnaya_sections_full.json — страница
             // хранит значения по ключу sec{N}_row{I}_col{J}
@@ -529,17 +580,23 @@
                 const res = await fetch("svodnaya_sections_full.json");
                 const json = await res.json();
                 if (json && json.sections) {
-                    const put = (num, idx, colIdx) => {
+                    // ключ строим по номеру из разметки, значение берём со
+                    // сдвигом — из той строки, где раздел стоит в книге
+                    const put = (num, idx, colIdx, shift) => {
                         const id = "sec" + num + "_row" + idx + "_col" + colIdx;
-                        const src = rows[idx];
+                        const src = rows[idx + shift];
                         out[id] = src && src[colIdx] !== undefined ? src[colIdx] : "";
                     };
 
                     json.sections.forEach((section) => {
+                        const found = findSectionRow(rows, section);
+                        const shift =
+                            found === null ? 0 : found - section.start_row;
+
                         section.rows.forEach((row) => {
                             row.data.forEach((_, colIdx) => {
                                 if (colIdx < 2) return;
-                                put(section.num, row.idx, colIdx);
+                                put(section.num, row.idx, colIdx, shift);
                             });
                         });
 
@@ -549,7 +606,7 @@
                            по страницам не из чего. */
                         if (section.start_row !== undefined) {
                             for (let c = 2; c < 9; c++) {
-                                put(section.num, section.start_row, c);
+                                put(section.num, section.start_row, c, shift);
                             }
                         }
                     });
@@ -584,28 +641,10 @@
 
         // Специфику в этих книгах не пишут — подставляем по наименованию из
         // типового состава расходов, чтобы колонка не осталась пустой
+        // Разбор наименования в специфику живёт в budget-rows.js: тем же
+        // разбором страницы чинят строки, импортированные раньше
         function codeByName(name) {
-            const norm = (s) =>
-                String(s || "").toLowerCase().replace(/[^а-яёa-z0-9]+/g, " ").trim();
-            const target = norm(name);
-            const sets = window.BUDGET_ROWS;
-            if (!target || !sets) return "";
-            let best = "";
-            let bestLen = 0;
-            Object.keys(sets).forEach((set) => {
-                sets[set].forEach((r) => {
-                    const a = norm(r.name);
-                    if (!a) return;
-                    if (target.indexOf(a) === 0 || a.indexOf(target) === 0) {
-                        const len = Math.min(a.length, target.length);
-                        if (len > bestLen) {
-                            bestLen = len;
-                            best = r.code;
-                        }
-                    }
-                });
-            });
-            return bestLen >= 8 ? best : "";
+            return window.BUDGET_CODE_FOR ? window.BUDGET_CODE_FOR(name) : "";
         }
 
         function convMonthlyPlan(rows) {

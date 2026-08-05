@@ -207,8 +207,8 @@
         </div>
 
         <script>
-            function exportSectionExcel(num) {
-                var section = document.getElementById("section-" + num);
+            function exportSectionExcel(domId) {
+                var section = document.getElementById(domId);
                 if (!section) return;
                 var tbl = section.querySelector("table");
                 if (!tbl) {
@@ -216,8 +216,7 @@
                     return;
                 }
                 var title =
-                    (section.querySelector("h2") || {}).textContent ||
-                    "Раздел " + num;
+                    (section.querySelector("h2") || {}).textContent || domId;
                 var branchNames = {
                     almaty: "Алматы",
                     uralsk: "Уральск",
@@ -231,7 +230,7 @@
                     title: title,
                     fileName:
                         "Раздел_" +
-                        num +
+                        title.replace(/[\\/:*?"<>|]/g, "").substring(0, 40) +
                         "_" +
                         brName +
                         "_" +
@@ -310,6 +309,13 @@
                     const response = await fetch("svodnaya_sections_full.json");
                     const data = await response.json();
 
+                    buildSectionMeta(data.sections);
+                    // Разделы нужны и «Своду»: без них он не сможет
+                    // посчитать итог раздела, когда лист неполный
+                    if (window.FinkaDerive) {
+                        window.FinkaDerive.useSections(data.sections);
+                    }
+
                     // Генерируем навигацию
                     generateNavigation(data.sections);
 
@@ -333,8 +339,8 @@
                 const navContainer = document.getElementById("nav-links");
                 navContainer.innerHTML = sections
                     .map(
-                        (sec) =>
-                            `<a href="#section-${sec.num}" class="section-link">
+                        (sec, i) =>
+                            `<a href="#${SECTION_META[i].domId}" class="section-link">
                     ${sec.num}. ${sec.title}
                 </a>`,
                     )
@@ -345,25 +351,26 @@
             function generateSections(sections) {
                 const container = document.getElementById("sections-container");
                 container.innerHTML = sections
-                    .map(
-                        (sec) => `
-                <div class="section-container" id="section-${sec.num}">
-                    <div class="section-header" onclick="toggleSection(${sec.num})">
+                    .map((sec, i) => {
+                        const domId = SECTION_META[i].domId;
+                        return `
+                <div class="section-container" id="${domId}">
+                    <div class="section-header" onclick="toggleSection('${domId}')">
                         <h2>${sec.num}. ${sec.title}</h2>
-                        <button class="btn-section-excel" title="Скачать раздел Excel" onclick="event.stopPropagation(); exportSectionExcel(${sec.num})">📥</button>
+                        <button class="btn-section-excel" title="Скачать раздел Excel" onclick="event.stopPropagation(); exportSectionExcel('${domId}')">📥</button>
                         <span class="toggle-icon">▼</span>
                     </div>
-                    <div class="section-content" id="content-${sec.num}">
-                        ${generateSectionTable(sec)}
+                    <div class="section-content" id="content-${domId}">
+                        ${generateSectionTable(sec, i)}
                         <div class="section-footer">
-                            <button class="btn-add-row" onclick="addNewRow(${sec.num})">
+                            <button class="btn-add-row" onclick="addNewRow(${i})">
                                 ➕ Добавить новую строку
                             </button>
                         </div>
                     </div>
                 </div>
-            `,
-                    )
+            `;
+                    })
                     .join("");
             }
 
@@ -390,6 +397,135 @@
                     }),
                 );
                 return cols.sort((a, b) => a - b);
+            }
+
+            // Шапка раздела: в первой колонке у неё стоит «№ п.п»
+            const HEADER_NUMS = ["№ п.п", "№ п/п", "№ ", "№"];
+
+            function isHeaderRow(row, idx) {
+                return idx === 0 || HEADER_NUMS.indexOf(row.data[1]) !== -1;
+            }
+
+            function isSummaryRow(row) {
+                return /^\s*(итого|всего)/i.test(row.data[2] || "");
+            }
+
+            /* ── Итог раздела ───────────────────────────────────────────
+
+               На листе строки «Итого» у разделов нет: суммы разделов
+               собирает «Свод» отдельными формулами, и на странице по
+               разделу не видно ничего. Считаем и показываем итог сами —
+               строкой сверху раздела.
+
+               Слагаемые — первый блок раздела: строки от его шапки до
+               следующей шапки. Ниже идёт расшифровка (по каким товарам,
+               по каким месяцам) — её складывать с первым блоком нельзя,
+               иначе сумма удвоится. */
+            function sectionMoneyCol(section) {
+                const header = (section.rows[0] || {}).data || [];
+                let col = null;
+                header.forEach((h, i) => {
+                    if (MONEY_HEADER.test(h || "")) col = i;
+                });
+                if (col !== null) return col;
+                const cols = sectionCols(section);
+                return cols.length ? cols[cols.length - 1] : null;
+            }
+
+            function sectionSumRows(section) {
+                const out = [];
+                for (let i = 1; i < section.rows.length; i++) {
+                    const row = section.rows[i];
+                    if (isHeaderRow(row, i)) break; // дальше расшифровка
+                    if (isSummaryRow(row)) continue;
+                    out.push(row.idx);
+                }
+                return out;
+            }
+
+            let SECTION_META = [];
+
+            function buildSectionMeta(sections) {
+                const seen = {};
+                SECTION_META = sections.map((sec, i) => {
+                    seen[sec.num] = (seen[sec.num] || 0) + 1;
+                    const has = !!(sec.rows && sec.rows.length);
+                    const sumRows = has ? sectionSumRows(sec) : [];
+                    return {
+                        index: i,
+                        num: sec.num,
+                        title: sec.title,
+                        // первый раздел с таким номером сохраняет привычный
+                        // id, у подразделов («6.1», «6.2») он с суффиксом
+                        domId:
+                            seen[sec.num] === 1
+                                ? "section-" + sec.num
+                                : "section-" + sec.num + "-" + seen[sec.num],
+                        moneyCol: has ? sectionMoneyCol(sec) : null,
+                        sumRows: sumRows,
+                        maxIdx: has
+                            ? sec.rows[sec.rows.length - 1].idx
+                            : 0,
+                        // раздел без собственных строк («Коммунальные
+                        // услуги») — это шапка над подразделами
+                        children: has ? null : [],
+                        // раздел без расшифровки: добавленные вручную
+                        // строки тоже идут в итог
+                        singleBlock: has && sumRows.length === sec.rows.length - 1,
+                    };
+                });
+
+                SECTION_META.forEach((m, i) => {
+                    if (!m.children) return;
+                    for (let j = i + 1; j < SECTION_META.length; j++) {
+                        if (SECTION_META[j].num !== m.num) break;
+                        m.children.push(j);
+                    }
+                });
+            }
+
+            // Итог по собственным строкам раздела
+            function sectionOwnTotal(i) {
+                const m = SECTION_META[i];
+                if (!m || m.moneyCol === null) return 0;
+                let sum = 0;
+                document
+                    .querySelectorAll(
+                        "#" + m.domId + ' tr[data-sumrow="1"] td[data-col="' +
+                            m.moneyCol + '"] input',
+                    )
+                    .forEach((input) => {
+                        const n = parseNum(input.dataset.raw);
+                        if (n !== null) sum += n;
+                    });
+                return sum;
+            }
+
+            function sectionTotal(i) {
+                const m = SECTION_META[i];
+                if (!m) return 0;
+                if (m.children && m.children.length) {
+                    return m.children.reduce((s, j) => s + sectionOwnTotal(j), 0);
+                }
+                return sectionOwnTotal(i);
+            }
+
+            // Итог раздела книги: подразделы с тем же номером входят в него
+            function totalByNum(num) {
+                let sum = 0;
+                SECTION_META.forEach((m, i) => {
+                    if (m.num === num) sum += sectionOwnTotal(i);
+                });
+                return sum;
+            }
+
+            function updateSectionTotals() {
+                document
+                    .querySelectorAll("[data-section-total]")
+                    .forEach((cell) => {
+                        const i = Number(cell.dataset.sectionTotal);
+                        cell.textContent = fmtMoney(sectionTotal(i));
+                    });
             }
 
             function isRateCol(sectionNum, colIdx) {
@@ -465,9 +601,46 @@
                 updateGrandTotal();
             }
 
+            // Строка итога раздела — считается страницей, вводу не подлежит
+            function sectionTotalRow(meta, cols) {
+                let html =
+                    '<tr class="summary-row section-total-row" id="total-' +
+                    meta.domId + '">';
+                cols.forEach((colIdx) => {
+                    if (colIdx === 2) {
+                        html +=
+                            '<td data-col="2" style="font-weight:700">Итого по разделу</td>';
+                    } else if (colIdx === meta.moneyCol) {
+                        html +=
+                            '<td data-col="' + colIdx +
+                            '" class="formula-cell" data-section-total="' +
+                            meta.index + '" style="font-weight:800">0,00</td>';
+                    } else {
+                        html += '<td data-col="' + colIdx + '"></td>';
+                    }
+                });
+                html += "<td></td></tr>";
+                return html;
+            }
+
             // Генерация таблицы раздела
-            function generateSectionTable(section) {
+            function generateSectionTable(section, sectionIndex) {
+                const meta = SECTION_META[sectionIndex];
+
                 if (!section.rows || section.rows.length === 0) {
+                    // «Коммунальные услуги» — шапка над подразделами:
+                    // собственных строк нет, но итог по разделу нужен
+                    if (meta && meta.children && meta.children.length) {
+                        return (
+                            '<table><tr class="summary-row section-total-row">' +
+                            '<td style="font-weight:700">Итого по разделу' +
+                            " (все подразделы)</td>" +
+                            '<td class="formula-cell" data-section-total="' +
+                            meta.index +
+                            '" style="font-weight:800;text-align:right">0,00</td>' +
+                            "</tr></table>"
+                        );
+                    }
                     return '<p style="padding: 20px; color: #7f8c8d;">Нет данных</p>';
                 }
 
@@ -486,16 +659,10 @@
                 let html = '<table data-cols="' + cols.join(",") + '">';
 
                 section.rows.forEach((row, idx) => {
-                    const isHeader =
-                        idx === 0 ||
-                        row.data[1] === "№ п.п" ||
-                        row.data[1] === "№ п/п" ||
-                        row.data[1] === "№ ";
+                    const isHeader = isHeaderRow(row, idx);
                     // Собственные итоги листа не должны попадать в сумму
                     // колонки — иначе итог удвоится
-                    const isSummary = /^\s*(итого|всего)/i.test(
-                        row.data[2] || "",
-                    );
+                    const isSummary = isSummaryRow(row);
                     const rowId = `sec${section.num}_row${row.idx}`;
 
                     html +=
@@ -503,6 +670,9 @@
                         rowId +
                         '"' +
                         (isSummary ? ' class="summary-row"' : "") +
+                        (meta && meta.sumRows.indexOf(row.idx) !== -1
+                            ? ' data-sumrow="1"'
+                            : "") +
                         ">";
 
                     cols.forEach((colIdx) => {
@@ -526,13 +696,19 @@
                     // Добавляем кнопку удаления для не-заголовочных строк
                     if (!isHeader) {
                         html += `<td style="width: 60px; text-align: center;">
-                        <button class="btn-delete-row" onclick="deleteRow('${rowId}', ${section.num})" title="Удалить строку">🗑️</button>
+                        <button class="btn-delete-row" onclick="deleteRow('${rowId}', ${sectionIndex})" title="Удалить строку">🗑️</button>
                     </td>`;
                     } else {
                         html += `<th style="width: 60px;">Действия</th>`;
                     }
 
                     html += "</tr>";
+
+                    // Итог раздела — сразу под его шапкой, чтобы общая
+                    // сумма была видна без прокрутки расшифровки
+                    if (idx === 0 && meta && meta.moneyCol !== null) {
+                        html += sectionTotalRow(meta, cols);
+                    }
                 });
 
                 html += "</table>";
@@ -620,18 +796,30 @@
                 return sum;
             }
 
+            /* Итог раздела в книге стоит в его строке-заголовке — её и
+               берём. Если там пусто (лист-заготовка, частичный импорт),
+               считаем итог по строкам раздела: иначе в общем итоге
+               остаётся один фонд оплаты труда, а разделы пропадают.
+               Адреса и порядок — те же, что у «Свода» (derive.js). */
             function grandTotal() {
                 const cells = currentCells();
                 let sum = fotTotal();
                 const map = (window.FinkaDerive && window.FinkaDerive.MAP) || [];
                 map.forEach((m) => {
-                    const v = cellValueAt(cells, m.row, m.col);
+                    let v = parseNum(
+                        cells[`sec${m.sec}_row${m.row}_col${m.col}`],
+                    );
+                    if (v === null && m.legacy) {
+                        v = cellValueAt(cells, m.legacy, m.col);
+                    }
+                    if (v === null) v = totalByNum(m.sec);
                     if (v !== null) sum += v;
                 });
                 return sum;
             }
 
             function updateGrandTotal() {
+                updateSectionTotals();
                 const total = grandTotal();
                 const text = total.toLocaleString("ru-RU", {
                     minimumFractionDigits: 2,
@@ -674,27 +862,30 @@
             }
 
             // Сворачивание/разворачивание раздела
-            function toggleSection(num) {
+            function toggleSection(domId) {
                 const header = document.querySelector(
-                    `#section-${num} .section-header`,
+                    `#${domId} .section-header`,
                 );
-                const content = document.getElementById(`content-${num}`);
+                const content = document.getElementById(`content-${domId}`);
 
                 header.classList.toggle("collapsed");
                 content.classList.toggle("collapsed");
             }
 
             // Добавление новой строки
-            function addNewRow(sectionNum) {
-                const table = document.querySelector(
-                    `#section-${sectionNum} table`,
-                );
+            function addNewRow(sectionIndex) {
+                const meta = SECTION_META[sectionIndex];
+                if (!meta) return;
+                const sectionNum = meta.num;
+                const table = document.querySelector(`#${meta.domId} table`);
                 if (!table) return;
 
-                // Находим последнюю строку (перед футером)
-                const rows = table.querySelectorAll("tr");
-                const lastRow = rows[rows.length - 1];
-                const newRowIndex = rows.length;
+                /* Номер строки берём от последней строки раздела: у
+                   подразделов с одним номером («6.1», «6.2») нумерация
+                   по количеству строк дала бы одинаковые ключи, и
+                   ячейки разных подразделов затирали бы друг друга. */
+                meta.maxIdx += 1;
+                const newRowIndex = meta.maxIdx;
 
                 // Колонки берём те же, по которым построена таблица —
                 // иначе ячейки новой строки встанут не под свои заголовки
@@ -714,7 +905,7 @@
                     td.dataset.col = String(colIdx);
                     const cellId = `sec${sectionNum}_row${newRowIndex}_col${colIdx}`;
                     const model = document.querySelector(
-                        `#section-${sectionNum} td[data-col="${colIdx}"] input`,
+                        `#${meta.domId} td[data-col="${colIdx}"] input`,
                     );
                     const kind = model ? model.dataset.kind || "num" : "num";
                     td.innerHTML = `<input type="text" class="editable-cell" id="${cellId}"
@@ -730,8 +921,17 @@
                 const actionTd = document.createElement("td");
                 actionTd.style.width = "60px";
                 actionTd.style.textAlign = "center";
-                actionTd.innerHTML = `<button class="btn-delete-row" onclick="deleteRow('${rowId}', ${sectionNum})" title="Удалить строку">🗑️</button>`;
+                actionTd.innerHTML = `<button class="btn-delete-row" onclick="deleteRow('${rowId}', ${sectionIndex})" title="Удалить строку">🗑️</button>`;
                 newRow.appendChild(actionTd);
+
+                /* В итог раздела новая строка попадает только там, где
+                   раздел состоит из одного блока: в разделах с
+                   расшифровкой строку дописывают в расшифровку, а её
+                   складывать со сводным блоком нельзя. */
+                if (meta.singleBlock) {
+                    newRow.dataset.sumrow = "1";
+                    meta.sumRows.push(newRowIndex);
+                }
 
                 // Вставляем строку перед последней строкой или в конец
                 table.appendChild(newRow);
@@ -761,6 +961,7 @@
 
                     row.remove();
                     saveData(); // Сохраняем изменения
+                    updateGrandTotal(); // итог раздела и страницы
                     console.log(
                         `🗑️ Удалена строка ${rowId} из раздела ${sectionNum}`,
                     );

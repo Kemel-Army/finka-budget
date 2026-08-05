@@ -30,17 +30,24 @@
     "use strict";
 
     // Строка «Свода» ← ячейка «Сводной общей». Номер строки Excel и колонка.
+    /* row — строка-заголовок раздела на «Сводной общей»: в книге итог
+       раздела стоит именно в ней, и «Свод» ссылается на неё. sec — номер
+       раздела: по нему итог считается по строкам, если заголовок пуст
+       (лист-заготовка, частичный импорт).
+
+       legacy — адрес, по которому итог лежал у данных, импортированных до
+       того, как импорт научился искать заголовок раздела. */
     var MAP = [
-        { to: "C16", row: 18, col: 6, name: "Приобретение продуктов питания (питьевая вода)" },
-        { to: "C17", row: 38, col: 7, name: "Приобретение медикаментов" },
-        { to: "C18", row: 79, col: 7, name: "Приобретение горюче-смазочных материалов" },
-        { to: "C19", row: 84, col: 7, name: "Приобретение прочих запасов" },
-        { to: "C20", row: 489, col: 7, name: "Коммунальные услуги" },
-        { to: "C21", row: 505, col: 7, name: "Услуги связи и интернет" },
-        { to: "C22", row: 509, col: 7, name: "Прочие услуги и работы" },
-        { to: "C23", row: 531, col: 7, name: "Командировки и служебные разъезды" },
-        { to: "C24", row: 536, col: 6, name: "Организация горячим пятиразовым питанием" },
-        { to: "C25", row: 561, col: 7, name: "Прочие текущие затраты" },
+        { to: "C16", sec: 2, row: 17, col: 6, legacy: 18, name: "Приобретение продуктов питания (питьевая вода)" },
+        { to: "C17", sec: 3, row: 37, col: 7, legacy: 38, name: "Приобретение медикаментов" },
+        { to: "C18", sec: 4, row: 78, col: 7, legacy: 79, name: "Приобретение горюче-смазочных материалов" },
+        { to: "C19", sec: 5, row: 83, col: 7, legacy: 84, name: "Приобретение прочих запасов" },
+        { to: "C20", sec: 6, row: 487, col: 7, legacy: 489, name: "Коммунальные услуги" },
+        { to: "C21", sec: 7, row: 503, col: 7, legacy: 505, name: "Услуги связи и интернет" },
+        { to: "C22", sec: 8, row: 507, col: 7, legacy: 509, name: "Прочие услуги и работы" },
+        { to: "C23", sec: 9, row: 529, col: 7, legacy: 531, name: "Командировки и служебные разъезды" },
+        { to: "C24", sec: 10, row: 534, col: 6, legacy: 536, name: "Организация горячим пятиразовым питанием" },
+        { to: "C25", sec: 11, row: 559, col: 7, legacy: 561, name: "Прочие текущие затраты" },
     ];
 
     // Итог «Свода» — сумма строк 10..25
@@ -64,6 +71,62 @@
         return parseFloat(t);
     }
 
+    /* ── Итог раздела по его строкам ─────────────────────────────
+       Запасной путь для случая, когда «Сводная общая» заполнена не
+       целиком: по адресу из книги пусто, и без этого в «Своде» от
+       раздела остаётся ноль. Разбор тот же, что на самой странице:
+       слагаемые — первый блок раздела, до следующей шапки; расшифровка
+       ниже в итог не идёт. */
+    var SECTIONS = null;
+    var MONEY_HEADER = /сумм|тенге|стоимост/i;
+    var HEADER_NUMS = ["№ п.п", "№ п/п", "№ ", "№"];
+
+    function useSections(sections) {
+        SECTIONS = sections && sections.length ? sections : null;
+    }
+
+    function moneyColOf(section) {
+        var header = (section.rows[0] || {}).data || [];
+        var col = null;
+        header.forEach(function (h, i) {
+            if (MONEY_HEADER.test(h || "")) col = i;
+        });
+        return col;
+    }
+
+    function sumRowsOf(section) {
+        var out = [];
+        for (var i = 1; i < section.rows.length; i++) {
+            var row = section.rows[i];
+            if (HEADER_NUMS.indexOf(row.data[1]) !== -1) break;
+            if (/^\s*(итого|всего)/i.test(row.data[2] || "")) continue;
+            out.push(row.idx);
+        }
+        return out;
+    }
+
+    // Подразделы («6.1», «6.2») носят номер своего раздела и входят в него
+    function sectionTotalFrom(cells, num) {
+        if (!SECTIONS) return null;
+        var sum = 0;
+        var found = false;
+        SECTIONS.forEach(function (section) {
+            if (section.num !== num) return;
+            if (!section.rows || !section.rows.length) return;
+            var col = moneyColOf(section);
+            if (col === null) return;
+            sumRowsOf(section).forEach(function (idx) {
+                var v = toNumber(
+                    cells["sec" + section.num + "_row" + idx + "_col" + col],
+                );
+                if (v === null) return;
+                sum += v;
+                found = true;
+            });
+        });
+        return found ? sum : null;
+    }
+
     /* Ячейку ищем по номеру строки и колонки, не привязываясь к номеру
        раздела: в исходном листе номер 6 носят сразу три подраздела, и
        угадывать, к какому из них отнесена строка, незачем. */
@@ -77,6 +140,22 @@
             }
         }
         return null;
+    }
+
+    /* Итог раздела: сперва его заголовок, потом — прежний адрес (для
+       данных, импортированных раньше), потом счёт по строкам раздела. */
+    function valueFor(svodnaya, m) {
+        var head = toNumber(
+            svodnaya["sec" + m.sec + "_row" + m.row + "_col" + m.col],
+        );
+        if (head !== null) return head;
+
+        if (m.legacy) {
+            var old = cellOf(svodnaya, m.legacy, m.col);
+            if (old !== null) return old;
+        }
+
+        return sectionTotalFrom(svodnaya, m.sec);
     }
 
     /**
@@ -98,7 +177,7 @@
         var missing = [];
 
         MAP.forEach(function (m) {
-            var value = cellOf(svodnaya, m.row, m.col);
+            var value = valueFor(svodnaya, m);
             if (value === null) {
                 missing.push(m.name);
                 return;
@@ -383,6 +462,7 @@
         fotFromSvodnaya: fotFromSvodnaya,
         chain: chain,
         all: all,
+        useSections: useSections,
         MAP: MAP,
         FZP_MAP: FZP_MAP,
     };

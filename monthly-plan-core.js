@@ -348,6 +348,16 @@
             recalc();
         }
 
+        /* Специфику, не проставленную при импорте, разбираем по
+           наименованию: в книгах она стоит не во всех строках, а без неё
+           статью не с чем сложить на сводной вкладке. */
+        function codeOf(row) {
+            if (row.code) return String(row.code);
+            return global.BUDGET_CODE_FOR
+                ? global.BUDGET_CODE_FOR(row.name)
+                : "";
+        }
+
         function normalize(stored) {
             return {
                 rows: stored.rows.map(function (r) {
@@ -355,14 +365,22 @@
                     (r.m || []).forEach(function (v, i) {
                         if (i < 12) m[i] = parseFloat(v) || 0;
                     });
-                    return { code: r.code || "", name: r.name || "", m: m };
+                    return { code: codeOf(r), name: r.name || "", m: m };
                 }),
                 doc: stored.doc || {},
             };
         }
 
-        /* Сводная вкладка: строки слагаемых сливаются по паре «специфика +
-           наименование», чтобы одна и та же статья не задваивалась. */
+        /* Сводная вкладка: строки слагаемых сливаются по специфике.
+           По наименованию сливать нельзя — в книгах одна и та же
+           специфика подписана по-разному («Обязательное медицинское
+           страхование» в ПУ и «Обязательное социальное медицинское
+           страхование» в дотации), и статья задваивалась.
+
+           Считаем, какая это по счёту строка с такой спецификой внутри
+           своего плана: в ПУ специфика 112 стоит дважды — обычные
+           доплаты и минусующая строка за счёт средств Астаны, и
+           складывать их между собой нельзя. */
         function buildSum() {
             var order = [];
             var byKey = {};
@@ -370,12 +388,18 @@
                 var stored = readStore(key(vKey));
                 var rows = stored && stored.rows && stored.rows.length
                     ? normalize(stored).rows
-                    : (variants.filter(function (v) {
+                    : ((variants.filter(function (v) {
                           return v.key === vKey;
-                      })[0] || {}).rows || [];
+                      })[0] || {}).rows || []).map(function (r) {
+                          return { code: r.code || "", name: r.name, m: r.m || new Array(12).fill(0) };
+                      });
+
+                var seen = {};
                 rows.forEach(function (r) {
                     var m = r.m || new Array(12).fill(0);
-                    var k = (r.code || "") + "|" + (r.name || "");
+                    var base = r.code ? "код:" + r.code : "имя:" + (r.name || "");
+                    seen[base] = (seen[base] || 0) + 1;
+                    var k = base + "#" + seen[base];
                     if (!byKey[k]) {
                         byKey[k] = {
                             code: r.code || "",
