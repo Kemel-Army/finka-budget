@@ -265,6 +265,74 @@ console.log("\n── ИТОГО по таблице");
             2113232023.2477493,
         );
     }
+
+    /* Разделы с расшифровкой: сводная строка и её расшифровка лежат в
+       одной таблице, и раньше складывались обе — итог выходил ровно
+       вдвое больше («Медикаменты 565 550» показывались как 1 131 100).
+       Итог таблицы должен совпадать с «Итого по разделу». */
+    const DOUBLED = {
+        "section-2": 2510052.9100529095,
+        "section-3": 565550.0000000001,
+        "section-5": 49098620.95,
+    };
+
+    Object.keys(DOUBLED).forEach((domId) => {
+        const want = DOUBLED[domId];
+        const row = document.querySelector("#" + domId + " tr.sx-total");
+        const nums = row
+            ? [...row.cells]
+                  .slice(1)
+                  .map((c) => window.parseNum(c.textContent))
+                  .filter((n) => n !== null)
+            : [];
+        const title = document
+            .querySelector("#" + domId + " h2")
+            .textContent.trim()
+            .slice(0, 34);
+
+        ok(
+            title + ": итог таблицы = итог раздела",
+            nums.some((n) => Math.abs(n - want) < 0.01),
+            "ждём " + want.toFixed(2),
+        );
+        ok(
+            title + ": расшифровка не удвоена",
+            !nums.some((n) => Math.abs(n - want * 2) < 0.01),
+            "не должно быть " + (want * 2).toFixed(2),
+        );
+    });
+}
+
+/* ── Новая строка не занимает чужой адрес ───────────────────────── */
+/* Подразделы 6.1–6.3 делят номер раздела, а строки на листе сквозные:
+   у «Водоснабжения и водоотведения» последняя 491, у «Электрической
+   энергии» — 493 и 494. Вторая добавленная в 6.1 строка получала 493 —
+   те же id ячеек, что у электроэнергии. Ввод уходил в чужую строку, а
+   строка выглядела задвоенной. */
+console.log("\n── Добавление строк в подразделы");
+{
+    addScript("window.__meta = SECTION_META;");
+    const i61 = window.__meta.findIndex((m) => /Водоснабжение/i.test(m.title));
+    ok("подраздел 6.1 найден", i61 !== -1);
+
+    window.addNewRow(i61);
+    window.addNewRow(i61);
+
+    const ids = [...document.querySelectorAll("[id]")].map((el) => el.id);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    eq("одинаковых id на странице нет", dupes.slice(0, 3).join(", "), "");
+
+    /* Номера занятых строк пропускаются: 492 свободен, 493 и 494 — за
+       электроэнергией, значит вторая новая строка получает 495. */
+    const box = document.getElementById(window.__meta[i61].domId);
+    const added = [...box.querySelectorAll("input[id]")]
+        .map((el) => Number(/_row(\d+)_/.exec(el.id)?.[1]))
+        .filter((n) => n > 491);
+    eq(
+        "новые строки обошли адреса электроэнергии",
+        [...new Set(added)].sort((a, b) => a - b).join(","),
+        "492,495",
+    );
 }
 
 /* ── Сохранение ─────────────────────────────────────────────────── */
@@ -285,6 +353,51 @@ console.log("\n── Сохранение");
         "оплата труда = штатное + тарификация",
         Number(JSON.parse(window.localStorage.getItem("rb_svod_nao")).cells.C10),
         1595622564.3607502,
+    );
+}
+
+/* ── Филиалы не делят цифры ─────────────────────────────────────── */
+/* Раньше loadData у филиала без своих данных просто ничего не делала:
+   в полях оставались числа предыдущего города, и следующее переключение
+   сохраняло их уже под новый филиал — Алматы расползался на Астану,
+   Уральск и НАО. Филиал без данных должен показывать лист-заготовку. */
+console.log("\n── Разделение по филиалам");
+{
+    const cellId = "sec6_row490_col4"; // холодная вода, тариф
+    const cell = document.getElementById(cellId);
+    // Заготовка — то, что лежит в svodnaya_sections_full.json, а не то,
+    // что сейчас в поле: там уже данные НАО из книги
+    const sheetValue = String(
+        sectionsJson.sections
+            .find((s) => /Водоснабжение/i.test(s.title))
+            .rows.find((r) => r.idx === 490).data[4],
+    );
+    ok("у НАО своё число, не заготовка", cell.dataset.raw !== sheetValue);
+
+    cell.value = "777";
+    window.cellBlur(cell);
+    window.handleInput(cellId);
+    eq("в НАО введено своё число", cell.dataset.raw, "777");
+
+    const btn = [...document.querySelectorAll(".branch-btn")].find((b) =>
+        /almaty/.test(b.getAttribute("onclick") || ""),
+    );
+    ok("кнопка филиала на месте", !!btn);
+    btn.click();
+
+    eq(
+        "Алматы показывает заготовку, а не число НАО",
+        document.getElementById(cellId).dataset.raw,
+        sheetValue,
+    );
+    ok(
+        "нетронутому филиалу ничего не записали",
+        window.localStorage.getItem("rb_svodnaya_almaty") === null,
+    );
+    eq(
+        "число осталось за НАО",
+        JSON.parse(window.localStorage.getItem("rb_svodnaya_nao"))[cellId],
+        "777",
     );
 }
 

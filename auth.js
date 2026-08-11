@@ -46,6 +46,8 @@
             "rb-fzp.html",
             "rb-kalkulyacia.html",
             "rb-plan-komandir.html",
+            "dogovory.html",
+            "forma-4-20.html",
         ],
         pu: [
             "pu-svod-2026.html",

@@ -230,6 +230,47 @@ console.log("\n── Правки: переименование, добавле
     win.close();
 }
 
+/* ── Добавленная строка принадлежит своей таблице ────────────────── */
+/* Список добавленных строк был один на страницу и накладывался на каждую
+   таблицу: строка, заведённая под «Водоотведением», появлялась во всех
+   четырнадцати разделах «Сводной общей». */
+console.log("\n── Добавленная строка не расползается по разделам");
+{
+    const { win } = await load("rb-svodnaya.html");
+    const doc = win.document;
+    const bars = doc.querySelectorAll(".sx-bar");
+    ok("на странице несколько таблиц", bars.length > 1, `панелей: ${bars.length}`);
+
+    const target = 2; // третий раздел, не первый и не последний
+    bars[target]
+        .querySelector(".sx-add")
+        .dispatchEvent(new win.Event("click", { bubbles: true }));
+    await tick(win, 300);
+
+    const withExtra = [...doc.querySelectorAll("table")]
+        .map((t, i) => [i, t.querySelectorAll("tr.sx-extra").length])
+        .filter(([, n]) => n > 0);
+
+    ok(
+        "строка появилась ровно в одной таблице",
+        withExtra.length === 1,
+        withExtra.length === 1
+            ? `таблица №${withExtra[0][0]}`
+            : `таблиц со строкой: ${withExtra.length}`,
+    );
+
+    const saved = JSON.parse(
+        win.localStorage.getItem("sheet_edits_rb-svodnaya.html_nao") || "{}",
+    );
+    ok(
+        "в хранилище строки разложены по таблицам",
+        saved.extra && !Array.isArray(saved.extra),
+        JSON.stringify(saved.extra || null).slice(0, 60),
+    );
+
+    win.close();
+}
+
 /* ── Единообразие страниц ────────────────────────────────────────── */
 // Раньше КБ носил собственную навигацию и собственные её стили, а страницы
 // ПУ получали шапку другой формы, чем страницы РБ. Здесь это закреплено,
@@ -238,7 +279,7 @@ console.log("\n── Все страницы бюджета выглядят о
 {
     const CHROME = [...PAGES, "plan-fact-pu.html", "plan-fact-dt.html",
         "plan-fact-pu-dt.html", "plan-finansirovaniya.html", "spravki.html",
-        "shtatnoe.html", "osnovaniya.html"];
+        "shtatnoe.html", "osnovaniya.html", "dogovory.html", "forma-4-20.html"];
 
     for (const page of CHROME) {
         const src = fs.readFileSync(path.join(ROOT, page), "utf8");

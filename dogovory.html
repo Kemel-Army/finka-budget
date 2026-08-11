@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>Договоры по спецификам 2026</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+        <style>
+            /* Специфики, по которым заключаются договора */
+            tr.spec-row.spec-contract td.spec-name {
+                background: #fffbeb;
+            }
+            tr.spec-row td {
+                font-weight: 700;
+                background: #f8fafc;
+            }
+            tr.deal-row td:first-child {
+                padding-left: 28px;
+                color: var(--c-gray-700, #334155);
+            }
+            tr.deal-row input[type="text"] {
+                width: 100%;
+            }
+            .btn-add-deal {
+                border: 1px solid #cbd5e1;
+                background: #fff;
+                color: #1e8449;
+                border-radius: 7px;
+                padding: 2px 9px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .btn-add-deal:hover {
+                background: #eafaf1;
+                border-color: #1e8449;
+            }
+            .btn-del-deal {
+                border: none;
+                background: none;
+                color: #e74c3c;
+                cursor: pointer;
+                font-size: 13px;
+            }
+            .num-cell {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+        </style>
+    </head>
+    <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+        <div class="header">
+            <h1>Договоры по спецификам <span class="dyn-year">2026</span></h1>
+            <p style="color: #7f8c8d; margin-top: 5px">
+                План берётся из «Свода расходов», договора заводятся по мере
+                заключения. Экономия считается по специфике целиком.
+            </p>
+
+            <div class="branch-selector">
+                <button class="branch-btn active" data-branch="nao">
+                    НАО «РФМШ»
+                </button>
+                <button class="branch-btn" data-branch="almaty">Алматы</button>
+                <button class="branch-btn" data-branch="astana">Астана</button>
+                <button class="branch-btn" data-branch="uralsk">Уральск</button>
+                <button
+                    class="branch-btn"
+                    data-branch="consolidated"
+                    style="border-color: #8e44ad; color: #8e44ad"
+                >
+                    Консолидация
+                </button>
+            </div>
+        </div>
+
+        <div class="info-bar">
+            <div>
+                <span style="font-weight: bold">Филиал:</span>
+                <span id="currentBranch">НАО «РФМШ»</span>
+            </div>
+            <div>
+                <span style="font-weight: bold">Договоров заведено:</span>
+                <span id="dealCount">0</span>
+            </div>
+            <div>
+                <span style="font-weight: bold">Экономия всего:</span>
+                <span id="savingLabel">0,00</span>
+            </div>
+            <div class="auto-save-status saved" id="saveStatus">Сохранено</div>
+        </div>
+
+        <div id="planNotice" class="info" style="display: none">
+            <strong>План пуст.</strong> Колонка «План» читается со «Свода
+            расходов» этого филиала — заполните «Сводную общую», и план
+            подтянется сам.
+        </div>
+
+        <div class="table-container">
+            <table id="mainTable" data-sticky-cols="1">
+                <thead>
+                    <tr>
+                        <th style="min-width: 300px">Специфика</th>
+                        <th style="min-width: 140px">План</th>
+                        <th style="min-width: 120px">№ Договора</th>
+                        <th style="min-width: 140px">Обязательства</th>
+                        <th style="min-width: 140px">Оплачено</th>
+                        <th style="min-width: 150px">Остаток обязательств</th>
+                        <th style="min-width: 130px">Экономия</th>
+                        <th style="width: 96px">Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+                <tfoot>
+                    <tr class="grand-total-row">
+                        <td class="label-cell"><strong>ИТОГО</strong></td>
+                        <td class="formula-cell num-cell" id="tot-plan">0,00</td>
+                        <td></td>
+                        <td class="formula-cell num-cell" id="tot-oblig">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-paid">0,00</td>
+                        <td class="formula-cell num-cell" id="tot-rest">0,00</td>
+                        <td class="formula-cell num-cell" id="tot-saving">
+                            0,00
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="info" style="margin-top: 16px">
+                <strong>Как считается</strong>
+                <p style="margin-top: 6px">
+                    Договор: остаток обязательств = обязательства − оплачено.<br />
+                    Специфика: обязательства и оплачено — сумма её договоров;
+                    остаток = обязательства − оплачено; экономия = план −
+                    обязательства.<br />
+                    Жёлтым отмечены специфики, по которым идут договора.
+                </p>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-primary" onclick="saveData()">
+                Сохранить
+            </button>
+            <button class="btn btn-success" onclick="exportToExcel()">
+                Excel
+            </button>
+            <button
+                class="btn btn-success"
+                onclick="window.print()"
+                style="background: #64748b"
+            >
+                Печать
+            </button>
+            <button
+                class="btn btn-secondary"
+                onclick="window.location.href = 'index.html'"
+            >
+                ← Назад к списку
+            </button>
+        </div>
+
+        <script>
+            /* ─────────────────────────────────────────────────────────────
+               Реестр договоров по спецификам.
+
+               План не вводится: он уже посчитан бюджетом. Лист «Свод
+               расходов» держит ровно эти шестнадцать строк в ячейках
+               C10..C25 (см. derive.js), поэтому план читается оттуда —
+               иначе одно и то же число пришлось бы поддерживать в двух
+               местах, и они бы разошлись.
+
+               Договора заводятся руками по мере заключения: номер, сумма
+               обязательства и сколько уже оплачено. Остальное — формулы.
+               ───────────────────────────────────────────────────────────── */
+            const SHEET_KEY = "rb_dogovory";
+            const SVOD_KEY = "rb_svod";
+            const REAL_BRANCHES = ["nao", "almaty", "astana", "uralsk"];
+            const BRANCH_NAMES = {
+                nao: "НАО «РФМШ»",
+                almaty: "Алматы",
+                astana: "Астана",
+                uralsk: "Уральск",
+                consolidated: "Консолидировано",
+            };
+
+            /* Строки «Свода» и есть специфики. contract — те, по которым
+               реально заключаются договора: на них в реестре жёлтая
+               подсветка, остальные видны, но обычно остаются пустыми. */
+            const SPECS = [
+                { code: "111", cell: "C10", name: "Оплата труда" },
+                { code: "113", cell: "C11", name: "Компенсационные выплаты" },
+                { code: "116", cell: "C12", name: "ОПВР" },
+                { code: "121", cell: "C13", name: "Социальный налог" },
+                { code: "122", cell: "C14", name: "Социальные отчисления в ГФСС" },
+                {
+                    code: "124",
+                    cell: "C15",
+                    name: "Отчисления на обязательное социальное медицинское страхование",
+                },
+                {
+                    code: "141",
+                    cell: "C16",
+                    name: "Приобретение продуктов питания",
+                    contract: true,
+                },
+                {
+                    code: "142",
+                    cell: "C17",
+                    name: "Приобретение лекарственных средств и прочих изделий медицинского назначения",
+                    contract: true,
+                },
+                {
+                    code: "144",
+                    cell: "C18",
+                    name: "Приобретение топлива, горюче-смазочных материалов",
+                    contract: true,
+                },
+                {
+                    code: "149",
+                    cell: "C19",
+                    name: "Приобретение прочих запасов",
+                    contract: true,
+                },
+                {
+                    code: "151",
+                    cell: "C20",
+                    name: "Оплата коммунальных услуг",
+                    contract: true,
+                },
+                {
+                    code: "152",
+                    cell: "C21",
+                    name: "Оплата услуг связи",
+                    contract: true,
+                },
+                {
+                    code: "159",
+                    cell: "C22",
+                    name: "Оплата прочих услуг и работ",
+                    contract: true,
+                },
+                {
+                    code: "161",
+                    cell: "C23",
+                    name: "Командировки и служебные разъезды внутри страны",
+                },
+                {
+                    code: "163",
+                    cell: "C24",
+                    name: "Затраты Фонда всеобщего обязательного среднего образования",
+                    contract: true,
+                },
+                { code: "169", cell: "C25", name: "Прочие текущие затраты" },
+            ];
+
+            let currentBranch = "nao";
+            let deals = {}; // { "149": [ {name, num, oblig, paid}, … ] }
+            let plan = {}; // { "149": 49098620.95 }
+            let saveTimeout = null;
+
+            function fmt(n) {
+                return (n || 0).toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            function parseNum(v) {
+                if (v === null || v === undefined) return 0;
+                const t = String(v)
+                    .replace(/[\s  ₸]/g, "")
+                    .replace(",", ".");
+                if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return 0;
+                const n = parseFloat(t);
+                return Number.isFinite(n) ? n : 0;
+            }
+
+            function readStore(key) {
+                try {
+                    return JSON.parse(localStorage.getItem(key)) || null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function esc(s) {
+                return String(s == null ? "" : s).replace(/"/g, "&quot;");
+            }
+
+            /* ── План из «Свода» ──────────────────────────────────────── */
+            /* Свод хранит числа так, как их видит пользователь
+               («746 224 709,70»), поэтому разбираем, а не берём как есть. */
+            function planOf(branch) {
+                const out = {};
+                const src = readStore(SVOD_KEY + "_" + branch);
+                const cells = (src && src.cells) || {};
+                SPECS.forEach((s) => {
+                    out[s.code] = parseNum(cells[s.cell]);
+                });
+                return out;
+            }
+
+            function planConsolidated() {
+                const out = {};
+                SPECS.forEach((s) => (out[s.code] = 0));
+                REAL_BRANCHES.forEach((b) => {
+                    const p = planOf(b);
+                    SPECS.forEach((s) => (out[s.code] += p[s.code] || 0));
+                });
+                return out;
+            }
+
+            /* ── Договора ─────────────────────────────────────────────── */
+            function dealsOf(branch) {
+                const saved = readStore(SHEET_KEY + "_" + branch);
+                const out = {};
+                SPECS.forEach((s) => {
+                    const list = saved && Array.isArray(saved[s.code])
+                        ? saved[s.code]
+                        : [];
+                    out[s.code] = list.map((d) => ({
+                        name: d.name || "",
+                        num: d.num || "",
+                        oblig: parseNum(d.oblig),
+                        paid: parseNum(d.paid),
+                    }));
+                });
+                return out;
+            }
+
+            // Свод: договора всех филиалов подряд, с пометкой чей
+            function dealsConsolidated() {
+                const out = {};
+                SPECS.forEach((s) => (out[s.code] = []));
+                REAL_BRANCHES.forEach((b) => {
+                    const d = dealsOf(b);
+                    SPECS.forEach((s) => {
+                        d[s.code].forEach((deal) => {
+                            out[s.code].push({
+                                name:
+                                    (deal.name || "договор") +
+                                    " · " +
+                                    BRANCH_NAMES[b],
+                                num: deal.num,
+                                oblig: deal.oblig,
+                                paid: deal.paid,
+                            });
+                        });
+                    });
+                });
+                return out;
+            }
+
+            /* ── Разметка ─────────────────────────────────────────────── */
+            function buildTable() {
+                const ro = currentBranch === "consolidated";
+                let html = "";
+
+                SPECS.forEach((s) => {
+                    const cls =
+                        "spec-row" + (s.contract ? " spec-contract" : "");
+                    html +=
+                        '<tr class="' + cls + '" data-spec="' + s.code + '">' +
+                        '<td class="spec-name">' + s.code + " — " + s.name + "</td>" +
+                        '<td class="formula-cell num-cell" id="plan-' + s.code + '">0,00</td>' +
+                        "<td></td>" +
+                        '<td class="formula-cell num-cell" id="oblig-' + s.code + '">0,00</td>' +
+                        '<td class="formula-cell num-cell" id="paid-' + s.code + '">0,00</td>' +
+                        '<td class="formula-cell num-cell" id="rest-' + s.code + '">0,00</td>' +
+                        '<td class="formula-cell num-cell" id="saving-' + s.code + '">0,00</td>' +
+                        "<td>" +
+                        (ro
+                            ? ""
+                            : '<button type="button" class="btn-add-deal"' +
+                              " onclick=\"addDeal('" + s.code + "')\"" +
+                              ' title="Добавить договор по этой специфике">+ Добавить</button>') +
+                        "</td></tr>";
+
+                    (deals[s.code] || []).forEach((d, i) => {
+                        const id = s.code + "-" + i;
+                        html +=
+                            '<tr class="deal-row" data-spec="' + s.code +
+                            '" data-idx="' + i + '">' +
+                            '<td><input type="text" id="name-' + id +
+                            '" value="' + esc(d.name) +
+                            '" placeholder="наименование договора"' +
+                            (ro ? " disabled" : ' oninput="onEdit()"') + "></td>" +
+                            "<td></td>" +
+                            '<td><input type="text" id="num-' + id +
+                            '" value="' + esc(d.num) + '" placeholder="№"' +
+                            (ro ? " disabled" : ' oninput="onEdit()"') + "></td>" +
+                            '<td><input type="number" step="0.01" class="num-cell" id="oblig-' + id +
+                            '" value="' + d.oblig + '"' +
+                            (ro ? " disabled" : ' oninput="onEdit()"') + "></td>" +
+                            '<td><input type="number" step="0.01" class="num-cell" id="paid-' + id +
+                            '" value="' + d.paid + '"' +
+                            (ro ? " disabled" : ' oninput="onEdit()"') + "></td>" +
+                            '<td class="formula-cell num-cell" id="rest-' + id + '">0,00</td>' +
+                            "<td></td>" +
+                            "<td>" +
+                            (ro
+                                ? ""
+                                : '<button type="button" class="btn-del-deal"' +
+                                  " onclick=\"delDeal('" + s.code + "'," + i + ')"' +
+                                  ' title="Удалить договор">✕ удалить</button>') +
+                            "</td></tr>";
+                    });
+                });
+
+                document.getElementById("tableBody").innerHTML = html;
+            }
+
+            /* ── Расчёт ───────────────────────────────────────────────── */
+            function calc() {
+                const totals = { plan: 0, oblig: 0, paid: 0, rest: 0, saving: 0 };
+                let count = 0;
+                let planEmpty = true;
+
+                SPECS.forEach((s) => {
+                    const list = deals[s.code] || [];
+                    let oblig = 0;
+                    let paid = 0;
+
+                    list.forEach((d, i) => {
+                        const id = s.code + "-" + i;
+                        const o = numOf("oblig-" + id, d.oblig);
+                        const p = numOf("paid-" + id, d.paid);
+                        oblig += o;
+                        paid += p;
+                        count++;
+                        setText("rest-" + id, o - p);
+                    });
+
+                    const pl = plan[s.code] || 0;
+                    if (pl) planEmpty = false;
+
+                    setText("plan-" + s.code, pl);
+                    setText("oblig-" + s.code, oblig);
+                    setText("paid-" + s.code, paid);
+                    setText("rest-" + s.code, oblig - paid);
+                    // Экономия — только по специфике целиком: сколько из
+                    // плана ещё не связано договорами
+                    setText("saving-" + s.code, pl - oblig);
+
+                    totals.plan += pl;
+                    totals.oblig += oblig;
+                    totals.paid += paid;
+                    totals.rest += oblig - paid;
+                    totals.saving += pl - oblig;
+                });
+
+                setText("tot-plan", totals.plan);
+                setText("tot-oblig", totals.oblig);
+                setText("tot-paid", totals.paid);
+                setText("tot-rest", totals.rest);
+                setText("tot-saving", totals.saving);
+
+                document.getElementById("dealCount").textContent = String(count);
+                document.getElementById("savingLabel").textContent = fmt(
+                    totals.saving,
+                );
+                document.getElementById("planNotice").style.display = planEmpty
+                    ? ""
+                    : "none";
+            }
+
+            function numOf(id, fallback) {
+                const el = document.getElementById(id);
+                return el ? parseNum(el.value) : parseNum(fallback);
+            }
+
+            function setText(id, value) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = fmt(value);
+            }
+
+            /* ── Строки ───────────────────────────────────────────────── */
+            /* Замок «только просмотр» (auth.js) выключает поля и кнопки,
+               чей текст похож на правку. Полагаться на текст кнопки мало:
+               строку можно завести и из консоли, а сохранение утянет за
+               собой запись в базу. Поэтому спрашиваем состояние полей. */
+            function readOnly() {
+                const field = document.querySelector(
+                    "#tableBody input, .btn-add-deal",
+                );
+                return !!(field && field.dataset.finkaRo === "1");
+            }
+
+            function addDeal(code) {
+                if (readOnly()) return;
+                collect();
+                deals[code] = deals[code] || [];
+                deals[code].push({ name: "", num: "", oblig: 0, paid: 0 });
+                buildTable();
+                calc();
+                scheduleSave();
+
+                const last = document.getElementById(
+                    "name-" + code + "-" + (deals[code].length - 1),
+                );
+                if (last) last.focus();
+            }
+
+            function delDeal(code, idx) {
+                if (readOnly()) return;
+                if (!confirm("Удалить договор?")) return;
+                collect();
+                (deals[code] || []).splice(idx, 1);
+                buildTable();
+                calc();
+                scheduleSave();
+            }
+
+            function collect() {
+                SPECS.forEach((s) => {
+                    (deals[s.code] || []).forEach((d, i) => {
+                        const id = s.code + "-" + i;
+                        const name = document.getElementById("name-" + id);
+                        const num = document.getElementById("num-" + id);
+                        if (name) d.name = name.value;
+                        if (num) d.num = num.value;
+                        d.oblig = numOf("oblig-" + id, d.oblig);
+                        d.paid = numOf("paid-" + id, d.paid);
+                    });
+                });
+            }
+
+            function onEdit() {
+                calc();
+                scheduleSave();
+            }
+
+            /* ── Хранение ─────────────────────────────────────────────── */
+            function scheduleSave() {
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохраняю…";
+                    st.className = "auto-save-status saving";
+                }
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(saveData, 800);
+            }
+
+            function saveData() {
+                if (currentBranch === "consolidated") return;
+                if (readOnly()) return;
+                collect();
+
+                // Пустые специфики не храним: реестр и так на шестнадцать
+                // строк, а в базу уезжает только заведённое
+                const out = {};
+                SPECS.forEach((s) => {
+                    const list = (deals[s.code] || []).filter(
+                        (d) => d.name || d.num || d.oblig || d.paid,
+                    );
+                    if (list.length) out[s.code] = list;
+                });
+
+                localStorage.setItem(
+                    SHEET_KEY + "_" + currentBranch,
+                    JSON.stringify(out),
+                );
+
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохранено";
+                    st.className = "auto-save-status saved";
+                }
+            }
+
+            function loadData() {
+                if (currentBranch === "consolidated") {
+                    plan = planConsolidated();
+                    deals = dealsConsolidated();
+                } else {
+                    plan = planOf(currentBranch);
+                    deals = dealsOf(currentBranch);
+                }
+                buildTable();
+                calc();
+            }
+
+            /* ── Филиалы ──────────────────────────────────────────────── */
+            function switchBranch(branch) {
+                if (currentBranch !== "consolidated") saveData();
+                currentBranch = branch;
+
+                document.querySelectorAll(".branch-btn").forEach((btn) => {
+                    btn.classList.toggle(
+                        "active",
+                        btn.dataset.branch === branch,
+                    );
+                });
+                document.getElementById("currentBranch").textContent =
+                    BRANCH_NAMES[branch];
+
+                loadData();
+            }
+
+            function exportToExcel() {
+                SharedExport.exportTableToExcel({ title: document.title });
+            }
+
+            window.addEventListener("load", function () {
+                document.querySelectorAll(".branch-btn").forEach((btn) => {
+                    btn.addEventListener("click", function () {
+                        switchBranch(btn.dataset.branch);
+                    });
+                });
+                loadData();
+            });
+        </script>
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

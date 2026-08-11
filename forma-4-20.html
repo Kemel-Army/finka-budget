@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>Форма 4-20 — сводный отчёт по расходам</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="shared-export.js"></script>
+        <style>
+            .num-cell {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+            #importBar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                margin: 0 0 16px;
+                padding: 12px 14px;
+                border: 1px dashed #cbd5e1;
+                border-radius: 10px;
+                background: #f8fafc;
+                font-size: 13px;
+                color: #475569;
+            }
+            #importLog {
+                margin-left: auto;
+                font-size: 12px;
+            }
+            #importLog.bad {
+                color: #b91c1c;
+            }
+            #importLog.good {
+                color: #15803d;
+            }
+        </style>
+    </head>
+    <body class="page-rb">
+        <a href="index.html" class="back-link">← Вернуться на главную</a>
+        <div class="header">
+            <h1>Форма № 4-20 — сводный отчёт по расходам</h1>
+            <p style="color: #7f8c8d; margin-top: 5px">
+                План-факт по бюджетной классификации. План на год берётся из
+                «Свода расходов», факт — из выгрузки 1С.
+            </p>
+
+            <div class="branch-selector">
+                <button class="branch-btn active" data-branch="nao">
+                    НАО «РФМШ»
+                </button>
+                <button class="branch-btn" data-branch="almaty">Алматы</button>
+                <button class="branch-btn" data-branch="astana">Астана</button>
+                <button class="branch-btn" data-branch="uralsk">Уральск</button>
+                <button
+                    class="branch-btn"
+                    data-branch="consolidated"
+                    style="border-color: #8e44ad; color: #8e44ad"
+                >
+                    По организации
+                </button>
+            </div>
+        </div>
+
+        <div class="info-bar">
+            <div>
+                <span style="font-weight: bold">Подразделение:</span>
+                <span id="currentBranch">НАО «РФМШ»</span>
+            </div>
+            <div>
+                <span style="font-weight: bold">Отчёт на:</span>
+                <input
+                    type="text"
+                    id="reportDate"
+                    placeholder="31.03.2026"
+                    style="width: 110px"
+                    oninput="onEdit()"
+                />
+            </div>
+            <div class="auto-save-status saved" id="saveStatus">Сохранено</div>
+        </div>
+
+        <div id="importBar">
+            <strong>Выгрузка из 1С:</strong>
+            <input type="file" id="importFile" accept=".xlsx,.xls" />
+            <span>файл формы 4-20 — разбирается блок «ПО ПОДРАЗДЕЛЕНИЯМ»</span>
+            <span id="importLog"></span>
+        </div>
+
+        <div class="table-container">
+            <table id="mainTable" data-sticky-cols="1">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="min-width: 280px">Специфика</th>
+                        <th rowspan="2" style="min-width: 140px">
+                            План финансирования по обязательствам
+                        </th>
+                        <th colspan="2">План финансирования с начала года</th>
+                        <th rowspan="2" style="min-width: 130px">
+                            Сумма принятых обязательств с начала года
+                        </th>
+                        <th colspan="2">Оплаченные обязательства</th>
+                        <th rowspan="2" style="min-width: 130px">
+                            Неоплаченные обязательства
+                        </th>
+                        <th colspan="2">Остаток средств от плана</th>
+                    </tr>
+                    <tr>
+                        <th>по обязательствам</th>
+                        <th>по платежам</th>
+                        <th>с начала года</th>
+                        <th>на текущий месяц</th>
+                        <th>по обязательствам</th>
+                        <th>по платежам</th>
+                    </tr>
+                    <tr class="summary-row">
+                        <td>1</td>
+                        <td>3</td>
+                        <td>4</td>
+                        <td>5</td>
+                        <td>6</td>
+                        <td>7</td>
+                        <td>8</td>
+                        <td>9 = 6 − 7</td>
+                        <td>11 = 4 − 6</td>
+                        <td>12 = 5 − 7</td>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+                <tfoot>
+                    <tr class="grand-total-row">
+                        <td class="label-cell"><strong>ВСЕГО</strong></td>
+                        <td class="formula-cell num-cell" id="tot-planYear">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-planOblig">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-planPay">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-taken">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-paidYear">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-paidMonth">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-unpaid">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-restOblig">
+                            0,00
+                        </td>
+                        <td class="formula-cell num-cell" id="tot-restPay">
+                            0,00
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="info" style="margin-top: 16px">
+                <strong>Как считается</strong>
+                <p style="margin-top: 6px">
+                    Неоплаченные обязательства = принятые обязательства −
+                    оплаченные с начала года.<br />
+                    Остаток по обязательствам = план с начала года по
+                    обязательствам − принятые обязательства.<br />
+                    Остаток по платежам = план с начала года по платежам −
+                    оплаченные с начала года.<br />
+                    Колонка 10 «Невыплаченные обязательства» в выгрузке 1С не
+                    заполняется, поэтому здесь её нет.
+                </p>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-primary" onclick="saveData()">
+                Сохранить
+            </button>
+            <button class="btn btn-success" onclick="exportToExcel()">
+                Excel
+            </button>
+            <button
+                class="btn btn-success"
+                onclick="window.print()"
+                style="background: #64748b"
+            >
+                Печать
+            </button>
+            <button
+                class="btn btn-secondary"
+                onclick="window.location.href = 'index.html'"
+            >
+                ← Назад к списку
+            </button>
+        </div>
+
+        <script>
+            /* ─────────────────────────────────────────────────────────────
+               Форма № 4-20 «Сводный отчёт по расходам по бюджетной
+               классификации» — та же отчётность, что формируется в 1С.
+
+               План на год не вводится: это те же шестнадцать строк, что и
+               в «Своде расходов» (ячейки C10..C25, см. derive.js). Факт
+               приходит выгрузкой из 1С.
+
+               Разбор выгрузки. Отчёт свёрстан объединёнными ячейками, и
+               номер колонки в файле не совпадает с номером колонки формы.
+               Поэтому позиции колонок снимаются с первой же полностью
+               заполненной строки — строки учреждения под «ПО ОРГАНИЗАЦИИ:».
+               Дальше все строки читаются по этим позициям. Колонки 9, 11 и
+               12 из файла не берутся вовсе: это формулы, и считаем их сами
+               — иначе расхождение в выгрузке молча переехало бы в отчёт.
+               ───────────────────────────────────────────────────────────── */
+            const SHEET_KEY = "rb_forma420";
+            const SVOD_KEY = "rb_svod";
+            const REAL_BRANCHES = ["nao", "almaty", "astana", "uralsk"];
+            const BRANCH_NAMES = {
+                nao: "НАО «РФМШ»",
+                almaty: "Алматы",
+                astana: "Астана",
+                uralsk: "Уральск",
+                consolidated: "По организации",
+            };
+
+            // Строки формы = строки «Свода»
+            const SPECS = [
+                { code: "111", cell: "C10", name: "Оплата труда" },
+                { code: "113", cell: "C11", name: "Компенсационные выплаты" },
+                { code: "116", cell: "C12", name: "ОПВР" },
+                { code: "121", cell: "C13", name: "Социальный налог" },
+                {
+                    code: "122",
+                    cell: "C14",
+                    name: "Социальные отчисления в ГФСС",
+                },
+                {
+                    code: "124",
+                    cell: "C15",
+                    name: "Отчисления на обязательное социальное медицинское страхование",
+                },
+                {
+                    code: "141",
+                    cell: "C16",
+                    name: "Приобретение продуктов питания",
+                },
+                {
+                    code: "142",
+                    cell: "C17",
+                    name: "Приобретение лекарственных средств и прочих изделий медицинского назначения",
+                },
+                {
+                    code: "144",
+                    cell: "C18",
+                    name: "Приобретение топлива, горюче-смазочных материалов",
+                },
+                {
+                    code: "149",
+                    cell: "C19",
+                    name: "Приобретение прочих запасов",
+                },
+                { code: "151", cell: "C20", name: "Оплата коммунальных услуг" },
+                { code: "152", cell: "C21", name: "Оплата услуг связи" },
+                {
+                    code: "159",
+                    cell: "C22",
+                    name: "Оплата прочих услуг и работ",
+                },
+                {
+                    code: "161",
+                    cell: "C23",
+                    name: "Командировки и служебные разъезды внутри страны",
+                },
+                {
+                    code: "163",
+                    cell: "C24",
+                    name: "Затраты Фонда всеобщего обязательного среднего образования",
+                },
+                { code: "169", cell: "C25", name: "Прочие текущие затраты" },
+            ];
+
+            // Вводится руками либо приезжает из 1С
+            const INPUTS = [
+                "planOblig",
+                "planPay",
+                "taken",
+                "paidYear",
+                "paidMonth",
+            ];
+
+            let currentBranch = "nao";
+            let facts = {}; // { "149": { planOblig, planPay, taken, … } }
+            let plan = {}; // план на год из «Свода»
+            let reportDate = "";
+            let saveTimeout = null;
+
+            function fmt(n) {
+                return (n || 0).toLocaleString("ru-RU", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            function parseNum(v) {
+                if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+                if (v === null || v === undefined) return 0;
+                const t = String(v)
+                    .replace(/[\s  ₸]/g, "")
+                    .replace(",", ".");
+                if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return 0;
+                const n = parseFloat(t);
+                return Number.isFinite(n) ? n : 0;
+            }
+
+            function readStore(key) {
+                try {
+                    return JSON.parse(localStorage.getItem(key)) || null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function emptyFact() {
+                const o = {};
+                INPUTS.forEach((k) => (o[k] = 0));
+                return o;
+            }
+
+            /* ── План на год из «Свода» ───────────────────────────────── */
+            function planOf(branch) {
+                const out = {};
+                const src = readStore(SVOD_KEY + "_" + branch);
+                const cells = (src && src.cells) || {};
+                SPECS.forEach((s) => (out[s.code] = parseNum(cells[s.cell])));
+                return out;
+            }
+
+            function factsOf(branch) {
+                const saved = readStore(SHEET_KEY + "_" + branch) || {};
+                const out = {};
+                SPECS.forEach((s) => {
+                    const row = saved[s.code] || {};
+                    const o = emptyFact();
+                    INPUTS.forEach((k) => (o[k] = parseNum(row[k])));
+                    out[s.code] = o;
+                });
+                return out;
+            }
+
+            /* «По организации» — сумма подразделений: в выгрузке 1С блок
+               «ПО ОРГАНИЗАЦИИ» ровно такой и есть. */
+            function sumBranches(fn) {
+                const out = {};
+                SPECS.forEach((s) => (out[s.code] = emptyFact()));
+                REAL_BRANCHES.forEach((b) => {
+                    const d = fn(b);
+                    SPECS.forEach((s) => {
+                        INPUTS.forEach((k) => {
+                            out[s.code][k] += d[s.code][k] || 0;
+                        });
+                    });
+                });
+                return out;
+            }
+
+            function sumPlan() {
+                const out = {};
+                SPECS.forEach((s) => (out[s.code] = 0));
+                REAL_BRANCHES.forEach((b) => {
+                    const p = planOf(b);
+                    SPECS.forEach((s) => (out[s.code] += p[s.code] || 0));
+                });
+                return out;
+            }
+
+            /* ── Разметка ─────────────────────────────────────────────── */
+            function buildTable() {
+                const ro = currentBranch === "consolidated";
+                let html = "";
+
+                SPECS.forEach((s) => {
+                    html +=
+                        '<tr data-spec="' + s.code + '">' +
+                        "<td>" + s.code + " — " + s.name + "</td>" +
+                        '<td class="formula-cell num-cell" id="planYear-' +
+                        s.code + '">0,00</td>';
+
+                    INPUTS.forEach((k) => {
+                        html += ro
+                            ? '<td class="formula-cell num-cell" id="' + k +
+                              "-" + s.code + '">0,00</td>'
+                            : '<td><input type="number" step="0.01" class="num-cell" id="' +
+                              k + "-" + s.code +
+                              '" value="0" oninput="onEdit()"></td>';
+                    });
+
+                    html +=
+                        '<td class="formula-cell num-cell" id="unpaid-' + s.code + '">0,00</td>' +
+                        '<td class="formula-cell num-cell" id="restOblig-' + s.code + '">0,00</td>' +
+                        '<td class="formula-cell num-cell" id="restPay-' + s.code + '">0,00</td>' +
+                        "</tr>";
+                });
+
+                document.getElementById("tableBody").innerHTML = html;
+
+                // Значения проставляем после разметки: в режиме «по
+                // организации» это расчётные ячейки, а не поля ввода
+                SPECS.forEach((s) => {
+                    INPUTS.forEach((k) => {
+                        const el = document.getElementById(k + "-" + s.code);
+                        if (!el) return;
+                        const v = facts[s.code][k] || 0;
+                        if (el.tagName === "INPUT") el.value = v;
+                        else el.textContent = fmt(v);
+                    });
+                });
+            }
+
+            /* ── Расчёт ───────────────────────────────────────────────── */
+            function calc() {
+                const totals = {
+                    planYear: 0, unpaid: 0, restOblig: 0, restPay: 0,
+                };
+                INPUTS.forEach((k) => (totals[k] = 0));
+
+                SPECS.forEach((s) => {
+                    const v = {};
+                    INPUTS.forEach((k) => (v[k] = valueOf(k + "-" + s.code, s.code, k)));
+
+                    const unpaid = v.taken - v.paidYear;        //  9 = 6 − 7
+                    const restOblig = v.planOblig - v.taken;    // 11 = 4 − 6
+                    const restPay = v.planPay - v.paidYear;     // 12 = 5 − 7
+                    const planYear = plan[s.code] || 0;
+
+                    setText("planYear-" + s.code, planYear);
+                    setText("unpaid-" + s.code, unpaid);
+                    setText("restOblig-" + s.code, restOblig);
+                    setText("restPay-" + s.code, restPay);
+
+                    totals.planYear += planYear;
+                    INPUTS.forEach((k) => (totals[k] += v[k]));
+                    totals.unpaid += unpaid;
+                    totals.restOblig += restOblig;
+                    totals.restPay += restPay;
+                });
+
+                Object.keys(totals).forEach((k) => setText("tot-" + k, totals[k]));
+            }
+
+            // В режиме «по организации» полей ввода нет — берём из данных
+            function valueOf(id, code, key) {
+                const el = document.getElementById(id);
+                if (el && el.tagName === "INPUT") return parseNum(el.value);
+                return parseNum(facts[code][key]);
+            }
+
+            function setText(id, value) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = fmt(value);
+            }
+
+            function collect() {
+                if (currentBranch === "consolidated") return;
+                SPECS.forEach((s) => {
+                    INPUTS.forEach((k) => {
+                        const el = document.getElementById(k + "-" + s.code);
+                        if (el && el.tagName === "INPUT") {
+                            facts[s.code][k] = parseNum(el.value);
+                        }
+                    });
+                });
+                const d = document.getElementById("reportDate");
+                reportDate = d ? d.value : reportDate;
+            }
+
+            function onEdit() {
+                calc();
+                scheduleSave();
+            }
+
+            /* ── Хранение ─────────────────────────────────────────────── */
+            function scheduleSave() {
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохраняю…";
+                    st.className = "auto-save-status saving";
+                }
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(saveData, 800);
+            }
+
+            /* Замок «только просмотр» (auth.js) выключает поля. Загрузку
+               выгрузки он тоже гасит — это <input type="file">, — но
+               сохранение зовётся и по таймеру, поэтому проверяем сами. */
+            function readOnly() {
+                const field = document.querySelector("#tableBody input");
+                return !!(field && field.dataset.finkaRo === "1");
+            }
+
+            function saveData() {
+                if (currentBranch === "consolidated") return;
+                if (readOnly()) return;
+                collect();
+
+                const out = {};
+                SPECS.forEach((s) => {
+                    const row = facts[s.code];
+                    if (INPUTS.some((k) => row[k])) out[s.code] = row;
+                });
+                if (reportDate) out._date = reportDate;
+
+                localStorage.setItem(
+                    SHEET_KEY + "_" + currentBranch,
+                    JSON.stringify(out),
+                );
+
+                const st = document.getElementById("saveStatus");
+                if (st) {
+                    st.textContent = "Сохранено";
+                    st.className = "auto-save-status saved";
+                }
+            }
+
+            function loadData() {
+                if (currentBranch === "consolidated") {
+                    plan = sumPlan();
+                    facts = sumBranches(factsOf);
+                } else {
+                    plan = planOf(currentBranch);
+                    facts = factsOf(currentBranch);
+                    const saved = readStore(SHEET_KEY + "_" + currentBranch);
+                    reportDate = (saved && saved._date) || "";
+                }
+                const d = document.getElementById("reportDate");
+                if (d) {
+                    d.value = reportDate;
+                    d.disabled = currentBranch === "consolidated";
+                }
+                buildTable();
+                calc();
+            }
+
+            /* ── Филиалы ──────────────────────────────────────────────── */
+            function switchBranch(branch) {
+                if (currentBranch !== "consolidated") saveData();
+                currentBranch = branch;
+
+                document.querySelectorAll(".branch-btn").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.branch === branch);
+                });
+                document.getElementById("currentBranch").textContent =
+                    BRANCH_NAMES[branch];
+                document.getElementById("importBar").style.display =
+                    branch === "consolidated" ? "none" : "";
+
+                loadData();
+            }
+
+            /* ── Разбор выгрузки 1С ───────────────────────────────────── */
+            const SPEC_RE = /^\s*(\d{3})\s*-\s*/;
+
+            function branchOfTitle(title) {
+                const t = String(title).toLowerCase();
+                if (/алмат/.test(t)) return "almaty";
+                if (/астан|нур-султан/.test(t)) return "astana";
+                if (/уральск|орал/.test(t)) return "uralsk";
+                if (/рфмш|физико/.test(t)) return "nao";
+                return null;
+            }
+
+            /* Позиции колонок формы в файле: снимаем с первой строки, где
+               заполнено больше всего числовых ячеек. У этой строки — итога
+               по учреждению — заполнены все колонки, поэтому её раскладка
+               и есть раскладка отчёта. */
+            function columnLayout(rows, from) {
+                let best = null;
+                let bestLen = 0;
+                /* Считаем только по строкам данных. Выше них стоит строка
+                   нумерации колонок («1 2 3 … 12») — там тоже числа, и
+                   раньше раскладка снималась именно с неё. */
+                for (let r = from; r < rows.length; r++) {
+                    const row = rows[r];
+                    const idx = [];
+                    for (let i = 1; i < row.length; i++) {
+                        if (parseNum(row[i])) idx.push(i);
+                    }
+                    if (idx.length > bestLen) {
+                        bestLen = idx.length;
+                        best = idx;
+                    }
+                }
+                /* Первые шесть заполненных колонок — это 3, 4, 5, 6, 7, 8.
+                   Третью отбрасываем: годовой план берётся из «Свода», а
+                   не из выгрузки, иначе бюджет и отчёт разошлись бы. */
+                return best && best.length >= 6 ? best.slice(1, 6) : null;
+            }
+
+            function parseReport(rows) {
+                // Данные начинаются с блока «ПО ОРГАНИЗАЦИИ:» — по нему и
+                // снимаем раскладку колонок
+                const head = rows.findIndex((r) =>
+                    /ПО\s+ОРГАНИЗАЦИИ/i.test(String(r[0] || "")),
+                );
+                const layout = columnLayout(rows, head === -1 ? 0 : head);
+                if (!layout) return { error: "не нашёл колонки с суммами" };
+
+                // Сам блок по организации не читаем: это сумма филиалов,
+                // её страница считает сама
+                let start = rows.findIndex((r) =>
+                    /ПО\s+ПОДРАЗДЕЛЕНИЯМ/i.test(String(r[0] || "")),
+                );
+                if (start === -1) start = 0;
+
+                const out = {};
+                let branch = null;
+
+                for (let i = start + 1; i < rows.length; i++) {
+                    const label = String(rows[i][0] || "").trim();
+                    if (!label) continue;
+                    if (/^ВСЕГО/i.test(label)) break;
+
+                    const spec = SPEC_RE.exec(label);
+                    if (!spec) {
+                        const b = branchOfTitle(label);
+                        if (b) {
+                            branch = b;
+                            out[b] = out[b] || {};
+                        }
+                        continue;
+                    }
+                    if (!branch) continue;
+
+                    const row = emptyFact();
+                    INPUTS.forEach((k, n) => {
+                        row[k] = parseNum(rows[i][layout[n]]);
+                    });
+                    out[branch][spec[1]] = row;
+                }
+
+                return { data: out };
+            }
+
+            function importFile(file) {
+                const log = document.getElementById("importLog");
+                log.className = "";
+                log.textContent = "Читаю…";
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    let res;
+                    try {
+                        const wb = XLSX.read(new Uint8Array(e.target.result), {
+                            type: "array",
+                        });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        const rows = XLSX.utils.sheet_to_json(ws, {
+                            header: 1,
+                            defval: "",
+                            blankrows: true,
+                        });
+                        res = parseReport(rows);
+                    } catch (err) {
+                        res = { error: String(err.message || err) };
+                    }
+
+                    if (res.error) {
+                        log.className = "bad";
+                        log.textContent = "Не разобрал: " + res.error;
+                        return;
+                    }
+
+                    const names = [];
+                    Object.keys(res.data).forEach((b) => {
+                        const rows = res.data[b];
+                        if (!Object.keys(rows).length) return;
+                        const prev = readStore(SHEET_KEY + "_" + b) || {};
+                        if (prev._date) rows._date = prev._date;
+                        localStorage.setItem(
+                            SHEET_KEY + "_" + b,
+                            JSON.stringify(rows),
+                        );
+                        names.push(BRANCH_NAMES[b]);
+                    });
+
+                    if (!names.length) {
+                        log.className = "bad";
+                        log.textContent =
+                            "В файле не нашлось блока «ПО ПОДРАЗДЕЛЕНИЯМ» со спецификами";
+                        return;
+                    }
+
+                    log.className = "good";
+                    log.textContent = "Загружено: " + names.join(", ");
+                    loadData();
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            function exportToExcel() {
+                SharedExport.exportTableToExcel({ title: document.title });
+            }
+
+            window.addEventListener("load", function () {
+                document.querySelectorAll(".branch-btn").forEach((btn) => {
+                    btn.addEventListener("click", function () {
+                        switchBranch(btn.dataset.branch);
+                    });
+                });
+                const file = document.getElementById("importFile");
+                if (file) {
+                    file.addEventListener("change", function () {
+                        if (file.files && file.files[0]) importFile(file.files[0]);
+                    });
+                }
+                loadData();
+            });
+        </script>
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script src="sheet-edit.js"></script>
+        <script src="formulas.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

@@ -95,13 +95,24 @@ async function freshPage({ noSync = false } = {}) {
     return { ctx, page, errors };
 }
 
+/* Ждём форму, а не «тишину в сети»: при семнадцати входах подряд SDK
+   Supabase начинает повторять запросы, networkidle не наступает вовсе, и
+   прогон вставал на середине списка учёток.
+
+   После входа страница может один раз перезагрузиться: db-sync подтянул
+   из базы то, чего не было в localStorage. Если прочитать бейдж в этот
+   момент, контекст исполнения сносит навигацией — поэтому дожидаемся
+   бейджа, потом паузы, потом снова бейджа. */
 async function signIn(page, email) {
-    await page.goto(`${BASE}/login.html`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/login.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("#loginEmail", { timeout: 30000 });
     await page.fill("#loginEmail", email);
     await page.fill("#loginPassword", ACCOUNTS[email]);
     await page.click("#btnLogin");
-    await page.waitForURL(/index\.html|\/$/, { timeout: 25000 });
-    await page.waitForTimeout(900);
+    await page.waitForURL(/index\.html|\/$/, { timeout: 40000 });
+    await page.waitForSelector(".finka-user", { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+    await page.waitForSelector(".finka-user", { timeout: 30000 }).catch(() => {});
 }
 
 /* ══ 1. Вход каждой учётной записью ═══════════════════════════════ */
@@ -360,7 +371,7 @@ console.log("\n══ Обход всех страниц\n");
         "plan-fact-pu.html", "plan-fact-dt.html", "plan-fact-pu-dt.html",
         "plan-finansirovaniya.html", "spravki.html", "shtatnoe.html",
         "osnovaniya.html", "import-excel.html", "dashboard.html",
-        "business-process.html",
+        "business-process.html", "dogovory.html", "forma-4-20.html",
     ];
 
     const { ctx, page } = await freshPage();

@@ -30,6 +30,9 @@
         "business-process.html", "import-excel.html", "osnovaniya.html",
         "shtatnoe.html", "spravki.html", "plan-finansirovaniya.html",
         "plan-fact-pu.html", "plan-fact-dt.html", "plan-fact-pu-dt.html",
+        // Реестр договоров и форма 4-20: строки заводятся своими кнопками,
+        // состав строк задан бюджетной классификацией — дописывать нельзя
+        "dogovory.html", "forma-4-20.html",
     ];
     if (SKIP.indexOf(PAGE) !== -1) return;
 
@@ -97,6 +100,29 @@
         } catch (e) {
             return {};
         }
+    }
+
+    /* ── Добавленные строки: по таблицам ───────────────────────────
+       Раньше список был один на страницу и применялся к каждой таблице:
+       строка, заведённая под «Водоотведением», появлялась во всех
+       четырнадцати разделах «Сводной общей». Теперь список хранится по
+       номеру таблицы. Старую запись (массив) отдаём первой таблице —
+       где её и заводили, прежде чем она расползлась по остальным. */
+    function extraOf(data, tIdx) {
+        var box = data.extra;
+        if (Array.isArray(box)) return tIdx === 0 ? box : [];
+        if (!box || typeof box !== "object") return [];
+        return box[tIdx] || [];
+    }
+
+    function setExtra(data, tIdx, list) {
+        if (!data.extra || Array.isArray(data.extra)) {
+            var old = Array.isArray(data.extra) ? data.extra : null;
+            data.extra = {};
+            if (old && old.length) data.extra[0] = old;
+        }
+        data.extra[tIdx] = list;
+        return data;
     }
 
     // Тихо: writeEdits зовётся на каждое нажатие клавиши, всплывашка на
@@ -309,6 +335,25 @@
         var rows = dataRows(table);
         if (!rows.length) return;
 
+        /* Раздел «Сводной общей» — это два блока в одной таблице: сводная
+           строка и её расшифровка под ней («Медикаменты 565 550» и те же
+           565 550 по тридцати четырём позициям). Сложение обоих даёт
+           ровно двойной итог, а у воды ещё и мешает бутыли с тенге:
+           колонки блоков значат разное. Страница помечает строки сводного
+           блока атрибутом data-sumrow — там, где разметка есть, считаем
+           только по ним, и итог таблицы сходится с «Итого по разделу». */
+        var marked = rows.filter(function (tr) {
+            return tr.hasAttribute("data-sumrow");
+        });
+        if (marked.length) {
+            rows = rows.filter(function (tr) {
+                return (
+                    tr.hasAttribute("data-sumrow") ||
+                    tr.classList.contains("sx-extra")
+                );
+            });
+        }
+
         var cols = columnCount(table);
         var kinds = columnKinds(rows, cols);
         var sums = new Array(cols).fill(null);
@@ -399,8 +444,9 @@
                 del.addEventListener("click", function () {
                     if (!confirm("Удалить добавленную строку?")) return;
                     var data = readEdits();
-                    (data.extra || []).splice(idx, 1);
-                    writeEdits(data);
+                    var list = extraOf(data, tIdx).slice();
+                    list.splice(idx, 1);
+                    writeEdits(setExtra(data, tIdx, list));
                     toast("Строка удалена");
                     apply();
                 });
@@ -415,10 +461,10 @@
                 num.value = rec.cells[c] != null ? rec.cells[c] : 0;
                 num.addEventListener("input", function () {
                     var data = readEdits();
-                    data.extra = data.extra || [];
-                    if (!data.extra[idx]) data.extra[idx] = { cells: {} };
-                    data.extra[idx].cells[c] = parseFloat(num.value) || 0;
-                    writeEdits(data);
+                    var list = extraOf(data, tIdx).slice();
+                    if (!list[idx]) list[idx] = { cells: {} };
+                    list[idx].cells[c] = parseFloat(num.value) || 0;
+                    writeEdits(setExtra(data, tIdx, list));
                     renderTotal(table);
                 });
                 td.appendChild(num);
@@ -430,10 +476,10 @@
                 txt.placeholder = c === 0 ? "" : "наименование";
                 txt.addEventListener("input", function () {
                     var data = readEdits();
-                    data.extra = data.extra || [];
-                    if (!data.extra[idx]) data.extra[idx] = { cells: {} };
-                    data.extra[idx].cells[c] = txt.value;
-                    writeEdits(data);
+                    var list = extraOf(data, tIdx).slice();
+                    if (!list[idx]) list[idx] = { cells: {} };
+                    list[idx].cells[c] = txt.value;
+                    writeEdits(setExtra(data, tIdx, list));
                 });
                 td.appendChild(txt);
             }
@@ -447,7 +493,7 @@
         var body = table.tBodies[table.tBodies.length - 1];
         // Перестраиваем только когда состав добавленных строк действительно
         // изменился — иначе каждая перерисовка порождает мутацию и цикл
-        var list = edits.extra || [];
+        var list = extraOf(edits, tIdx);
         var sig = JSON.stringify(list);
         var present = body.querySelectorAll("tr.sx-extra").length;
         // страница могла перерисовать тело таблицы и стереть наши строки —
@@ -502,9 +548,9 @@
         refreshAddState(table, add);
         add.addEventListener("click", function () {
             var data = readEdits();
-            data.extra = data.extra || [];
-            data.extra.push({ cells: {} });
-            writeEdits(data);
+            var list = extraOf(data, tIdx).slice();
+            list.push({ cells: {} });
+            writeEdits(setExtra(data, tIdx, list));
             toast("Строка добавлена");
             apply();
             var last = table.querySelector("tr.sx-extra:last-of-type input");

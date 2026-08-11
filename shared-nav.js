@@ -83,6 +83,16 @@
                     title: "План-Факт РБ",
                     key: "plan_fact_rb",
                 },
+                {
+                    href: "dogovory.html",
+                    title: "Договоры по спецификам",
+                    key: "rb_dogovory",
+                },
+                {
+                    href: "forma-4-20.html",
+                    title: "Форма 4-20 (план-факт 1С)",
+                    key: "rb_forma420",
+                },
             ],
         },
         pu: {

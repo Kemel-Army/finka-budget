@@ -280,6 +280,8 @@
             }
 
             let currentBranch = "nao";
+            // Правил ли пользователь текущий филиал
+            let branchDirty = false;
             let saveTimeout = null;
             let isDataImported = false; // Флаг для отслеживания импортированных данных
 
@@ -303,12 +305,16 @@
                 }
             }
 
+            // Лист-заготовка: с него начинается любой филиал
+            let SECTIONS_DATA = null;
+
             // Загрузка данных разделов
             async function loadSectionsData() {
                 try {
                     const response = await fetch("svodnaya_sections_full.json");
                     const data = await response.json();
 
+                    SECTIONS_DATA = data.sections;
                     buildSectionMeta(data.sections);
                     // Разделы нужны и «Своду»: без них он не сможет
                     // посчитать итог раздела, когда лист неполный
@@ -872,6 +878,24 @@
                 content.classList.toggle("collapsed");
             }
 
+            /* Свободный номер строки: ячейки адресуются как
+               sec{номер раздела}_row{строка}_col{колонка}, и у подразделов
+               одного раздела адресное пространство общее. */
+            function nextRowIdx(meta) {
+                // Шапка подраздела ячеек с id не имеет — id есть только у
+                // самой строки, поэтому проверяем и её, и ячейки
+                const taken = (i) =>
+                    !!document.getElementById(`sec${meta.num}_row${i}`) ||
+                    !!document.querySelector(
+                        `[id^="sec${meta.num}_row${i}_col"]`,
+                    );
+
+                let idx = meta.maxIdx + 1;
+                while (taken(idx)) idx += 1;
+                meta.maxIdx = idx;
+                return idx;
+            }
+
             // Добавление новой строки
             function addNewRow(sectionIndex) {
                 const meta = SECTION_META[sectionIndex];
@@ -883,9 +907,17 @@
                 /* Номер строки берём от последней строки раздела: у
                    подразделов с одним номером («6.1», «6.2») нумерация
                    по количеству строк дала бы одинаковые ключи, и
-                   ячейки разных подразделов затирали бы друг друга. */
-                meta.maxIdx += 1;
-                const newRowIndex = meta.maxIdx;
+                   ячейки разных подразделов затирали бы друг друга.
+
+                   Одного этого мало: подразделы делят номер раздела, а
+                   строки на листе идут сквозь них. У «6.1» последняя
+                   строка 491, у «6.2» — 493 и 494. Вторая добавленная в
+                   «6.1» строка получала 493 — тот же id ячеек, что у
+                   «Электрической энергии». Два поля с одним id: браузер
+                   находит первое, ввод в «Водоотведение» уходил в чужую
+                   строку, а сама строка выглядела задвоенной. Поэтому
+                   занятые номера пропускаем. */
+                const newRowIndex = nextRowIdx(meta);
 
                 // Колонки берём те же, по которым построена таблица —
                 // иначе ячейки новой строки встанут не под свои заголовки
@@ -960,6 +992,7 @@
                     });
 
                     row.remove();
+                    branchDirty = true;
                     saveData(); // Сохраняем изменения
                     updateGrandTotal(); // итог раздела и страницы
                     console.log(
@@ -970,10 +1003,13 @@
 
             // Переключение филиала
             function switchBranch(branch) {
-                // Не сохраняем если текущий режим - консолидация
-                if (currentBranch !== "consolidated") {
+                /* Сохраняем только тронутый филиал. Иначе клик по городам
+                   записывал каждому из них лист-заготовку — и в базе
+                   появлялись «данные» филиалов, которые никто не заполнял. */
+                if (currentBranch !== "consolidated" && branchDirty) {
                     saveData();
                 }
+                branchDirty = false;
 
                 // Удаляем детали при переключении с консолидации
                 if (
@@ -1023,6 +1059,7 @@
                    срабатывает раньше, чем поле потеряет фокус. */
                 const cell = document.getElementById(cellId);
                 if (cell) cell.dataset.raw = cellNormalize(cell, cell.value);
+                branchDirty = true;
 
                 // Сбрасываем флаг импорта при первом ручном редактировании
                 if (isDataImported) {
@@ -1075,10 +1112,29 @@
                 console.log(`✅ Данные сохранены для ${currentBranch}`);
             }
 
+            /* Возврат листа к заготовке.
+
+               Без этого филиал без собственных данных показывал то, что
+               осталось в полях от предыдущего города: loadData просто
+               ничего не делала, а следующее переключение сохраняло эти
+               чужие числа уже под новый филиал — так Алматы расползался
+               на Астану, Уральск и НАО. */
+            function resetCellsToSheet() {
+                document
+                    .querySelectorAll("input.editable-cell")
+                    .forEach((input) => {
+                        if (input.dataset.grandTotal === "1") return;
+                        setCellValue(input, "");
+                    });
+                if (SECTIONS_DATA) fillSectionValues(SECTIONS_DATA);
+            }
+
             // Загрузка данных
             function loadData() {
                 const key = `rb_svodnaya_${currentBranch}`;
                 const saved = localStorage.getItem(key);
+
+                resetCellsToSheet();
 
                 // Проверяем флаг импорта
                 const importFlag = localStorage.getItem(
@@ -1096,7 +1152,6 @@
                             setCellValue(input, data[id]);
                         }
                     });
-                    updateGrandTotal();
                     console.log(`✅ Данные загружены для ${currentBranch}`);
 
                     if (isDataImported) {
@@ -1105,7 +1160,13 @@
                         );
                         updateImportNotice(); // Показываем уведомление
                     }
+                } else {
+                    console.log(`ℹ️ У филиала ${currentBranch} данных нет — лист-заготовка`);
                 }
+
+                // Итоги пересчитываем всегда: у филиала без данных они
+                // иначе остались бы от предыдущего города
+                updateGrandTotal();
             }
 
             // Загрузка консолидированных данных
