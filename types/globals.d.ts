@@ -32,7 +32,8 @@ declare global {
         /* auth.js */
         finkaAuth: {
             getClient(): Promise<any>;
-            signOut(): Promise<void>;
+            /** false — пользователь отказался выходить с неотправленным */
+            signOut(): Promise<void | false>;
             getProfile(): Promise<FinkaProfile | null>;
         };
         /* db-sync.js */
@@ -40,11 +41,15 @@ declare global {
             pull(): Promise<number>;
             push(): Promise<number>;
             stats(): any;
+            flush(): Promise<any>;
+            status(): any;
+            /** Чистит браузер, в базу ничего не шлёт; число удалённых ключей */
+            clearLocal(): number;
             paint(): void;
             state(): { profile: FinkaProfile | null; lastError: string };
             [internal: string]: any;
         };
-        /* shared-nav.js */
+        /* ui-kit.js */
         finkaToast(message: string, type?: string): void;
         /* shared-export.js */
         SharedExport: any;
