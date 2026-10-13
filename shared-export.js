@@ -320,10 +320,15 @@
         var title = bar.getAttribute("data-title") || document.title;
         var branch = activeBranchLabel();
         if (branch && title.indexOf(branch) === -1) title += " — " + branch;
+        // В имени файла убираем только то, что запрещено в Windows:
+        // «ёлочки» и тире названия листа оставляем как есть
+        var fileName =
+            bar.getAttribute("data-file") ||
+            title.replace(/[\\/:*?"<>|]+/g, "_") + ".xlsx";
         exportTableToExcel({
             table: bar.getAttribute("data-table") || null,
             title: title,
-            fileName: bar.getAttribute("data-file") || null,
+            fileName: fileName,
         });
     }
 
