@@ -280,7 +280,7 @@
     /* ── Выход ─────────────────────────────────────────────────── */
     // Ключи бюджета — держать в согласии с OURS в db-sync.js
     var BUDGET_KEYS =
-        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|deposit_|sheet_edits_|budget_year)/;
+        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|deposit_|sheet_edits_|rates_|budget_year)/;
 
     /* После выхода таблицы бюджета в браузере оставаться не должны:
        компьютер бывает общий, и кэш прошлого пользователя иначе читается
@@ -293,7 +293,16 @@
             var drop = [];
             for (var i = 0; i < localStorage.length; i++) {
                 var k = localStorage.key(i);
-                if (BUDGET_KEYS.test(k) || k === "finka_cache_owner") drop.push(k);
+                // Служебные ключи db-sync.js тоже: неотправленная очередь
+                // прошлого пользователя иначе уехала бы от имени следующего
+                if (
+                    BUDGET_KEYS.test(k) ||
+                    k === "finka_cache_owner" ||
+                    k === "finka_sync_queue" ||
+                    k === "finka_sync_known" ||
+                    k.indexOf("finka_conflict_") === 0
+                )
+                    drop.push(k);
             }
             drop.forEach(function (k) {
                 delete localStorage[k];
@@ -306,7 +315,9 @@
             var flags = [];
             for (var j = 0; j < sessionStorage.length; j++) {
                 var f = sessionStorage.key(j);
-                if (f.indexOf("finka_synced_") === 0) flags.push(f);
+                if (f.indexOf("finka_synced_") === 0 || f === "finka_sync_notice") {
+                    flags.push(f);
+                }
             }
             flags.forEach(function (f) {
                 sessionStorage.removeItem(f);
