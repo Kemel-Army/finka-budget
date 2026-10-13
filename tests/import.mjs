@@ -14,6 +14,7 @@ import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeDom } from "./dom-stub.mjs";
+import jsdomPkg from "jsdom";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -75,7 +76,9 @@ function loadImporter() {
             "\n;globalThis.__imp = { TARGETS, BRANCHES, guessTarget, guessBranch," +
             " convIncomePu, convFotAlmaty, convGrafik, convKomandir," +
             " convMonthlyPlan, convShtatnoe, convRaw, colName," +
-            " excelStats, storedStats, verify, pageOf, showResult };",
+            " excelStats, storedStats, verify, pageOf, showResult," +
+            " convSsAlmaty, convSsDotacia, convPuKalkulyacia, convPuSvod," +
+            " convIncomeDt, convIncomeDop, convPlanRk, convPlanAbroad, convFzp };",
         sandbox,
     );
     return { imp: sandbox.__imp, storage: window.localStorage, document: document };
@@ -612,6 +615,193 @@ console.log("\n── Итоговое сообщение после импор�
     console.log(
         `   ${hasLink ? "OK  " : "FAIL"} в итоге есть ссылка на страницу`.padEnd(58),
     );
+}
+
+/* ══ Импорт → настоящая страница в jsdom → её сохранение ═════════════
+   Раньше часть листов клалась «сырыми ячейками» под ключ страницы, а
+   страница этот формат не понимала: показывала пустоту или через секунду
+   после открытия пересохраняла ключ своими нулями. Здесь лист проходит
+   весь путь: конвертер → localStorage → страница загружается → сохраняет
+   сама → в ключе остались те же числа. */
+const { JSDOM, VirtualConsole, requestInterceptor } = jsdomPkg;
+
+function pass(label, cond, extra = "") {
+    total++;
+    if (!cond) failed++;
+    console.log(`   ${cond ? "OK  " : "FAIL"} ${String(label).padEnd(50)} ${extra}`);
+}
+
+const JS_HDR = { headers: { "Content-Type": "application/javascript" } };
+const XLSX_STUB =
+    "window.XLSX = { utils: { book_new: () => ({}), aoa_to_sheet: () => ({})," +
+    " json_to_sheet: () => ({}), book_append_sheet: () => {}, sheet_to_json: () => []," +
+    " decode_range: () => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } }), encode_cell: () => 'A1' }," +
+    " read: () => ({ SheetNames: [], Sheets: {} }), writeFile: () => {} };";
+
+// Свои файлы — с диска; CDN — заглушка; auth.js пропускаем (уводит на вход)
+const fromDisk = requestInterceptor((request) => {
+    if (/^https?:\/\/(cdn|cdnjs|unpkg)/i.test(request.url)) return new Response(XLSX_STUB, JS_HDR);
+    const name = decodeURIComponent(request.url.split("/").pop().split("?")[0]);
+    const p = path.join(ROOT, name);
+    if (name === "auth.js" || !fs.existsSync(p)) return new Response("", JS_HDR);
+    return new Response(fs.readFileSync(p, "utf8"), JS_HDR);
+});
+
+async function openPage(file, seed) {
+    const errors = [];
+    const vc = new VirtualConsole();
+    vc.on("jsdomError", (e) => errors.push(e.message));
+    const dom = new JSDOM(fs.readFileSync(path.join(ROOT, file), "utf8"), {
+        runScripts: "dangerously",
+        url: "http://localhost/" + file,
+        pretendToBeVisual: true,
+        virtualConsole: vc,
+        resources: { interceptors: [fromDisk] },
+        beforeParse(w) {
+            w.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {} });
+            w.fetch = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => "" });
+            for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
+        },
+    });
+    const win = dom.window;
+    await new Promise((r) => win.addEventListener("load", r, { once: true }));
+    // Страницы пересохраняют ключ через секунду после расчёта — ждём дольше
+    await new Promise((r) => win.setTimeout(r, 1300));
+    return { win, errors };
+}
+
+const sumOf = (data) => imp.storedStats(data);
+
+console.log("\n── Импорт → страница: формат понятен, нулями не затирается");
+{
+    // Какую часть сохранённого сравнивать: МРП и БДО «Свода ФЗП» листу
+    // не принадлежат — их страница подставляет сама
+    // cells["undefined"] у «Свода» и «Доходов РБ» — поле без data-cell,
+    // которое страница пишет при сохранении (отдельная правка страниц);
+    // к листу оно не относится
+    const noUndef = (d) => {
+        if (!d || !d.cells) return d;
+        const cells = { ...d.cells };
+        delete cells.undefined;
+        return { ...d, cells };
+    };
+    const PICK = { rb_fzp: (d) => d && d.rows, rb_svod: noUndef, rb_income: noUndef };
+    const PAGES = [
+        "rb_svod", "rb_income", "rb_kalkulyacia", "rb_fzp",
+        "pu_svod_2026", "pu_ss_almaty", "pu_ss_dotacia",
+        "pu_income_dt", "pu_income_dop", "pu_kalkulyacia_almaty",
+        "pu_plan_rk", "pu_plan_abroad",
+    ];
+    for (const key of PAGES) {
+        const target = imp.TARGETS.find((t) => t.key === key);
+        const rows = SHEETS[target.sheets[0]];
+        if (!rows) {
+            pass(`${key}: лист есть в фикстурах`, false);
+            continue;
+        }
+        const data = await (target.conv || imp.convRaw)(rows);
+        const pick = PICK[key] || ((d) => d);
+        const want = sumOf(pick(data));
+
+        // Часть страниц открывается на НАО, часть — на Алматы: кладём в оба
+        const json = JSON.stringify(data);
+        const seed = {};
+        seed[key + "_nao"] = json;
+        seed[key + "_almaty"] = json;
+        const file = imp.pageOf(key);
+        const { win, errors } = await openPage(file, seed);
+
+        // Сохранение самой страницей: то, что она поняла, она и запишет
+        const save = win.saveData || win.save;
+        if (typeof save === "function") save();
+
+        const ls = win.localStorage;
+        const stored = ["nao", "almaty"].map((b) => {
+            try {
+                return sumOf(pick(JSON.parse(ls.getItem(key + "_" + b))));
+            } catch (e) {
+                return { numbers: 0, sum: 0 };
+            }
+        });
+        const same = stored.every(
+            (s) => s.numbers > 0 && Math.abs(s.sum - want.sum) < 0.01,
+        );
+        pass(
+            `${file}`,
+            want.numbers > 0 && same && !errors.length,
+            errors.length
+                ? "ошибка страницы: " + errors[0].slice(0, 60)
+                : `чисел ${want.numbers}, Σ ${Math.round(want.sum)} → ` +
+                      stored.map((s) => Math.round(s.sum)).join(" / "),
+        );
+
+        // Ключ строится из sheet/branch — сырые ячейки их не содержат
+        const bad = Object.keys(ls).filter((k) => /undefined/.test(k));
+        pass(`${file}: нет ключей с «undefined»`, bad.length === 0, bad.join(", "));
+        win.close();
+    }
+}
+
+console.log("\n── Сырые ячейки без sheet/branch: ключ сохранения не теряется");
+{
+    // rb-svod, rb-income, rb-kalkulyacia, fot-almaty делали tableData = data
+    // и следующее сохранение уходило в «undefined_undefined» / «fot_undefined»
+    const CASES = [
+        ["rb-svod.html", "rb_svod", { C10: 5 }],
+        ["rb-income.html", "rb_income", { E7: 7 }],
+        ["rb-kalkulyacia.html", "rb_kalkulyacia", { C5: 9 }],
+        ["fot-almaty.html", "fot", { D7: 3 }],
+    ];
+    for (const [file, key, cells] of CASES) {
+        const raw = JSON.stringify({ lastModified: "2026-01-01T00:00:00Z", cells });
+        const seed = {};
+        ["nao", "almaty"].forEach((b) => (seed[key + "_" + b] = raw));
+        const { win } = await openPage(file, seed);
+        win.saveData();
+        const ls = win.localStorage;
+        const bad = Object.keys(ls).filter((k) => /undefined/.test(k));
+        pass(`${file}: сохранение не в «undefined»`, bad.length === 0, bad.join(", "));
+        const saved = ["nao", "almaty"]
+            .map((b) => JSON.parse(ls.getItem(key + "_" + b)))
+            .find((d) => d && d.branch);
+        const cell = Object.keys(cells)[0];
+        pass(
+            `${file}: значение ${cell} на месте`,
+            !!saved && Number(saved.cells[cell]) === cells[cell],
+            saved ? `${cell} = ${saved.cells[cell]}, филиал ${saved.branch}` : "страница не сохранила",
+        );
+        win.close();
+    }
+}
+
+console.log("\n── Статьи СС и калькуляции по номеру статьи, а не по строке");
+{
+    // Синтетический лист с разными числами: № n → D = 10n, E = n, F = 100n
+    const rows = [[], ["№", "", "Наименование расходов", "ВСЕГО"], ["", "", "Контингент учащихся", 0, 159, 164]];
+    for (let n = 1; n <= 23; n++) {
+        rows.push(["", n, "статья " + n, 10 * n, n, 100 * n]);
+        if (n === 9) rows.push(["", "", "ИТОГО ФОТ", 999999, 999999, 999999]);
+    }
+    rows.push(["", "", "Всего расходов", 888888, 888888, 888888]);
+
+    const ss = imp.convSsAlmaty(rows).cells;
+    check("СС Алматы D10 = 111: № 1+2+3", ss.D10, 60);
+    check("СС Алматы D11 = 113: № 4+9 (с арендой)", ss.D11, 130);
+    check("СС Алматы D12 = 116: № 8 (ОПВ)", ss.D12, 80);
+    check("СС Алматы D13 = 121: № 5", ss.D13, 50);
+    check("СС Алматы F15 = 124: № 7, финцентр", ss.F15, 700);
+    check("СС Алматы D20 = 141: № 10", ss.D20, 100);
+    check("СС Алматы E32 = 419: № 22, школа", ss.E32, 22);
+
+    const dt = imp.convSsDotacia(rows);
+    check("СС Дотация, контингент школы", dt.contingent.school, 159);
+    check("СС Дотация, статья 2 всего", dt.items[2].total, 130);
+    check("СС Дотация, статья 19 финцентр", dt.items[19].fc, 2200);
+
+    // В калькуляции нет «ИТОГО ФОТ» — номера те же, строки сдвинуты
+    const k = imp.convPuKalkulyacia(rows.filter((r) => r[2] !== "ИТОГО ФОТ"));
+    check("Калькуляция i1 = (10+20+30) × 323", k.i1, 60 * 323);
+    check("Калькуляция i19 = 220 × 323", k.i19, 220 * 323);
 }
 
 console.log(
