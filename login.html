@@ -669,13 +669,21 @@
                 function safeNext() {
                     var raw = new URLSearchParams(location.search).get("next");
                     if (!raw) return "index.html";
-                    // Только относительный путь внутри сайта: защита от
-                    // open redirect на чужой домен.
-                    if (
-                        /^[a-z][a-z0-9+.-]*:/i.test(raw) ||
-                        raw.indexOf("//") === 0 ||
-                        raw.indexOf("\\") !== -1
-                    ) {
+                    // Защита от open redirect. Браузер выбрасывает из адреса
+                    // табы и переводы строк и читает «\» как «/», поэтому
+                    // «/\t/evil.com» или «\\evil.com» уводили на чужой домен.
+                    // Пускаем только имя страницы сайта (.html можно опустить:
+                    // nginx отдаёт /rb-svod как rb-svod.html) и ещё раз
+                    // сверяем итоговый origin.
+                    if (/[\u0000-\u001f\u007f\\]/.test(raw)) return "index.html";
+                    if (!/^[a-z0-9-]+(\.html)?([?#].*)?$/.test(raw)) {
+                        return "index.html";
+                    }
+                    try {
+                        if (new URL(raw, location.href).origin !== location.origin) {
+                            return "index.html";
+                        }
+                    } catch (e) {
                         return "index.html";
                     }
                     return raw;
@@ -941,18 +949,12 @@
                 });
 
                 /* ── Быстрый вход для разработки ────────────────── */
-                // Два независимых условия: страница открыта локально
-                // И файл dev-logins.js существует (в git и в деплой
-                // он не попадает). На проде не выполнится ни одно.
+                // Два независимых условия: страница открыта на этой же
+                // машине И файл dev-logins.js существует (в git и в деплой
+                // он не попадает). Адреса локальной сети (192.168.*, 10.*)
+                // сюда не входят: по ним сайт видят и чужие компьютеры.
                 var host = location.hostname;
-                var isLocal =
-                    host === "localhost" ||
-                    host === "127.0.0.1" ||
-                    host === "[::1]" ||
-                    host === "" ||
-                    /\.local$/.test(host) ||
-                    /^192\.168\./.test(host) ||
-                    /^10\./.test(host);
+                var isLocal = host === "localhost" || host === "127.0.0.1";
 
                 if (isLocal) {
                     var loader = document.createElement("script");

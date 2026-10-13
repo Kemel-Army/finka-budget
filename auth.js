@@ -30,8 +30,12 @@
 
     var SUPABASE_URL = "https://fdzwvwapcxoxllfqaoxw.supabase.co";
     var SUPABASE_ANON_KEY = "sb_publishable_ksFJ2xPiZXRTqk2l77NkMg_DSbD60u2";
-    var SDK_URL =
-        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+    // SDK лежит у нас: CDN с плавающей версией «@2» мог подменить код,
+    // который видит сессию. Файл — dist/umd/supabase.js из npm-пакета
+    // @supabase/supabase-js@2.117.3 без изменений,
+    // sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R.
+    // При обновлении — новый файл с новой версией в имени.
+    var SDK_URL = "vendor/supabase-js-2.117.3.min.js";
     var LOGIN_PAGE = "login.html";
     var HOME_PAGE = "index.html";
     var STORAGE_KEY = "finka-auth";
@@ -273,10 +277,66 @@
         return LOGIN_PAGE + "?next=" + encodeURIComponent(next);
     }
 
+    /* ── Выход ─────────────────────────────────────────────────── */
+    // Ключи бюджета — держать в согласии с OURS в db-sync.js
+    var BUDGET_KEYS =
+        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|deposit_|sheet_edits_|budget_year)/;
+
+    /* После выхода таблицы бюджета в браузере оставаться не должны:
+       компьютер бывает общий, и кэш прошлого пользователя иначе читается
+       через DevTools без всякого входа.
+       Удаляем через delete, а не removeItem: db-sync.js подменяет
+       removeItem, и каждое удаление ключа бюджета уходит в базу как DELETE
+       строки. Встроенный удалитель Storage эту подмену не вызывает. */
+    function clearBudgetCache() {
+        try {
+            var drop = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (BUDGET_KEYS.test(k) || k === "finka_cache_owner") drop.push(k);
+            }
+            drop.forEach(function (k) {
+                delete localStorage[k];
+            });
+        } catch (e) {
+            /* хранилище недоступно */
+        }
+        // Отметки db-sync «страницу уже перезагружали»
+        try {
+            var flags = [];
+            for (var j = 0; j < sessionStorage.length; j++) {
+                var f = sessionStorage.key(j);
+                if (f.indexOf("finka_synced_") === 0) flags.push(f);
+            }
+            flags.forEach(function (f) {
+                sessionStorage.removeItem(f);
+            });
+        } catch (e) {
+            /* приватный режим */
+        }
+    }
+
     function signOut() {
-        return getClient()
+        // Сначала дописываем в базу то, что ещё не уехало: после выхода
+        // RLS эту запись уже не пропустит, а кэш будет стёрт
+        var flush = Promise.resolve();
+        if (window.finkaSync && window.finkaSync.push) {
+            flush = flush
+                .then(function () {
+                    return window.finkaSync.push();
+                })
+                .catch(function () {
+                    /* не сохранилось — всё равно выходим */
+                });
+        }
+        return flush
+            .then(getClient)
             .then(function (c) {
                 return c.auth.signOut();
+            })
+            .then(clearBudgetCache, function (err) {
+                clearBudgetCache();
+                throw err;
             })
             .then(function () {
                 location.replace(LOGIN_PAGE);
@@ -736,11 +796,11 @@
         var hasRole = !!profile.role;
         var body = hasRole
             ? "Роль «" +
-              profile.role.label +
+              escapeHtml(profile.role.label) +
               "» не даёт доступа к этому разделу.<br>" +
               "Если доступ нужен по работе — обратитесь к администратору системы."
             : "Учётной записи " +
-              profile.email +
+              escapeHtml(profile.email) +
               " не назначена роль в бюджетной системе.<br>" +
               "Доступ выдаёт администратор.";
         document.body.innerHTML =

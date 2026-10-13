@@ -439,7 +439,8 @@ function loadData() {
         var raw = localStorage.getItem(KEY);
         if (!raw) return;
         var s = JSON.parse(raw);
-        if (s.extraYears) extraYears = s.extraYears;
+        // годы идут в onclick/id без экранирования — пускаем только целые числа
+        if (Array.isArray(s.extraYears)) extraYears = s.extraYears.map(Number).filter(function(y){ return Number.isInteger(y); });
         if (s.rows) ROWS.forEach(function(r) {
             if (s.rows[r.id]) {
                 if (s.rows[r.id].name != null) r.name = s.rows[r.id].name;
