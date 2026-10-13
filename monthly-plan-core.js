@@ -201,12 +201,12 @@
 
             model.rows.forEach(function (row, idx) {
                 var tr = document.createElement("tr");
-                tr.dataset.idx = idx;
+                tr.dataset.idx = String(idx);
 
                 var tdN = document.createElement("td");
                 tdN.className = "label-cell";
                 tdN.style.textAlign = "center";
-                tdN.textContent = idx + 1;
+                tdN.textContent = String(idx + 1);
                 tr.appendChild(tdN);
 
                 tr.appendChild(textCell(row, "code", idx, ro, "center"));
@@ -242,9 +242,9 @@
                 tbody.appendChild(tr);
             });
 
-            document.getElementById("mpAddBtn").disabled = ro;
-            document.getElementById("mpSaveBtn").disabled = ro;
-            document.getElementById("mpResetBtn").disabled = ro;
+            ["mpAddBtn", "mpSaveBtn", "mpResetBtn"].forEach(function (id) {
+                /** @type {HTMLButtonElement} */ (document.getElementById(id)).disabled = ro;
+            });
         }
 
         function textCell(row, field, idx, ro, align) {
@@ -321,7 +321,7 @@
             }
 
             document.getElementById("mpCardYear").textContent = fmt(totYear);
-            document.getElementById("mpCardRows").textContent = model.rows.length;
+            document.getElementById("mpCardRows").textContent = String(model.rows.length);
         }
 
         /* ── Хранение ─────────────────────────────────────────────── */
@@ -343,6 +343,7 @@
             }
 
             docFields.forEach(function (f) {
+                /** @type {HTMLInputElement} */
                 var el = document.querySelector('[data-doc="' + f.key + '"]');
                 if (el) el.value = model.doc[f.key] || "";
             });
@@ -429,6 +430,7 @@
             clearTimeout(saveTimer);
             dirty = false;
             docFields.forEach(function (f) {
+                /** @type {HTMLInputElement} */
                 var el = document.querySelector('[data-doc="' + f.key + '"]');
                 if (el) model.doc[f.key] = el.value;
             });
@@ -538,6 +540,7 @@
             model.rows.push({ code: "", name: "", m: new Array(12).fill(0) });
             buildBody();
             recalc();
+            /** @type {HTMLInputElement} */
             var last = document.querySelector(
                 "#mpBody tr:last-child input[type=text]",
             );

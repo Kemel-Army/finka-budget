@@ -431,7 +431,7 @@
 
                 SPECS.forEach((s) => {
                     const v = {};
-                    INPUTS.forEach((k) => (v[k] = valueOf(k + "-" + s.code, s.code, k)));
+                    INPUTS.forEach((k) => (v[k] = fieldValue(k + "-" + s.code, s.code, k)));
 
                     const unpaid = v.taken - v.paidYear;        //  9 = 6 − 7
                     const restOblig = v.planOblig - v.taken;    // 11 = 4 − 6
@@ -454,7 +454,9 @@
             }
 
             // В режиме «по организации» полей ввода нет — берём из данных
-            function valueOf(id, code, key) {
+            // Не valueOf: объявление на верхнем уровне скрипта подменяло
+            // window.valueOf
+            function fieldValue(id, code, key) {
                 const el = document.getElementById(id);
                 if (el && el.tagName === "INPUT") return parseNum(el.value);
                 return parseNum(facts[code][key]);

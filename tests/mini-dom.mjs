@@ -102,7 +102,9 @@ function makeElement(tagName, doc) {
 
     Object.defineProperty(el, "className", {
         get: () => attrs.get("class") || "",
-        set: (v) => attrs.set("class", String(v)),
+        set: (v) => {
+            attrs.set("class", String(v));
+        },
     });
 
     el.classList = {
