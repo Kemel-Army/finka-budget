@@ -71,6 +71,12 @@
         var activeVariant = variants[0].key;
         var model = { rows: [], doc: {} };
         var saveTimer = null;
+        // Есть несохранённые правки текущей таблицы. Без этого флага клик
+        // по филиалу или вкладке записывал таблицу как есть — в том числе
+        // типовые строки филиала, который никто не заполнял, — в
+        // localStorage и оттуда в базу. А auth.js у учётки филиала жмёт
+        // кнопку её города сам, сразу после входа.
+        var dirty = false;
 
         function isSum() {
             return !!(sumVariant && activeVariant === sumVariant.key);
@@ -420,6 +426,8 @@
 
         function save() {
             if (isSum()) return;
+            clearTimeout(saveTimer);
+            dirty = false;
             docFields.forEach(function (f) {
                 var el = document.querySelector('[data-doc="' + f.key + '"]');
                 if (el) model.doc[f.key] = el.value;
@@ -436,6 +444,7 @@
 
         function scheduleSave() {
             if (isSum()) return;
+            dirty = true;
             clearTimeout(saveTimer);
             setStatus("⏳ Сохранение...", "saving");
             saveTimer = setTimeout(save, 800);
@@ -504,7 +513,7 @@
         document.getElementById("mpBranches").addEventListener("click", function (e) {
             var btn = e.target.closest(".branch-btn");
             if (!btn) return;
-            save();
+            if (dirty) save();
             this.querySelectorAll(".branch-btn").forEach(function (b) {
                 b.classList.remove("active");
             });
@@ -516,7 +525,7 @@
         document.getElementById("mpVariants").addEventListener("click", function (e) {
             var btn = e.target.closest(".branch-btn");
             if (!btn) return;
-            save();
+            if (dirty) save();
             this.querySelectorAll(".branch-btn").forEach(function (b) {
                 b.classList.remove("active");
             });
