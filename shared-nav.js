@@ -349,37 +349,8 @@
         });
     }
 
-    /* ── Toast Notification System ─────────────────────────────── */
-    var TOAST_ICONS = {
-        success: "\u2714",
-        error: "\u2718",
-        warning: "\u26A0",
-        info: "\u2139",
-    };
-
-    window.finkaToast = function (message, type) {
-        type = type || "info";
-        var container = document.getElementById("finkaToasts");
-        if (!container) return;
-
-        var toast = document.createElement("div");
-        toast.className = "finka-toast " + type;
-        toast.innerHTML =
-            '<span class="finka-toast-icon">' +
-            (TOAST_ICONS[type] || "") +
-            "</span>" +
-            "<span>" +
-            message +
-            "</span>";
-        container.appendChild(toast);
-
-        setTimeout(function () {
-            toast.classList.add("removing");
-            setTimeout(function () {
-                if (toast.parentNode) toast.parentNode.removeChild(toast);
-            }, 200);
-        }, 3000);
-    };
+    /* Всплывающие сообщения (finkaToast) — в ui-kit.js: он выводит текст
+       как текст, а не HTML. Контейнер #finkaToasts рисуется выше. */
 
     /* ── Keyboard Shortcut: Ctrl+S ─────────────────────────────── */
     /* Раньше здесь безусловно писалось «Данные сохранены», хотя saveData()

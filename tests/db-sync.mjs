@@ -700,7 +700,7 @@ console.log("\n── Старые ключи вне синхронизации 
 
 console.log("\n── Ctrl+S показывает настоящее состояние обмена");
 {
-    // Навигация (shared-nav.js) с настоящим finkaToast поверх модуля
+    // Навигация (shared-nav.js) и ui-kit.js с настоящим finkaToast поверх модуля
     let saves = 2;
     async function pressCtrlS(srv, opts, before) {
         const p = boot(srv, opts);
@@ -709,6 +709,10 @@ console.log("\n── Ctrl+S показывает настоящее состо�
         const nav = p.win.document.createElement("script");
         nav.textContent = fs.readFileSync(path.join(ROOT, "shared-nav.js"), "utf8");
         p.win.document.body.appendChild(nav);
+        // finkaToast — из ui-kit.js, он на страницах подключён после навигации
+        const kit = p.win.document.createElement("script");
+        kit.textContent = fs.readFileSync(path.join(ROOT, "ui-kit.js"), "utf8");
+        p.win.document.body.appendChild(kit);
         p.win.saveData = () =>
             p.ls.setItem("rb_svod_almaty", JSON.stringify({ cells: { C10: ++saves } }));
         if (before) before(p);
