@@ -54,6 +54,41 @@ export const CASES = [
     },
 
     {
+        // Консолидация: итог строки — сумма итогов строк филиалов. Раньше
+        // для строк «за год» (T = E×S) контингент складывался, а стоимость
+        // бралась от последнего филиала: 15 × 200 вместо 10×100 + 5×200.
+        title: "Доходная часть ПУ — консолидация филиалов",
+        file: "pu-income-pu.html",
+        sheet: "Бюджет ПУ 2026 → ДОХОДНАЯ ЧАСТЬ ПУ (T = E×S по филиалам)",
+        needle: "SHEET_KEY",
+        exports: ["switchBranch"],
+        prepare(api, ensure, document, window) {
+            const row = (cont, py, months) => {
+                const r = { cont, pm: 0, py };
+                for (let m = 1; m <= 12; m++) r["m" + m] = months[m - 1] || 0;
+                return r;
+            };
+            const put = (b, rows) =>
+                window.localStorage.setItem(
+                    "pu_income_pu_" + b,
+                    JSON.stringify({ rows }),
+                );
+            put("almaty", { 1: row(10, 100, []), 2: row(10, 0, [5, 5]) });
+            put("uralsk", { 1: row(5, 200, []), 2: row(4, 0, [1]) });
+            api.switchBranch("consolidated");
+        },
+        checks: [
+            ["T9  вступ. взнос: 10×100 + 5×200", "row-1-total", 2000],
+            ["T10 сумма месяцев филиалов", "row-2-total", 11],
+            ["E17 контингент (только строки с классами)", "total-cont", 14],
+            ["F17 январь", "total-m1", 6],
+            ["T17 всего", "total-total", 2011],
+            ["T18 рентабельность 8%", "profit-total", 160.88],
+            ["T19 всего со скидкой", "net-total", 1850.12],
+        ],
+    },
+
+    {
         title: "Свод ФОТ Алматы",
         file: "pu-fot-almaty.html",
         sheet: "Бюджет ПУ 2026 → Свод ФОТ Алматы",

@@ -420,7 +420,10 @@
 
             // Автосохранение
             let saveTimeout;
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
             function autoSave() {
+                dirty = true;
                 clearTimeout(saveTimeout);
 
                 const status = document.getElementById("saveStatus");
@@ -497,10 +500,14 @@
 
             // Переключение филиала
             function switchBranch(branch) {
-                // Сохраняем текущие данные перед переключением (кроме консолидации)
-                if (currentBranch !== "consolidated") {
+                // Сохраняем текущие данные перед переключением (кроме
+                // консолидации) — только если их правили: клик по филиалу
+                // без изменений не должен писать в localStorage и базу
+                if (currentBranch !== "consolidated" && dirty) {
+                    clearTimeout(saveTimeout);
                     saveData();
                 }
+                dirty = false;
 
                 // Меняем филиал
                 tableData.branch = branch;
