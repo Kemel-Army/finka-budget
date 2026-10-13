@@ -680,5 +680,41 @@ console.log("\n── Старые ключи вне синхронизации 
     eq("и не перенесён", q.ls.getItem("pu_ss_almaty_uralsk"), null);
 }
 
+console.log("\n── Ctrl+S показывает настоящее состояние обмена");
+{
+    // Навигация (shared-nav.js) с настоящим finkaToast поверх модуля
+    let saves = 2;
+    async function pressCtrlS(srv, opts, before) {
+        const p = boot(srv, opts);
+        await settle(p);
+        p.win.matchMedia = () => ({ matches: false });
+        const nav = p.win.document.createElement("script");
+        nav.textContent = fs.readFileSync(path.join(ROOT, "shared-nav.js"), "utf8");
+        p.win.document.body.appendChild(nav);
+        p.win.saveData = () =>
+            p.ls.setItem("rb_svod_almaty", JSON.stringify({ cells: { C10: ++saves } }));
+        if (before) before(p);
+        p.win.document.dispatchEvent(
+            new p.win.KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true }),
+        );
+        await waitFor(() => p.win.document.querySelector(".finka-toast"), 3000);
+        const t = p.win.document.querySelector(".finka-toast");
+        return { text: t ? t.textContent : "", cls: t ? t.className : "", p };
+    }
+
+    const srv = makeServer();
+    srv.put("almaty", "rb_svod", { cells: { C10: 1 } });
+    let r = await pressCtrlS(srv, {});
+    ok("всё ушло — «Сохранено в базе»", /Сохранено в базе/.test(r.text) && /success/.test(r.cls), r.text);
+    eq("и правда в базе", JSON.stringify(srv.get("almaty", "rb_svod")), '{"cells":{"C10":3}}');
+
+    r = await pressCtrlS(srv, {}, () => (srv.failNext = 1000));
+    ok("нет сети — «в базу не отправлено»", /не отправлено/.test(r.text) && /error/.test(r.cls), r.text);
+    srv.failNext = 0;
+
+    r = await pressCtrlS(srv, { profile: VIEWER });
+    ok("роль без права правки — режим просмотра", /просмотра/.test(r.text), r.text);
+}
+
 console.log(`\n${"=".repeat(78)}\nпроверок: ${total}, расхождений: ${failed}\n`);
 process.exit(failed ? 1 : 0);
