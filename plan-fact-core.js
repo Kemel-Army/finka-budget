@@ -29,7 +29,7 @@
         almaty: "Алматы",
         astana: "Астана",
         uralsk: "Уральск",
-        consolidated: "Сводный",
+        consolidated: "Консолидация",
     };
     var REAL_BRANCHES = ["nao", "almaty", "astana", "uralsk"];
 
