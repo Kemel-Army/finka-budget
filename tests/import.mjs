@@ -78,7 +78,8 @@ function loadImporter() {
             " convMonthlyPlan, convShtatnoe, convRaw, colName," +
             " excelStats, storedStats, verify, pageOf, showResult," +
             " convSsAlmaty, convSsDotacia, convPuKalkulyacia, convPuSvod," +
-            " convIncomeDt, convIncomeDop, convPlanRk, convPlanAbroad, convFzp };",
+            " convIncomeDt, convIncomeDop, convPlanRk, convPlanAbroad, convFzp," +
+            " storeImported };",
         sandbox,
     );
     return { imp: sandbox.__imp, storage: window.localStorage, document: document };
@@ -124,6 +125,12 @@ const read = (doc, id) => {
 const { imp, storage, document: storageDoc } = loadImporter();
 let failed = 0;
 let total = 0;
+
+function pass0(label, cond, extra = "") {
+    total++;
+    if (!cond) failed++;
+    console.log(`   ${cond ? "OK  " : "FAIL"} ${String(label).padEnd(44)} ${extra}`);
+}
 
 function check(label, got, want) {
     total++;
@@ -617,6 +624,223 @@ console.log("\n── Итоговое сообщение после импор�
     );
 }
 
+/* ── «СВОД ФЗП»: колонки по шапке, а не по номерам ───────────────── */
+// В книге-заготовке ОПВ стоит в K, в рабочей «Бюджет РБ 2026» — в H, а
+// налоги сдвинуты на колонку. С номерами колонок в ОПВ уезжал медстрах,
+// но итог ФОТ сходился — поэтому сверяем каждое поле по отдельности.
+console.log("\n── «СВОД ФЗП»: каждое поле из своей колонки");
+{
+    const FIELDS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"];
+    // Синтетический лист: в каждой колонке своё число, поле ↔ колонка
+    // задаётся шапкой. want — какое число должно оказаться в c1…c9
+    function sheet(head, sr, tr) {
+        return [
+            [], [], [], [], [], [], [], [], [], [],
+            ["№ п/п", "Наименование", ...head],
+            [1, "Штатное расписание", ...sr],
+            [2, "Тарификация ", ...tr],
+            ["", "ИТОГО"],
+        ];
+    }
+    const sameRow = (label, got, want) => {
+        total++;
+        const bad = FIELDS.filter((f, i) => Number(got[f]) !== want[i]);
+        if (bad.length) failed++;
+        console.log(
+            `   ${bad.length ? "FAIL" : "OK  "} ${label}`.padEnd(58) +
+                (bad.length
+                    ? " не те поля: " + bad.map((f) => `${f}=${got[f]}`).join(", ")
+                    : " c1…c9 на своих местах"),
+        );
+    };
+
+    // Раскладка книги-заготовки: G пособия, H соцналог, I соцотч, J медстрах, K ОПВ
+    const TPL = [
+        " Фактическая численность един.", "Кол-во часов ", "Заработная плата за месяц",
+        " Годовой ФЗП за  2026 год", "Лечебно оздоровительные пособия",
+        "Социальный налог 6%", "Социальные отчисления 5%",
+        "Обязательное  социальное медицинское схрахование 3% ", "ОПВ 3,5%",
+        " Годовой ФОТ за  2026 года с налогами (соц.налог,соц отч, мед страх, пен.взн)",
+    ];
+    const tpl = imp.convFzp(sheet(TPL, [1, 2, 3, 4, 5, 7, 8, 9, 6, 99], [11, 12, 13, 14, 15, 17, 18, 19, 16, 99]));
+    sameRow("заготовка (ОПВ в K): штатное", tpl.rows.sr1, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    sameRow("заготовка (ОПВ в K): тарификация", tpl.rows.tr1, [11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    // Рабочая раскладка + шапка с переносами, неразрывными пробелами и
+    // другим регистром: G пособия, H ОПВ, I соцналог, J соцотч, K медстрах
+    const WORK = [
+        "Фактическая\nчисленность", "КОЛ-ВО ЧАСОВ", "заработная плата\nза месяц",
+        "Годовой  ФЗП", "Лечебно-оздоровительные пособия", "опв\n3,5%",
+        "СОЦИАЛЬНЫЙ\nналог 6%", "Социальные  отчисления", "ОСМС 3%",
+        "Годовой ФОТ с налогами (соц.налог, соц отч, мед страх, пен.взн)",
+    ];
+    const work = imp.convFzp(sheet(WORK, [1, 2, 3, 4, 5, 6, 7, 8, 9, 99], [11, 12, 13, 14, 15, 16, 17, 18, 19, 99]));
+    sameRow("рабочая (ОПВ в H), шапка с переносами", work.rows.sr1, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    sameRow("рабочая (ОПВ в H): тарификация", work.rows.tr1, [11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    // Настоящий лист рабочей книги: ОПВ — H12, соцналог — I12, медстрах — K12
+    const real = SHEETS["СВОД ФЗП [Бюджет РБ 2026]"];
+    if (!real) {
+        pass0("лист «СВОД ФЗП [Бюджет РБ 2026]» есть в фикстурах", false);
+    } else {
+        const d = imp.convFzp(real);
+        check("Бюджет РБ 2026: штатное c4 ФЗП = F12", d.rows.sr1.c4, real[11][5]);
+        check("Бюджет РБ 2026: штатное c5 пособия = G12", d.rows.sr1.c5, real[11][6]);
+        check("Бюджет РБ 2026: штатное c6 ОПВ = H12", d.rows.sr1.c6, real[11][7]);
+        check("Бюджет РБ 2026: штатное c7 соцналог = I12", d.rows.sr1.c7, real[11][8]);
+        check("Бюджет РБ 2026: штатное c8 соцотч = J12", d.rows.sr1.c8, real[11][9]);
+        check("Бюджет РБ 2026: штатное c9 медстрах = K12", d.rows.sr1.c9, real[11][10]);
+        check("Бюджет РБ 2026: тарификация c6 ОПВ = H13", d.rows.tr1.c6, real[12][7]);
+        check("Бюджет РБ 2026: тарификация c9 медстрах = K13", d.rows.tr1.c9, real[12][10]);
+    }
+
+    // Шапки нет — понятная ошибка, а не молча нули или перестановка
+    const noHead = [[], [1, "Штатное расписание", 1, 2, 3, 4, 5, 6, 7, 8, 9]];
+    let msg = "";
+    try {
+        imp.convFzp(noHead);
+    } catch (e) {
+        msg = e.message;
+    }
+    pass0("нет шапки — ошибка с объяснением", /шапк/.test(msg), msg.slice(0, 60));
+
+    const noOsms = TPL.slice();
+    noOsms[7] = "Что-то другое";
+    msg = "";
+    try {
+        imp.convFzp(sheet(noOsms, [1], [1]));
+    } catch (e) {
+        msg = e.message;
+    }
+    pass0("нет колонки медстраха — ошибка называет её", /медстрах/.test(msg), msg.slice(0, 70));
+}
+
+/* ── План командировок: пустые ночи — ноль, а не одна ночь ────────── */
+console.log("\n── План командировок: проживание при пустой колонке ночей");
+{
+    const row = (no, nights) => [no, "поездка " + no, "", "Астана", 100, 1, 3, 2, 0, 5000, 0, 20000, nights];
+    const rows = [["№"], row(1, 3), row(2, ""), ["", "Всего :"]];
+    const d = imp.convPlanRk(rows);
+    check("ночей 3 → проживание 20000 × 3", d.trips[0].hotel, 60000);
+    check("ночей нет → проживание 0", d.trips[1].hotel, 0);
+}
+
+/* ── Повторный импорт не стирает введённое на странице ──────────────
+   Ключ страницы раньше перезаписывался целиком: повторный импорт «СВОД
+   общий» писал fact-N = 0 и note-N = "" и стирал факт и примечания,
+   введённые на pu-svod-2026. То же с МРП/БДО «Свода ФЗП», визами плана
+   за рубеж, реквизитами планов финансирования, настройками и прошлыми
+   периодами штатного расписания. */
+console.log("\n── Повторный импорт: введённое вручную остаётся");
+{
+    const T = (key) => imp.TARGETS.find((t) => t.key === key);
+    const ls = storage;
+    const get = (k) => JSON.parse(ls.getItem(k));
+
+    // «Свод общий»: факт и примечания переживают импорт, план обновляется
+    {
+        const key = "pu_svod_2026_merge";
+        ls.setItem(key, JSON.stringify({
+            "plan-1": "1", "fact-1": "500", "note-1": "оплачено в марте",
+            "plan-3": "7", "fact-3": "77", "note-3": "",
+        }));
+        const data = imp.convPuSvod(SHEETS["СВОД общий 2026"]);
+        imp.storeImported(T("pu_svod_2026"), key, data);
+        const got = get(key);
+        pass0("СВОД общий: fact-1 остался", got["fact-1"] === "500", String(got["fact-1"]));
+        pass0("СВОД общий: note-1 остался", got["note-1"] === "оплачено в марте", String(got["note-1"]));
+        pass0("СВОД общий: fact-3 остался", got["fact-3"] === "77", String(got["fact-3"]));
+        check("СВОД общий: plan-1 — из листа", Number(got["plan-1"]), data["plan-1"]);
+        check("СВОД общий: plan-3 — из листа", Number(got["plan-3"]), data["plan-3"]);
+        pass0("СВОД общий: конвертер факт не пишет", !("fact-1" in data) && !("note-1" in data));
+
+        // Первый импорт (ключа ещё нет) — просто план
+        ls.removeItem(key);
+        imp.storeImported(T("pu_svod_2026"), key, data);
+        pass0("СВОД общий: первый импорт — только план", !("fact-1" in get(key)));
+        ls.removeItem(key);
+    }
+
+    // «Свод ФЗП»: МРП и БДО со страницы, строки — из листа
+    {
+        const key = "rb_fzp_merge";
+        ls.setItem(key, JSON.stringify({ mrp: "4500", bdo: "30000", rows: { sr1: { c1: 1 } } }));
+        const data = imp.convFzp(SHEETS["СВОД ФЗП [Бюджет РБ 2026]"]);
+        imp.storeImported(T("rb_fzp"), key, data);
+        const got = get(key);
+        pass0("СВОД ФЗП: МРП и БДО остались", got.mrp === "4500" && got.bdo === "30000", `${got.mrp} / ${got.bdo}`);
+        check("СВОД ФЗП: строки — из листа", got.rows.sr1.c6, data.rows.sr1.c6);
+        ls.removeItem(key);
+    }
+
+    // План за рубеж: виза по цели и стране, даже если строки переставлены
+    {
+        const key = "pu_plan_abroad_merge";
+        const data = imp.convPlanAbroad(SHEETS["План команд за пределы РК"]);
+        const prevTrips = data.trips
+            .map((t, i) => Object.assign({}, t, { visa: String(1000 + i), hotel: -1 }))
+            .reverse();
+        ls.setItem(key, JSON.stringify({ trips: prevTrips }));
+        imp.storeImported(T("pu_plan_abroad"), key, data);
+        const got = get(key);
+        pass0(
+            "План за рубеж: визы остались у своих поездок",
+            got.trips.length === data.trips.length &&
+                got.trips.every((t, i) => t.visa === String(1000 + i)),
+            got.trips.map((t) => t.visa).join(", "),
+        );
+        pass0("План за рубеж: проживание — из листа", got.trips[0].hotel === data.trips[0].hotel);
+        ls.removeItem(key);
+    }
+
+    // План финансирования: реквизиты документа со страницы
+    {
+        const key = "plan_fin_rb_merge";
+        ls.setItem(key, JSON.stringify({ rows: [], doc: { head: "Директор И. И. Иванов" } }));
+        const data = imp.convMonthlyPlan(SHEETS["План РБ 2026г платежи"]);
+        imp.storeImported(T("plan_fin_rb"), key, data);
+        const got = get(key);
+        pass0("План финансирования: реквизиты остались", !!got.doc && got.doc.head === "Директор И. И. Иванов");
+        check("План финансирования: строки — из листа", got.rows.length, data.rows.length);
+        ls.removeItem(key);
+    }
+
+    // Штатное: настройки и прошлые периоды остаются, свой период заменяется
+    {
+        const key = "shtat_merge";
+        const data = imp.convShtatnoe(SHEETS["ШР на 02.02.2026 г."]);
+        const label = data.periods[0].label;
+        ls.setItem(key, JSON.stringify({
+            periods: [
+                { id: "p1", label: "Январь 2020", rows: [{ post: "Старый" }] },
+                { id: "p2", label: label, rows: [{ post: "Заменится" }] },
+            ],
+            settings: { mrp: 4500, deduction: 140000, lopK: 1.5 },
+        }));
+        imp.storeImported(T("shtat"), key, data);
+        const got = get(key);
+        pass0("Штатное: настройки остались", got.settings.mrp === 4500 && got.settings.lopK === 1.5);
+        pass0(
+            "Штатное: прошлый период остался, текущий заменён",
+            got.periods.length === 2 &&
+                got.periods[0].label === "Январь 2020" &&
+                got.periods[1].id === "p2" &&
+                got.periods[1].rows.length === data.periods[0].rows.length,
+            got.periods.map((p) => `${p.label}: ${p.rows.length}`).join("; "),
+        );
+        ls.removeItem(key);
+    }
+
+    // Цели без merge пишут ключ как раньше — целиком
+    {
+        const key = "pu_income_pu_merge";
+        ls.setItem(key, JSON.stringify({ junk: 1 }));
+        imp.storeImported(T("pu_income_pu"), key, imp.convIncomePu(SHEETS["ДОХОДНАЯ ЧАСТЬ ПУ"]));
+        pass0("без merge ключ перезаписывается целиком", !("junk" in get(key)));
+        ls.removeItem(key);
+    }
+}
+
 /* ══ Импорт → настоящая страница в jsdom → её сохранение ═════════════
    Раньше часть листов клалась «сырыми ячейками» под ключ страницы, а
    страница этот формат не понимала: показывала пустоту или через секунду
@@ -740,6 +964,35 @@ console.log("\n── Импорт → страница: формат понят
         pass(`${file}: нет ключей с «undefined»`, bad.length === 0, bad.join(", "));
         win.close();
     }
+}
+
+console.log("\n── «Свод общий»: факт со страницы переживает повторный импорт");
+{
+    const target = imp.TARGETS.find((t) => t.key === "pu_svod_2026");
+    const data = imp.convPuSvod(SHEETS["СВОД общий 2026"]);
+    // Как после работы на странице: план прошлого импорта, факт и
+    // примечание введены руками. Повторный импорт кладёт план поверх
+    const prev = { ...data, "plan-2": "1", "fact-2": "1234.5", "note-2": "аванс" };
+    const merged = JSON.stringify(target.merge(prev, data));
+    const { win, errors } = await openPage("pu-svod-2026.html", {
+        pu_svod_2026_nao: merged,
+        pu_svod_2026_almaty: merged,
+    });
+    const val = (id) => {
+        const el = win.document.getElementById(id);
+        return el ? el.value : undefined;
+    };
+    pass(
+        "pu-svod-2026: факт и примечание на месте",
+        !errors.length && Number(val("fact-2")) === 1234.5 && val("note-2") === "аванс",
+        errors.length ? errors[0].slice(0, 60) : `fact-2 = ${val("fact-2")}, note-2 = «${val("note-2")}»`,
+    );
+    pass(
+        "pu-svod-2026: план — из листа",
+        Number(val("plan-2")) === Number(data["plan-2"]),
+        `plan-2 = ${val("plan-2")}`,
+    );
+    win.close();
 }
 
 console.log("\n── Сырые ячейки без sheet/branch: ключ сохранения не теряется");
