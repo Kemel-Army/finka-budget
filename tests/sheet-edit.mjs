@@ -66,6 +66,10 @@ const localFiles = requestInterceptor((request) => {
     if (/^https?:\/\/(cdn|cdnjs|unpkg)/i.test(url)) {
         return new Response(XLSX_STUB, JS);
     }
+    // SheetJS лежит в vendor/ — в тесте его заменяет та же заглушка
+    if (/\/vendor\/xlsx[^/]*\.js$/i.test(url.split("?")[0])) {
+        return new Response(XLSX_STUB, JS);
+    }
     const name = decodeURIComponent(url.split("/").pop().split("?")[0]);
     if (name === "auth.js") return new Response("", JS);
     const p = path.join(ROOT, name);
@@ -279,7 +283,8 @@ console.log("\n── Все страницы бюджета выглядят о
 {
     const CHROME = [...PAGES, "plan-fact-pu.html", "plan-fact-dt.html",
         "plan-fact-pu-dt.html", "plan-finansirovaniya.html", "spravki.html",
-        "shtatnoe.html", "osnovaniya.html", "dogovory.html", "forma-4-20.html"];
+        "shtatnoe.html", "osnovaniya.html", "dogovory.html", "forma-4-20.html",
+        "deposit.html"];
 
     for (const page of CHROME) {
         const src = fs.readFileSync(path.join(ROOT, page), "utf8");
@@ -293,9 +298,23 @@ console.log("\n── Все страницы бюджета выглядят о
         const ownNav = [...doc.querySelectorAll("nav")].filter(
             (n) => !n.classList.contains("finka-nav"),
         ).length;
-        const back = !!doc.querySelector(".back-link");
+        // ссылка «на главную» ровно одна и рисуется навигацией
+        const backs = doc.querySelectorAll(".back-link");
+        const back = backs.length === 1 && !!backs[0].closest("nav.finka-nav");
+        // панель выгрузки одна, рисует shared-export.js: Excel → PDF → Печать
+        const bars = doc.querySelectorAll(".export-bar");
+        const order = bars.length
+            ? [...bars[0].querySelectorAll("[data-export-action]")]
+                  .map((b) => b.getAttribute("data-export-action"))
+                  .join(",")
+            : "";
+        const exportOk = bars.length === 1 && order === "excel,pdf,print";
+        // SheetJS — один раз и из vendor/, без CDN
+        const xlsxTags = src.match(/<script[^>]+xlsx[^>]*><\/script>/g) || [];
+        const xlsxOk = xlsxTags.length === 1 && /src="vendor\//.test(xlsxTags[0]);
 
-        const good = css && navScript && navInjected && ownNav === 0 && back;
+        const good = css && navScript && navInjected && ownNav === 0 && back &&
+            exportOk && xlsxOk;
         ok(
             page,
             good,
@@ -304,7 +323,9 @@ console.log("\n── Все страницы бюджета выглядят о
                 navScript ? "" : "нет shared-nav.js",
                 navInjected ? "" : "навигация не встроилась",
                 ownNav ? `своя <nav>: ${ownNav}` : "",
-                back ? "" : "нет ссылки «на главную»",
+                back ? "" : `ссылок «на главную»: ${backs.length}, нужна одна в навигации`,
+                exportOk ? "" : `панелей выгрузки: ${bars.length}, кнопки: ${order || "—"}`,
+                xlsxOk ? "" : `SheetJS подключён ${xlsxTags.length} раз(а) или не из vendor/`,
             ]
                 .filter(Boolean)
                 .join(", ") || "шапка, навигация и стили общие",
@@ -568,7 +589,7 @@ console.log("\n── MutationObserver не зацикливается");
     const { win } = await load("rb-svodnaya.html");
     const doc = win.document;
 
-    // Сводная общая строит 641 строку из подгружаемого JSON, и ui-kit потом
+    // Сводная общая строит ~500 строк из подгружаемого JSON, и ui-kit потом
     // расставляет значки почти пятистам кнопок. Это разовая волна — даём ей
     // пройти, иначе меряем не зацикливание, а обычную отрисовку.
     await tick(win, 1500);
@@ -587,6 +608,34 @@ console.log("\n── MutationObserver не зацикливается");
         mutations < 50,
         `мутаций за 0,8 с: ${mutations}`,
     );
+    win.close();
+}
+
+/* ── Escape и колесо мыши ────────────────────────────────────────── */
+console.log("\n── Escape отменяет правку, колесо не меняет число");
+{
+    const { win } = await load("rb-svod.html");
+    const doc = win.document;
+    const inp = doc.querySelector('tbody input[type="number"]');
+    const totalText = () => doc.querySelector("tr.sx-total").textContent;
+
+    inp.focus();
+    const start = inp.value;
+    const before = totalText();
+    inp.value = "4321";
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 250);
+    ok("введённое попало в итог", totalText() !== before);
+
+    inp.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick(win, 250);
+    ok("Escape вернул исходное значение", inp.value === start, JSON.stringify(inp.value));
+    ok("и итог пересчитан обратно", totalText() === before);
+    ok("поле вышло из фокуса", doc.activeElement !== inp);
+
+    inp.focus();
+    inp.dispatchEvent(new win.WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    ok("колесо над полем снимает фокус", doc.activeElement !== inp);
     win.close();
 }
 

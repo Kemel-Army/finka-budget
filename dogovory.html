@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Договоры по спецификам 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             /* Специфики, по которым заключаются договора */
@@ -53,8 +53,8 @@
         </style>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>Договоры по спецификам <span class="dyn-year">2026</span></h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 План берётся из «Свода расходов», договора заводятся по мере
@@ -149,22 +149,6 @@
             <button class="btn btn-primary" onclick="saveData()">
                 Сохранить
             </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
-            </button>
         </div>
 
         <script>
@@ -188,7 +172,7 @@
                 almaty: "Алматы",
                 astana: "Астана",
                 uralsk: "Уральск",
-                consolidated: "Консолидировано",
+                consolidated: "Консолидация",
             };
 
             /* Строки «Свода» и есть специфики. contract — те, по которым

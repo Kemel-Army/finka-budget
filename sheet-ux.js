@@ -11,6 +11,10 @@
  *   • протяжка значения вниз по Ctrl+D
  *   • подсветка текущей строки и колонки
  *   • выделение содержимого при входе в ячейку — сразу можно печатать
+ *   • Escape отменяет правку ячейки — возвращает значение, что было
+ *     при входе в неё (как в Excel)
+ *   • колесо мыши над числовым полем прокручивает страницу, а не меняет
+ *     число
  *
  * Настройка на таблице через атрибуты:
  *     <table data-sheet data-sticky-cols="2">
@@ -348,6 +352,7 @@
                 }
                 break;
             case "Escape":
+                // значение уже вернул обработчик на document (см. ниже)
                 el.blur();
                 break;
             default:
@@ -395,6 +400,66 @@
 
         freezeColumns(table, sticky);
     }
+
+    /* ── Отмена правки по Escape и колесо мыши ─────────────────── */
+    /* Работает для любого поля на странице, не только внутри таблиц.
+
+       Escape: при входе в поле запоминаем значение, по Escape возвращаем
+       его и выходим из поля. Страницы пересчитывают итоги и сохраняют по
+       событию input, и пока человек печатал, они уже пересчитали всё под
+       новое число. Поэтому после возврата шлём input и change — иначе на
+       экране осталось бы старое число, а в итогах и в базе новое.
+
+       Колесо: браузер меняет число в поле, если над ним крутить колесо,
+       пока поле в фокусе. Человек хотел прокрутить таблицу, а сумма тихо
+       уменьшилась на единицу. Выходим из поля — колесо прокручивает
+       страницу, а введённое остаётся как есть. */
+    var EDIT_TYPES = {
+        "": 1, text: 1, number: 1, date: 1, tel: 1, email: 1, url: 1,
+    };
+
+    function isEditField(el) {
+        if (!el || el.disabled || el.readOnly) return false;
+        if (el.tagName === "TEXTAREA") return true;
+        if (el.tagName !== "INPUT") return false;
+        var type = (el.getAttribute("type") || "").toLowerCase();
+        return EDIT_TYPES.hasOwnProperty(type);
+    }
+
+    document.addEventListener("focusin", function (e) {
+        var el = e.target;
+        if (isEditField(el)) el._suxStart = el.value;
+    });
+
+    // На фазе перехвата — раньше, чем поле уйдёт из фокуса по Escape
+    // в обработчике таблицы
+    document.addEventListener(
+        "keydown",
+        function (e) {
+            if (e.key !== "Escape" && e.key !== "Esc") return;
+            var el = e.target;
+            if (!isEditField(el) || el._suxStart === undefined) return;
+            if (el.value !== el._suxStart) setValue(el, el._suxStart);
+            el.blur();
+        },
+        true,
+    );
+
+    document.addEventListener(
+        "wheel",
+        function (e) {
+            var el = e.target;
+            if (
+                el &&
+                el.tagName === "INPUT" &&
+                el.type === "number" &&
+                el === document.activeElement
+            ) {
+                el.blur();
+            }
+        },
+        { passive: true },
+    );
 
     /* ── Старт ─────────────────────────────────────────────────── */
     function init() {

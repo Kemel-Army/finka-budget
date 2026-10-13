@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Депозит — доход и расход 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <script src="deposit-core.js"></script>
         <style>
@@ -74,6 +74,7 @@
     <body class="page-rb">
         <div class="container">
             <div class="header">
+                <div data-export-bar data-excel="exportDepositExcel"></div>
                 <h1>🏦 Депозит — доходная и расходная часть</h1>
                 <p>
                     Свод доходной и расходной части денежных средств, полученных
@@ -93,13 +94,10 @@
                         Консолидация
                     </button>
                 </div>
-                <button id="depExcel">📥 Excel</button>
-                <button onclick="window.print()">🖨️ Печать</button>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
-                <table class="dep-table" id="depTable">
+                <table class="dep-table" id="depTable" data-sheet>
                     <thead>
                         <tr>
                             <th>№ п/п</th>
@@ -336,7 +334,8 @@
                         render();
                     });
 
-                document.getElementById("depExcel").addEventListener("click", function () {
+                // Кнопку «Excel» рисует shared-export.js (data-excel на заглушке)
+                window.exportDepositExcel = function () {
                     var label = isCons()
                         ? "Консолидация"
                         : (D.BRANCH_NAMES[branch] || branch);
@@ -345,7 +344,7 @@
                         title: "Депозит 2026 — " + label,
                         sheetName: "Депозит",
                     });
-                });
+                };
 
                 window.addEventListener("beforeunload", function () {
                     if (timer) {
@@ -357,6 +356,8 @@
                 render();
             })();
         </script>
+        <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>
+        <script src="ui-kit.js"></script>
     </body>
 </html>

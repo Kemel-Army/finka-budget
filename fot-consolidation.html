@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="shared.css" />
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <title>Свод ФОТ — НАО «РФМШ»</title>
         <style>
@@ -23,19 +23,14 @@
     <body class="page-pu">
         <div class="container" style="max-width: 1400px">
             <div class="header">
+                <div data-export-bar data-excel="exportToExcel"></div>
                 <h1>Свод фонда оплаты труда</h1>
                 <p>НАО «РФМШ» на 2026 год</p>
             </div>
             <div class="controls">
-                <div style="display: flex; gap: 8px; flex-wrap: wrap">
-                    <button onclick="exportToExcel()">📥 Excel</button>
-                    <button onclick="exportToPDF()">📄 PDF</button>
-                    <button onclick="window.print()">🖨️ Печать</button>
-                </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <div class="summary-cards">
                     <div class="summary-card rb">
@@ -952,22 +947,6 @@
 
                 XLSX.utils.book_append_sheet(wb, ws, "Свод ФОТ");
                 XLSX.writeFile(wb, "Свод_ФОТ_РФМШ_2026.xlsx");
-            }
-
-            /* ── Export to PDF (via print) ── */
-            function exportToPDF() {
-                const style = document.createElement("style");
-                style.id = "pdf-print-style";
-                style.textContent = `
-                @media print {
-                    @page { size: landscape; margin: 10mm; }
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .summary-cards { display: none !important; }
-                }
-            `;
-                document.head.appendChild(style);
-                window.print();
-                setTimeout(() => style.remove(), 1000);
             }
         </script>
         <script src="sheet-ux.js"></script>

@@ -29,7 +29,7 @@
         almaty: "Алматы",
         astana: "Астана",
         uralsk: "Уральск",
-        consolidated: "Сводный",
+        consolidated: "Консолидация",
     };
     var REAL_BRANCHES = ["nao", "almaty", "astana", "uralsk"];
 
@@ -99,6 +99,8 @@
         function render() {
             var html =
                 '<div class="header">' +
+                // Панель «Excel / PDF / Печать» рисует shared-export.js
+                '<div data-export-bar data-excel="exportExcel"></div>' +
                 "<h1>📊 " + esc(title) + "</h1>" +
                 (subtitle ? "<p>" + esc(subtitle) + "</p>" : "") +
                 '<div class="branch-selector" id="pfBranches">' +
@@ -145,8 +147,6 @@
                 (sumOf
                     ? ""
                     : '<button class="btn btn-primary" id="pfSaveBtn">💾 Сохранить</button>') +
-                '<button class="btn btn-success" id="pfExcelBtn">📥 Excel</button>' +
-                '<button class="btn btn-secondary" id="pfPrintBtn">🖨️ Печать</button>' +
                 "</div>";
             root.innerHTML = html;
         }
@@ -544,10 +544,7 @@
 
         var saveBtn = document.getElementById("pfSaveBtn");
         if (saveBtn) saveBtn.addEventListener("click", save);
-        document.getElementById("pfExcelBtn").addEventListener("click", exportExcel);
-        document.getElementById("pfPrintBtn").addEventListener("click", function () {
-            window.print();
-        });
+        if (global.SharedExport) global.SharedExport.mountBars(root);
 
         load();
 

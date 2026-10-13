@@ -7,12 +7,12 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Свод ФОТ Алматы - Онлайн таблица</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Свод оплаты труда филиала НАО "РФМШ"</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Бюджет собственных средств (ПУ) 2026
@@ -244,19 +244,6 @@
         <div class="buttons">
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
-            </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button class="btn btn-secondary" onclick="printTable()">
-                🖨️ Печать
             </button>
             <button class="btn btn-secondary" onclick="viewHistory()">
                 📜 История изменений
@@ -529,7 +516,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
 
                 const branchName = branchNames[branch];
@@ -586,7 +573,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 const brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({
@@ -601,18 +588,13 @@
                 });
             }
 
-            // Печать
-            function printTable() {
-                window.print();
-            }
-
-            // История изменений
+            // История изменений. Раньше здесь всплывал список из трёх
+            // строк, вписанный в код, — не настоящая история листа.
             function viewHistory() {
-                alert(
-                    "История изменений:\n\n" +
-                        "• 25.12.2025 15:30 - Обновление ФЗП (Экономист)\n" +
-                        "• 25.12.2025 10:15 - Корректировка тарификации (Экономист)\n" +
-                        "• 24.12.2025 14:00 - Начальное заполнение (Экономист)",
+                window.finkaToast(
+                    "Журнал изменений для этого листа пока не ведётся. " +
+                        "Время последнего сохранения — в строке «Последнее изменение».",
+                    "info",
                 );
             }
         </script>

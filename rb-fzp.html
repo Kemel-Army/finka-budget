@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Свод ФЗП 2026 — РБ</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             /* Ширины служебных колонок — остальное в shared.css */
@@ -23,6 +23,7 @@
     <body class="page-rb">
         <div class="container" style="max-width: 1400px">
             <div class="header">
+                <div data-export-bar data-excel="exportXlsx"></div>
                 <h1>Свод ФЗП (Фонд заработной платы) 2026</h1>
                 <p>Республиканский бюджет — тарификация и штатное расписание</p>
             </div>
@@ -50,16 +51,10 @@
                         📈 Консолидация
                     </button>
                 </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap">
-                    <button onclick="exportXlsx()">📥 Excel</button>
-                    <button onclick="SharedExport.exportToPDF()">📄 PDF</button>
-                    <button onclick="window.print()">🖨️ Печать</button>
-                </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
 
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <!-- МРП / БДО -->
                 <div class="params-bar">
@@ -503,7 +498,7 @@
                         });
 
                         if (jsonData.length < 2) {
-                            alert("Файл пуст или не содержит данных");
+                            window.finkaToast("В файле нет строк с данными — проверьте, что выбран нужный лист", "warning");
                             return;
                         }
 
@@ -556,14 +551,15 @@
                         });
 
                         calc();
-                        alert(
+                        window.finkaToast(
                             "Импортировано строк: " +
                                 imported +
                                 " из " +
                                 dataRows.length,
+                            imported ? "success" : "warning",
                         );
                     } catch (err) {
-                        alert("Ошибка при чтении файла: " + err.message);
+                        window.finkaToast("Не удалось прочитать файл: " + err.message, "error");
                     }
                     fileInput.value = "";
                 };

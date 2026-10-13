@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Основания</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             #osTable td {
@@ -72,9 +72,9 @@
         </style>
     </head>
     <body class="page-util">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
 
         <div class="header">
+            <div data-export-bar data-excel="exportExcel"></div>
             <h1>📎 Основания</h1>
             <p>
                 Реестр приказов, решений и служебных записок, на которые
@@ -131,8 +131,6 @@
         <div class="buttons">
             <button class="btn btn-add-row" id="osAdd">➕ Добавить основание</button>
             <button class="btn btn-primary" id="osSave">💾 Сохранить</button>
-            <button class="btn btn-success" id="osExcel">📥 Реестр в Excel</button>
-            <button class="btn btn-secondary" id="osPrint">🖨️ Печать</button>
         </div>
 
         <script src="sheet-ux.js"></script>
@@ -511,7 +509,7 @@
                                 );
                         })
                         .catch(function (err) {
-                            alert("Не удалось сохранить файл: " + err);
+                            window.finkaToast("Не удалось сохранить вложение в браузере: " + err, "error");
                         });
                 }
 
@@ -519,9 +517,10 @@
                     dbGet(meta.id)
                         .then(function (blob) {
                             if (!blob) {
-                                alert(
+                                window.finkaToast(
                                     "Файл не найден в этом браузере. Вложения хранятся локально: " +
                                         "на другом компьютере их нужно прикрепить заново.",
+                                    "warning",
                                 );
                                 return;
                             }
@@ -535,7 +534,7 @@
                             }, 30000);
                         })
                         .catch(function (err) {
-                            alert("Не удалось открыть файл: " + err);
+                            window.finkaToast("Не удалось открыть вложение: " + err, "error");
                         });
                 }
 
@@ -609,14 +608,6 @@
 
                 document.getElementById("osSearch").addEventListener("input", render);
                 document.getElementById("osSave").addEventListener("click", save);
-                document
-                    .getElementById("osExcel")
-                    .addEventListener("click", exportExcel);
-                document
-                    .getElementById("osPrint")
-                    .addEventListener("click", function () {
-                        window.print();
-                    });
 
                 load();
             })();

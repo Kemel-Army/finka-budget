@@ -7,12 +7,12 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Доходная часть РБ 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Доходная часть РБ 2026</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Консолидированный бюджет • Лист 2 из 6
@@ -251,29 +251,6 @@
         <div class="buttons">
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
-            </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                🖨️ Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад в Главное
             </button>
         </div>
 
@@ -517,7 +494,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированная",
+                    consolidated: "Консолидация",
                 };
 
                 document.getElementById("currentBranch").textContent =
@@ -579,7 +556,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированная",
+                    consolidated: "Консолидация",
                 };
                 const brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({
