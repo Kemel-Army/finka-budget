@@ -611,5 +611,33 @@ console.log("\n── MutationObserver не зацикливается");
     win.close();
 }
 
+/* ── Escape и колесо мыши ────────────────────────────────────────── */
+console.log("\n── Escape отменяет правку, колесо не меняет число");
+{
+    const { win } = await load("rb-svod.html");
+    const doc = win.document;
+    const inp = doc.querySelector('tbody input[type="number"]');
+    const totalText = () => doc.querySelector("tr.sx-total").textContent;
+
+    inp.focus();
+    const start = inp.value;
+    const before = totalText();
+    inp.value = "4321";
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 250);
+    ok("введённое попало в итог", totalText() !== before);
+
+    inp.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick(win, 250);
+    ok("Escape вернул исходное значение", inp.value === start, JSON.stringify(inp.value));
+    ok("и итог пересчитан обратно", totalText() === before);
+    ok("поле вышло из фокуса", doc.activeElement !== inp);
+
+    inp.focus();
+    inp.dispatchEvent(new win.WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    ok("колесо над полем снимает фокус", doc.activeElement !== inp);
+    win.close();
+}
+
 console.log(`\n${"=".repeat(78)}\nпроверок: ${total}, расхождений: ${failed}\n`);
 process.exit(failed ? 1 : 0);
