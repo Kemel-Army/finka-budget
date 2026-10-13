@@ -632,7 +632,10 @@
 
         function convPuSvod(rows) {
             // «СВОД общий»: разделы «N. Название (код)» с суммой раздела в G.
-            // Страница — 16 строк по спецификам (plan-1…plan-16). Фонд оплаты
+            // Страница — 16 строк по спецификам (plan-1…plan-16); факт и
+            // примечания (fact-N, note-N) вводят на странице, в листе их нет —
+            // их не трогаем, при записи план кладётся поверх сохранённого
+            // (см. mergePuSvod). Фонд оплаты
             // труда (раздел «111-124») раскладывается по строкам раздела.
             // Разделов со спецификой, которой на странице нет (162, 414,
             // 419), и непредвиденных расходов страница не показывает — они
@@ -675,8 +678,6 @@
             const out = {};
             PAGE_CODES.forEach((code, i) => {
                 out["plan-" + (i + 1)] = Math.round((sum[code] || 0) * 100) / 100;
-                out["fact-" + (i + 1)] = 0;
-                out["note-" + (i + 1)] = "";
             });
             return out;
         }
@@ -728,6 +729,10 @@
                 if (/^всего/i.test(name)) break;
                 const no = text(rows, r, 0).trim();
                 if (!name || !no || !Number.isInteger(Number(no))) continue;
+                // Пустая колонка ночей — ноль ночей, как в формулах книги
+                // (в «План командир» проживание = норма × сутки × человек,
+                // пустая ячейка там ноль); раньше пустое считалось одной
+                // ночью и проживание бралось по норме
                 const nights = cell(rows, r, 12);
                 out.push({
                     purpose: name,
@@ -738,7 +743,7 @@
                     people: cell(rows, r, 7),
                     ticket: cell(rows, r, 9),
                     // Проживание на одного за поездку: норма × ночи
-                    hotel: nights ? cell(rows, r, 11) * nights : cell(rows, r, 11),
+                    hotel: cell(rows, r, 11) * nights,
                 });
             }
             return out;
@@ -776,15 +781,89 @@
             };
         }
 
+        /* Колонки «СВОД ФЗП» → поля страницы c1…c9 (численность, часы,
+           зарплата за месяц, годовой ФЗП, пособия, ОПВ, соцналог,
+           соцотчисления, медстрах).
+
+           Колонки ищутся по тексту шапки, а не по номерам: в книге-заготовке
+           ОПВ стоит в K, после медстраха, а в рабочей «Бюджет РБ 2026» — в H,
+           сразу за пособиями, и налоги сдвинуты на колонку вправо. С номерами
+           колонок в поле ОПВ уезжал медстрах, в соцналог — ОПВ и так далее;
+           итог ФОТ при этом сходился, и перестановку никто не замечал.
+
+           Шапка итоговой колонки «Годовой ФОТ … с налогами (соц.налог, соц
+           отч, мед страх, пен.взн)» перечисляет все налоги сразу, поэтому
+           она отсекается первой. \b в JS кириллицу не понимает — границы
+           слов здесь не используются. */
+        const FZP_HEAD = [
+            ["fot", /годовой фот|с налогами/, "итог ФОТ"],
+            ["c1", /численност/, "численность"],
+            ["c2", /час/, "количество часов"],
+            ["c3", /заработн|за месяц/, "заработная плата за месяц"],
+            ["c4", /фзп/, "годовой ФЗП"],
+            ["c5", /лечебн|оздоровит|компенсац/, "лечебно-оздоровительные пособия"],
+            ["c6", /опв|пенсион/, "ОПВ"],
+            ["c7", /соц[а-я]*\.?\s*налог/, "социальный налог"],
+            ["c8", /соц[а-я]*\.?\s*отч/, "социальные отчисления"],
+            ["c9", /медицин|осмс|мед\.?\s*страх/, "медстрахование (ОСМС)"],
+        ];
+
+        // Текст шапки без регистра, переносов и лишних пробелов
+        function headText(v) {
+            return String(v === null || v === undefined ? "" : v)
+                .toLowerCase()
+                .replace(/ё/g, "е")
+                .replace(/[\s ]+/g, " ")
+                .trim();
+        }
+
+        // Поле страницы → номер колонки по строке шапки; null — шапка не та
+        function fzpColumns(head) {
+            const map = {};
+            (head || []).forEach((v, c) => {
+                const t = headText(v);
+                if (!t) return;
+                const hit = FZP_HEAD.find((f) => f[1].test(t));
+                if (hit && map[hit[0]] === undefined) map[hit[0]] = c;
+            });
+            return map;
+        }
+
         function convFzp(rows) {
             // «СВОД ФЗП»: строка «Штатное расписание» → первая строка штатного
             // на странице, «Тарификация» → первая строка тарификации.
-            // Колонки страницы c1…c9 ↔ листа C, D, E, F, G, K (ОПВ), H, I, J.
-            const COLS = [2, 3, 4, 5, 6, 10, 7, 8, 9];
+            // Колонки — по шапке над строкой штатного (см. FZP_HEAD).
             const find = (re, fallback) => {
                 const r = rows.findIndex((row) => re.test(String((row || [])[1] || "")));
                 return r >= 0 ? r : fallback;
             };
+            const srRow = find(/штатн/i, 11);
+            const trRow = find(/тарифик/i, 12);
+
+            // Шапка — ближайшая строка над «Штатным расписанием», где есть ОПВ
+            let head = -1;
+            for (let r = srRow - 1; r >= 0 && r >= srRow - 6; r--) {
+                if ((rows[r] || []).some((v) => /опв|пенсион/.test(headText(v)))) {
+                    head = r;
+                    break;
+                }
+            }
+            if (head < 0) {
+                throw new Error(
+                    "«СВОД ФЗП»: не нашёл шапку таблицы (строку с «ОПВ») над " +
+                        "строкой «Штатное расписание» — колонки не разобрать",
+                );
+            }
+            const map = fzpColumns(rows[head]);
+            const missing = FZP_HEAD.filter((f) => f[0] !== "fot" && map[f[0]] === undefined);
+            if (missing.length) {
+                throw new Error(
+                    "«СВОД ФЗП»: в шапке (строка " + (head + 1) + ") не нашлись колонки: " +
+                        missing.map((f) => f[2]).join(", "),
+                );
+            }
+            const COLS = FZP_HEAD.filter((f) => f[0] !== "fot").map((f) => map[f[0]]);
+
             const pick = (r) => {
                 const row = {};
                 COLS.forEach((c, i) => (row["c" + (i + 1)] = cell(rows, r, c)));
@@ -793,10 +872,10 @@
             const zero = () => pick(-1);
             return {
                 rows: {
-                    sr1: pick(find(/штатн/i, 11)),
+                    sr1: pick(srRow),
                     sr2: zero(),
                     sr3: zero(),
-                    tr1: pick(find(/тарифик/i, 12)),
+                    tr1: pick(trRow),
                     tr2: zero(),
                     tr3: zero(),
                 },
@@ -1398,16 +1477,111 @@
             box.hidden = false;
         }
 
+        /* ── Повторный импорт не стирает того, чего в листе нет ────────
+           Ключ страницы раньше перезаписывался целиком, и вместе с планом
+           пропадало то, что вводят только на странице: факт и примечания
+           «Свода общего», МРП и БДО «Свода ФЗП», визы в плане командировок
+           за рубеж, реквизиты документа у планов финансирования, настройки и
+           прошлые периоды штатного расписания. Для таких страниц новое из
+           листа кладётся поверх уже сохранённого (merge у цели в TARGETS). */
+
+        function isPlainObject(v) {
+            return !!v && typeof v === "object" && !Array.isArray(v);
+        }
+
+        function readStored(key) {
+            try {
+                const v = JSON.parse(localStorage.getItem(key));
+                return isPlainObject(v) ? v : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // «Свод общий»: из прошлого — только fact-N и note-N, остальное из листа
+        function mergePuSvod(prev, data) {
+            const out = {};
+            Object.keys(prev || {}).forEach((k) => {
+                if (/^(fact|note)-\d+$/.test(k)) out[k] = prev[k];
+            });
+            return Object.assign(out, data);
+        }
+
+        // «Свод ФЗП»: МРП и БДО в листе не стоят — оставляем введённые
+        function mergeFzp(prev, data) {
+            const out = Object.assign({}, data);
+            ["mrp", "bdo"].forEach((k) => {
+                if (prev && prev[k] !== undefined && prev[k] !== "") out[k] = prev[k];
+            });
+            return out;
+        }
+
+        // План командировок за рубеж: визу вводят на странице. Поездку
+        // узнаём по цели и стране — порядок строк в листе мог поменяться
+        function mergePlanAbroad(prev, data) {
+            const tripKey = (t) =>
+                normTitle(t && t.purpose) + "|" + normTitle(t && t.country);
+            const visas = {};
+            ((prev && prev.trips) || []).forEach((t) => {
+                const k = tripKey(t);
+                (visas[k] = visas[k] || []).push(t.visa);
+            });
+            return Object.assign({}, data, {
+                trips: (data.trips || []).map((t) => {
+                    const q = visas[tripKey(t)];
+                    const visa = q && q.length ? q.shift() : undefined;
+                    return visa !== undefined && visa !== ""
+                        ? Object.assign({}, t, { visa: visa })
+                        : t;
+                }),
+            });
+        }
+
+        // Планы финансирования и справки: реквизиты документа (doc) — со страницы
+        function mergeMonthlyPlan(prev, data) {
+            const out = Object.assign({}, data);
+            if (prev && isPlainObject(prev.doc) && Object.keys(prev.doc).length) {
+                out.doc = Object.assign({}, prev.doc, data.doc || {});
+            }
+            return out;
+        }
+
+        // Штатное расписание: настройки (МРП, вычет, коэффициент ЛОП) и
+        // прошлые периоды — со страницы. Период с той же подписью
+        // заменяется на месте, новый добавляется в конец
+        function mergeShtatnoe(prev, data) {
+            if (!prev || !Array.isArray(prev.periods) || !prev.periods.length) return data;
+            const out = Object.assign({}, data);
+            if (isPlainObject(prev.settings)) out.settings = prev.settings;
+            const periods = prev.periods.slice();
+            (data.periods || []).forEach((p) => {
+                const at = periods.findIndex((q) => q && q.label === p.label);
+                if (at >= 0) periods[at] = Object.assign({}, p, { id: periods[at].id || p.id });
+                else periods.push(p);
+            });
+            out.periods = periods;
+            return out;
+        }
+
+        // Запись разобранного листа под ключ страницы — с учётом merge цели
+        function storeImported(target, storageKey, data) {
+            const stored =
+                target && target.merge ? target.merge(readStored(storageKey), data) : data;
+            localStorage.setItem(storageKey, JSON.stringify(stored));
+            return stored;
+        }
+
         /* ── Каталог страниц ───────────────────────────────────────── */
-        // exact: есть точный конвертер под формат страницы
+        // exact: есть точный конвертер под формат страницы;
+        // merge: что со страницы сохранить при повторном импорте
         const TARGETS = [
             { key: "rb_svod", title: "РБ · Свод расходов", sheets: ["Свод"] },
             { key: "rb_svodnaya", title: "РБ · Сводная общая", sheets: ["Сводная общая 2026г."], conv: convSvodnaya, exact: true },
             { key: "rb_income", title: "РБ · Доходы", sheets: ["ДОХОДНАЯ ЧАСТЬ РБ"] },
-            { key: "rb_fzp", title: "РБ · Свод ФЗП", sheets: ["СВОД ФЗП"], conv: convFzp, exact: true },
+            { key: "rb_fzp", title: "РБ · Свод ФЗП", sheets: ["СВОД ФЗП"], conv: convFzp, merge: mergeFzp, exact: true },
             { key: "rb_kalkulyacia", title: "РБ · Калькуляция", sheets: ["Калькуляция 2026"] },
             { key: "rb_plan_komandir", title: "РБ · План командировок", sheets: ["План командир 2026"], conv: convKomandir, exact: true },
-            { key: "pu_svod_2026", title: "ПУ · Свод общий", sheets: ["СВОД общий 2026"], conv: convPuSvod, exact: true },
+            { key: "pu_svod_2026", title: "ПУ · Свод общий", sheets: ["СВОД общий 2026"], conv: convPuSvod, merge: mergePuSvod, exact: true },
             { key: "pu_ss_almaty", title: "ПУ · Собственные средства", sheets: ["СС Алматы"], conv: convSsAlmaty, exact: true },
             { key: "pu_ss_dotacia", title: "ПУ · Собственные средства (Дотация)", sheets: ["СС Дотация"], conv: convSsDotacia, exact: true },
             { key: "pu_income_pu", title: "ПУ · Доходы ПУ", sheets: ["ДОХОДНАЯ ЧАСТЬ ПУ"], conv: convIncomePu, exact: true },
@@ -1417,18 +1591,18 @@
             { key: "pu_grafik_almaty", title: "ПУ · График род. оплаты", sheets: ["График род. оплаты Алматы"], conv: convGrafik, exact: true },
             { key: "pu_kalkulyacia_almaty", title: "ПУ · Калькуляция", sheets: ["Калькуляция Алматы"], conv: convPuKalkulyacia, exact: true },
             { key: "pu_plan_rk", title: "ПУ · План командировок РК", sheets: ["План команд в пред РК"], conv: convPlanRk, exact: true },
-            { key: "pu_plan_abroad", title: "ПУ · План командировок за рубеж", sheets: ["План команд за пределы РК"], conv: convPlanAbroad, exact: true },
+            { key: "pu_plan_abroad", title: "ПУ · План командировок за рубеж", sheets: ["План команд за пределы РК"], conv: convPlanAbroad, merge: mergePlanAbroad, exact: true },
 
-            { key: "plan_fin_rb", title: "План финансирования · РБ", sheets: ["План РБ 2026г платежи", "План РБ 2026г обяз."], conv: convMonthlyPlan, exact: true },
-            { key: "plan_fin_pu", title: "План финансирования · ПУ", sheets: ["ПЛАН ПУ 2026"], conv: convMonthlyPlan, exact: true },
-            { key: "plan_fin_dt", title: "План финансирования · Дотация", sheets: ["План дотация 2026", "План 2026"], conv: convMonthlyPlan, exact: true },
+            { key: "plan_fin_rb", title: "План финансирования · РБ", sheets: ["План РБ 2026г платежи", "План РБ 2026г обяз."], conv: convMonthlyPlan, merge: mergeMonthlyPlan, exact: true },
+            { key: "plan_fin_pu", title: "План финансирования · ПУ", sheets: ["ПЛАН ПУ 2026"], conv: convMonthlyPlan, merge: mergeMonthlyPlan, exact: true },
+            { key: "plan_fin_dt", title: "План финансирования · Дотация", sheets: ["План дотация 2026", "План 2026"], conv: convMonthlyPlan, merge: mergeMonthlyPlan, exact: true },
             // Лист в обеих книгах называется одинаково — «План по видам
             // Алматы», поэтому различаем их по имени файла
             // \b в JS считает кириллицу неслововым символом, поэтому границы
             // слова здесь задаём явно
-            { key: "spravka_peredvizhka_rb", title: "Справка на передвижку · РБ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])рб($|[\s_.-])/i, conv: convMonthlyPlan, exact: true },
-            { key: "spravka_peredvizhka_pu", title: "Справка на передвижку · ПУ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])пу($|[\s_.-])/i, conv: convMonthlyPlan, exact: true },
-            { key: "shtat", title: "Штатное расписание", sheets: ["ШР на 02.02.2026 г.", "ШР СВОД Алматы 2026", "ШР РБ Алматы"], conv: convShtatnoe, exact: true },
+            { key: "spravka_peredvizhka_rb", title: "Справка на передвижку · РБ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])рб($|[\s_.-])/i, conv: convMonthlyPlan, merge: mergeMonthlyPlan, exact: true },
+            { key: "spravka_peredvizhka_pu", title: "Справка на передвижку · ПУ", sheets: ["План по видам Алматы"], file: /(^|[\s_-])пу($|[\s_.-])/i, conv: convMonthlyPlan, merge: mergeMonthlyPlan, exact: true },
+            { key: "shtat", title: "Штатное расписание", sheets: ["ШР на 02.02.2026 г.", "ШР СВОД Алматы 2026", "ШР РБ Алматы"], conv: convShtatnoe, merge: mergeShtatnoe, exact: true },
         ];
 
         /* Лист → страница.
@@ -1716,7 +1890,7 @@
                     const conv = job.target.conv || convRaw;
                     const data = await conv(rows);
                     const storageKey = job.target.key + "_" + job.branch;
-                    localStorage.setItem(storageKey, JSON.stringify(data));
+                    storeImported(job.target, storageKey, data);
 
                     if (job.target.key === "rb_svodnaya") {
                         localStorage.setItem("rb_svodnaya_import_flag", "true");
