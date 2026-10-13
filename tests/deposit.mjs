@@ -164,15 +164,17 @@ async function open(page, role, branch, seed = {}) {
 const denied = (win) => !!win.document.querySelector(".finka-denied");
 
 console.log("\n── Кто открывает страницу «Депозит»");
+// Депозит ведут все: ЦА и филиалы, каждый свой лист. Инициатору — нет:
+// у него только заявки (главная, сводка, страницы ПУ).
 for (const [role, branch, want] of [
     ["limited", "nao", true],
     ["admin", "nao", true],
-    ["view", "nao", false],
-    ["edit", "nao", false],
+    ["view", "nao", true],
+    ["edit", "nao", true],
+    ["limited", "almaty", true],
+    ["edit", "astana", true],
+    ["view", "uralsk", true],
     ["initiator", "nao", false],
-    ["limited", "almaty", false],
-    ["edit", "astana", false],
-    ["view", "uralsk", false],
 ]) {
     const win = await open("deposit.html", role, branch);
     eq(`${role} / ${branch}`, !denied(win), want);
@@ -180,51 +182,75 @@ for (const [role, branch, want] of [
 }
 
 console.log("\n── Ссылка на «Депозит» на главной");
-for (const [role, branch, want] of [
-    ["limited", "nao", true],
-    ["edit", "nao", false],
-    ["limited", "uralsk", false],
+for (const [role, branch] of [
+    ["limited", "nao"],
+    ["edit", "nao"],
+    ["limited", "uralsk"],
 ]) {
     const win = await open("index.html", role, branch);
     const link = win.document.querySelector('a[href="deposit.html"]');
-    eq(`карточка видна: ${role} / ${branch}`, !!link && link.style.display !== "none", want);
+    ok(`карточка видна: ${role} / ${branch}`, !!link && link.style.display !== "none");
     win.close();
 }
 
-console.log("\n── Страница: ввод, вкладки, консолидация");
-{
-    const stored = JSON.stringify({
-        v: 1,
-        branches: {
-            nao: { r9: { d: "1000" }, r24: { f: "100" } },
-            uralsk: { r24: { f: "50", g: "6" } },
-        },
-    });
-    const win = await open("deposit.html", "limited", "nao", { deposit_nao: stored });
-    const d = win.document;
-    const out = (id, c) => d.querySelector(`[data-out="${id}-${c}"]`)?.textContent.replace(/\s/g, "");
-
-    eq("ЦА: итого доход из сохранённого", out("r11", "d"), "1000,00");
-
-    const inp = d.querySelector('input[data-row="r10"][data-col="d"]');
-    inp.value = "500";
+const out = (d, id, c) => d.querySelector(`[data-out="${id}-${c}"]`)?.textContent.replace(/\s/g, "");
+const input = (win, row, col, value) => {
+    const inp = win.document.querySelector(`input[data-row="${row}"][data-col="${col}"]`);
+    inp.value = value;
     inp.dispatchEvent(new win.Event("input", { bubbles: true }));
-    eq("ввод пересчитывает итог сразу", out("r11", "d"), "1500,00");
-    eq("остаток", out("r32", "d"), "1400,00");
+};
+const sheetOf = (rows) => JSON.stringify({ v: 2, rows });
+
+console.log("\n── Главбух ЦА: свой лист, листы филиалов, консолидация");
+{
+    const win = await open("deposit.html", "limited", "nao", {
+        deposit_nao: sheetOf({ r9: { d: "1000" }, r24: { f: "100" } }),
+        deposit_uralsk: sheetOf({ r24: { f: "50", g: "6" } }),
+    });
+    const d = win.document;
+
+    eq("ЦА: итого доход из сохранённого", out(d, "r11", "d"), "1000,00");
+    eq("открытие ничего не пишет", win.localStorage.getItem("deposit_almaty"), null);
+
+    input(win, "r10", "d", "500");
+    eq("ввод пересчитывает итог сразу", out(d, "r11", "d"), "1500,00");
+    eq("остаток", out(d, "r32", "d"), "1400,00");
 
     d.querySelector('.branch-btn[data-branch="uralsk"]').click();
-    eq("Уральск: свои непредвиденные", out("r24", "d"), "56,00");
-    eq("Уральск: свой доход пустой", out("r11", "d"), "0,00");
+    eq("Уральск: свои непредвиденные", out(d, "r24", "d"), "56,00");
+    eq("Уральск: свой доход пустой", out(d, "r11", "d"), "0,00");
 
     d.querySelector('.branch-btn[data-branch="consolidated"]').click();
-    eq("консолидация: доход", out("r11", "d"), "1500,00");
-    eq("консолидация: непредвиденные", out("r24", "d"), "156,00");
+    eq("консолидация: доход", out(d, "r11", "d"), "1500,00");
+    eq("консолидация: непредвиденные", out(d, "r24", "d"), "156,00");
     eq("консолидация без полей ввода", d.querySelectorAll("#depBody input").length, 0);
     eq("разбивка по ЦА и филиалам", d.querySelectorAll("tr.split").length, 4);
 
     const saved = JSON.parse(win.localStorage.getItem("deposit_nao"));
-    eq("ввод ЦА сохранён в общий ключ", saved.branches.nao.r10.d, "500");
-    ok("Уральск в том же ключе", !!saved.branches.uralsk);
+    eq("ввод ЦА сохранён в свой ключ", saved.rows.r10.d, "500");
+    eq("лист Уральска не пересохранён", JSON.parse(win.localStorage.getItem("deposit_uralsk")).v, 2);
+    eq("переход по вкладкам без правок не пишет", win.localStorage.getItem("deposit_almaty"), null);
+    win.close();
+}
+
+console.log("\n── Филиал ведёт свой лист");
+{
+    const win = await open("deposit.html", "edit", "uralsk");
+    await new Promise((r) => setTimeout(r, 300));
+    const d = win.document;
+    ok("активна кнопка Уральска", d.querySelector('.branch-btn.active')?.dataset.branch === "uralsk");
+    input(win, "r9", "d", "777");
+    d.querySelector('.branch-btn[data-branch="uralsk"]').click();
+    eq("правка Уральска — в deposit_uralsk", JSON.parse(win.localStorage.getItem("deposit_uralsk") || "{}").rows?.r9?.d, "777");
+    eq("строку ЦА филиал не трогает", win.localStorage.getItem("deposit_nao"), null);
+    win.close();
+}
+
+console.log("\n── Первая версия: все города одним ключом в строке ЦА");
+{
+    const old = JSON.stringify({ v: 1, branches: { nao: { r9: { d: "300" } }, uralsk: { r9: { d: "9" } } } });
+    const win = await open("deposit.html", "limited", "nao", { deposit_nao: old });
+    eq("свой лист ЦА читается из старого формата", out(win.document, "r11", "d"), "300,00");
     win.close();
 }
 

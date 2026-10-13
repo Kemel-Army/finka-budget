@@ -926,7 +926,7 @@ console.log("\n── Ответ потерялся, связи нет до за
 console.log("\n── RLS заведомо не пустит — в очередь не ставим");
 {
     // Уральск: страницы при открытии пересохраняют лист Алматы (кнопку
-    // филиала жмёт auth.js), год бюджета и депозит
+    // филиала жмёт auth.js), год бюджета и депозит ЦА
     const srv = makeServer();
     srv.deny = new Set(["nao", "almaty", "astana"]);
     srv.put("uralsk", "rb_svod", { a: 1 });
@@ -968,7 +968,7 @@ console.log("\n── RLS заведомо не пустит — в очеред
     eq("старая очередь с чужим — выброшена молча", q.sync.status().code, "ok");
     eq("в очереди пусто", q.ls.getItem("finka_sync_queue"), null);
 
-    // «Работа» ЦА: год бюджета писать может, депозит — нет
+    // «Работа» ЦА: год бюджета и депозит своего города — обычные листы
     const srv2 = makeServer();
     const r = boot(srv2, {
         profile: EDITOR_NAO,
@@ -977,7 +977,7 @@ console.log("\n── RLS заведомо не пустит — в очеред
     await settle(r);
     await waitFor(drained(r));
     eq("год бюджета уехал", JSON.stringify(srv2.get("nao", "budget_year")), '{"__raw":"2027"}');
-    ok("депозит — нет", !srv2.rows.has("nao|deposit"));
+    ok("депозит ЦА уехал", srv2.rows.has("nao|deposit"));
     eq("значок спокоен", r.sync.status().code, "ok");
 
     // Администратор пишет и депозит, и любой город

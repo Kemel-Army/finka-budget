@@ -343,9 +343,8 @@ const BRANCHES = ["nao", "uralsk"];
 // Страницы-переадресации: куда они должны увести
 const REDIRECTS = { "index-budget.html": "index.html" };
 
-// Страницы только для узкого круга (RESTRICTED в auth.js)
-function expectDenied(role, branch, page) {
-    if (page === "deposit.html") return !(role === "admin" || (role === "limited" && branch === "nao"));
+// Страниц только для узкого круга сейчас нет — все открываются всем ролям
+function expectDenied() {
     return false;
 }
 

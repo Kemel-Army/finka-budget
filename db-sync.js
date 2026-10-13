@@ -1067,32 +1067,22 @@
 
     /* ── Перехват записи и чтения ──────────────────────────────── */
     /* RLS заведомо не даст этой учётке записать ключ (см. budget.
-       can_write_branch и budget.can_touch_key в supabase/migrations
-       0001 и 0003). Такие записи страниц — пересохранение при открытии
-       (год бюджета на главной, лист филиала после switchBranch, который
-       жмёт auth.js) — в очередь не ставим вовсе: иначе каждое открытие
-       страницы давало бы 42501 и красный значок «Нет права записи».
+       can_write_branch в supabase/migrations/0001). Такие записи страниц —
+       пересохранение при открытии (год бюджета на главной, лист филиала
+       после switchBranch, который жмёт auth.js) — в очередь не ставим
+       вовсе: иначе каждое открытие страницы давало бы 42501 и красный
+       значок «Нет права записи».
        Молчим только там, где правка человека невозможна по интерфейсу:
-         • депозит — пишут лишь администратор и «Работа (огранич.)» ЦА;
-         • чужой филиал (и общие настройки — они в строке ЦА) у учётки,
-           привязанной к филиалу: auth.js не даёт ей переключить город.
+       чужой филиал (и общие настройки — они в строке ЦА) у учётки,
+       привязанной к филиалу: auth.js не даёт ей переключить город.
        «Работа» из ЦА видит все города, и её правку чужого города RLS тоже
        не пропустит, — но там это может быть настоящий ввод, и о нём лучше
        сказать значком, чем молча потерять. Профиль ещё не пришёл — решим в
        start(), когда он будет. */
-    var DEPOSIT = /^deposit(_|$)/;
-
     function refused(k) {
         if (!profile || !profile.role) return false;
-        var role = profile.roleKey;
-        var parts = split(k);
-        if (DEPOSIT.test(parts.key)) {
-            var bookkeeper =
-                role === "admin" || (role === "limited" && profile.branchKey === "nao");
-            if (!bookkeeper) return true;
-        }
-        if (role === "admin") return false;
-        return !!profile.branchLocked && parts.branch !== profile.branchKey;
+        if (profile.roleKey === "admin") return false;
+        return !!profile.branchLocked && split(k).branch !== profile.branchKey;
     }
 
     // Страницы пишут через localStorage.setItem — подменяем метод, чтобы не

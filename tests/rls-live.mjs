@@ -336,7 +336,7 @@ const ESC_KEY = "__rls_escalation";
 /* ══ Миграция 0003: депозит, размер, год бюджета, удаления ════════ */
 console.log("\n══ Депозит, размер значения, год бюджета, журнал удалений\n");
 
-// Под регулярку ключей депозита ('^deposit(_|$)'), но не настоящий депозит
+// Пробный ключ депозита, не настоящий лист
 const DEP_KEY = "deposit__rls_probe";
 {
     const adminTok = await signIn("admin@rfmsh.kz");
@@ -349,41 +349,25 @@ const DEP_KEY = "deposit__rls_probe";
         "Content-Type": "application/json",
     };
 
-    // 10. Депозит ЦА: пишут и читают только администратор и «огранич.» ЦА
+    // 10. Депозит — обычный лист: свой город пишут «Работа» и «огранич.»,
+    // ЦА читает все города (у главбуха ЦА собирается консолидация)
     {
         const w = await adminApi.upsert({ branch: "nao", key: DEP_KEY, value: { v: 1 } });
         ok("админ пишет депозит ЦА", w.status === 201 || w.status === 200, `HTTP ${w.status}`);
 
-        const lim = api(await signIn("lim@rfmsh.kz"));
-        const limSees = await lim.select(`&key=eq.${DEP_KEY}`);
-        ok("огранич. / ЦА видит депозит", limSees.body.length === 1, `строк: ${limSees.body.length}`);
-        const limW = await lim.upsert({ branch: "nao", key: DEP_KEY, value: { v: 2 } });
-        ok("огранич. / ЦА пишет депозит", limW.status === 201 || limW.status === 200, `HTTP ${limW.status}`);
-
-        for (const [email, label] of [
-            ["edit@rfmsh.kz", "работа / ЦА"],
-            ["view@rfmsh.kz", "просмотр / ЦА"],
+        for (const [email, label, canWrite] of [
+            ["lim@rfmsh.kz", "огранич. / ЦА", true],
+            ["edit@rfmsh.kz", "работа / ЦА", true],
+            ["view@rfmsh.kz", "просмотр / ЦА", false],
         ]) {
             const cli = api(await signIn(email));
             const seen = await cli.select(`&key=eq.${DEP_KEY}`);
-            ok(`${label} не видит депозит`, Array.isArray(seen.body) && seen.body.length === 0,
+            ok(`${label} видит депозит ЦА`, Array.isArray(seen.body) && seen.body.length === 1,
                 `строк: ${Array.isArray(seen.body) ? seen.body.length : "?"}`);
-            const wr = await cli.upsert({ branch: "nao", key: DEP_KEY, value: { hacked: 1 } });
-            ok(`${label} не пишет депозит`, wr.status >= 400, `HTTP ${wr.status}`);
+            const wr = await cli.upsert({ branch: "nao", key: DEP_KEY, value: { v: 2 } });
+            ok(`${label} ${canWrite ? "пишет" : "не пишет"} депозит ЦА`,
+                canWrite ? wr.status < 400 : wr.status >= 400, `HTTP ${wr.status}`);
         }
-
-        // Прежние значения депозита не утекают через журнал
-        const editTok = await signIn("edit@rfmsh.kz");
-        const audit = await fetch(
-            `${URL_BASE}/rest/v1/kv_audit?select=key&key=eq.${DEP_KEY}`,
-            { headers: { apikey: ANON, Authorization: `Bearer ${editTok}`, "Accept-Profile": "budget" } },
-        ).then((x) => x.json());
-        ok("работа / ЦА не видит депозит в журнале", Array.isArray(audit) && audit.length === 0,
-            `строк: ${Array.isArray(audit) ? audit.length : "?"}`);
-
-        // Депозит вне ЦА не принимается даже от администратора
-        const r = await adminApi.upsert({ branch: "almaty", key: DEP_KEY, value: {} });
-        ok("депозит в филиале не принимается", r.status >= 400, `HTTP ${r.status}`);
     }
 
     // 11. Год бюджета — только в строке ЦА

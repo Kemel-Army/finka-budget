@@ -82,6 +82,7 @@
             "spravki.html",
             "shtatnoe.html",
             "osnovaniya.html",
+            "deposit.html",
         ],
         tools: ["import-excel.html"],
     };
@@ -234,23 +235,8 @@
         };
     }
 
-    /* ── Страницы для узкого круга ─────────────────────────────── */
-    /* Открываются только тем, кому разрешены здесь, — поверх роли: у
-       «Просмотра» и «Работы» доступ ко всем страницам, но эти им не нужны. */
-    var RESTRICTED = {
-        // Депозит ведёт главный бухгалтер ЦА — учётка «Работа (огранич.)»
-        // центрального аппарата, она видит все города
-        "deposit.html": function (p) {
-            return (
-                p.roleKey === "admin" ||
-                (p.roleKey === "limited" && p.branchKey === "nao")
-            );
-        },
-    };
-
     function canOpen(profile, page) {
         if (!profile.role) return false;
-        if (RESTRICTED[page]) return RESTRICTED[page](profile);
         if (!profile.role.pages) return true;
         return profile.role.pages.indexOf(page) !== -1;
     }
@@ -644,22 +630,6 @@
         }
     }
 
-    // Ссылки на закрытые для учётки страницы из RESTRICTED: карточки главной
-    // и пункты навигации. Навигация дорисовывается позже — ждём её.
-    function hideRestrictedLinks(profile) {
-        function hide() {
-            Object.keys(RESTRICTED).forEach(function (page) {
-                if (canOpen(profile, page)) return;
-                var links = document.querySelectorAll('a[href="' + page + '"]');
-                for (var i = 0; i < links.length; i++) {
-                    links[i].style.display = "none";
-                }
-            });
-        }
-        hide();
-        findHost(hide);
-    }
-
     /* ── Привязка к своему филиалу ─────────────────────────────── */
     /* Филиал кнопки: часть страниц размечена атрибутом data-branch, а
        тринадцать других зовут switchBranch('almaty') прямо из onclick.
@@ -889,7 +859,6 @@
 
         if (!profile.role.canEdit) enableReadOnly(profile);
         if (!profile.role.canImport) hideImportLinks();
-        hideRestrictedLinks(profile);
         if (profile.branchLocked) lockBranch(profile);
         trackCity(profile);
     }

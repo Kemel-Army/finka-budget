@@ -38,7 +38,6 @@
                     key: "osnovaniya",
                 },
                 {
-                    // Видна только главбуху ЦА и админу — см. RESTRICTED в auth.js
                     href: "deposit.html",
                     title: "Депозит (доход и расход)",
                     key: "deposit",

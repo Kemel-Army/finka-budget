@@ -127,25 +127,40 @@
 
                 var D = window.DepositCore;
 
-                /* Все четыре листа (ЦА и филиалы) лежат одним ключом в строке
-                   центрального аппарата. Страница открыта только главному
-                   бухгалтеру ЦА и администратору, а писать по RLS роль
-                   «limited» может лишь в свой филиал — nao. Заодно филиалы
-                   эти данные не получают вовсе: строки nao им не отдаются. */
-                var KEY = "deposit_nao";
+                /* Депозит ведут все: каждый город — свой лист под ключом
+                   deposit_<город>, он лежит в строке своего филиала, и по RLS
+                   филиал пишет только его. Учётки ЦА читают все строки — у
+                   главного бухгалтера ЦА книга заполняется целиком: свой лист,
+                   листы филиалов и «Консолидация» с разбивкой непредвиденных
+                   по ЦА и филиалам (строки 25–28 книги). */
+                var PREFIX = "deposit_";
 
                 var branch = "nao";
                 var store = loadStore();
                 var timer = null;
+                // Правки текущего листа, ещё не сохранённые: без них ни
+                // переключение города, ни уход со страницы ничего не пишут
+                var dirty = false;
 
-                function loadStore() {
+                function loadSheet(b) {
                     try {
-                        var s = JSON.parse(localStorage.getItem(KEY) || "null");
-                        if (s && s.branches) return s;
+                        var s = JSON.parse(localStorage.getItem(PREFIX + b) || "null");
+                        if (s && s.rows) return s.rows;
+                        // Первая версия страницы клала все города одним
+                        // ключом в строку ЦА — свой лист ЦА берём оттуда
+                        if (b === "nao" && s && s.branches) return s.branches.nao || {};
                     } catch (e) {
                         /* битый кэш — начинаем с пустого */
                     }
-                    return { v: 1, branches: {} };
+                    return {};
+                }
+
+                function loadStore() {
+                    var branches = {};
+                    D.BRANCHES.forEach(function (b) {
+                        branches[b] = loadSheet(b);
+                    });
+                    return { branches: branches };
                 }
 
                 function sheet(b) {
@@ -298,8 +313,12 @@
                 }
 
                 function save() {
-                    if (isCons()) return;
-                    localStorage.setItem(KEY, JSON.stringify(store));
+                    if (isCons() || !dirty) return;
+                    localStorage.setItem(
+                        PREFIX + branch,
+                        JSON.stringify({ v: 2, rows: sheet(branch) }),
+                    );
+                    dirty = false;
                     var st = document.getElementById("saveStatus");
                     st.textContent = "Сохранено";
                 }
@@ -312,6 +331,7 @@
                         var s = sheet(branch);
                         if (!s[el.dataset.row]) s[el.dataset.row] = {};
                         s[el.dataset.row][el.dataset.col] = el.value;
+                        dirty = true;
                         recalc();
                         document.getElementById("saveStatus").textContent =
                             "Сохраняю…";
