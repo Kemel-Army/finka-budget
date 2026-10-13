@@ -759,16 +759,14 @@
             }
 
             function updateCalculations() {
-                const school =
-                    parseFloat(
-                        document.getElementById("contingent-school").value,
-                    ) || 0;
                 const fc =
                     parseFloat(
                         document.getElementById("contingent-fc").value,
                     ) || 0;
-                document.getElementById("total-contingent").textContent =
-                    school + fc;
+                // Лист «СС Дотация»: D9 = F9 — контингент «всего» равен
+                // контингенту финансового центра. Школа (E9) — часть тех же
+                // учащихся, а не добавка: сумма E9 + F9 считала их дважды
+                document.getElementById("total-contingent").textContent = fc;
 
                 scheduleAutoSave();
             }
