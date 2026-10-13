@@ -48,9 +48,42 @@
           note: "закладывается в доходную часть подушевого финансирования" },
     ];
 
+    /* Филиал, чьи ставки показывать и править.
+       Раньше брался только из кнопки с атрибутом data-branch, а на большей
+       части страниц кнопки филиалов вызывают switchBranch('almaty') прямо из
+       onclick — там всегда выходили ставки «nao», в какой бы филиал ни
+       переключился пользователь. Теперь — как в auth.js (branchOfButton):
+       data-branch или аргумент switchBranch у активной кнопки; нет активной
+       кнопки филиала (консолидация, страница без переключателя) — филиал
+       учётной записи; нет и его — центральный аппарат. Ключ rates_<филиал>
+       под синхронизацией (db-sync.js), и филиал в нём должен быть настоящим:
+       по нему ключ раскладывается на строку базы. */
+    var BRANCHES = ["nao", "almaty", "astana", "uralsk"];
+
+    function branchOfButton(btn) {
+        var attr = btn.getAttribute("data-branch");
+        if (attr) return attr;
+        var m = /switchBranch\(\s*['"]([^'"]+)/.exec(btn.getAttribute("onclick") || "");
+        return m ? m[1] : "";
+    }
+
+    function ownBranch() {
+        try {
+            var s = JSON.parse(localStorage.getItem("finka-auth") || "null");
+            var meta = (s && s.user && s.user.app_metadata) || {};
+            return BRANCHES.indexOf(meta.branch) !== -1 ? meta.branch : "";
+        } catch (e) {
+            return "";
+        }
+    }
+
     function branch() {
-        var btn = document.querySelector(".branch-btn.active[data-branch]");
-        return btn ? btn.getAttribute("data-branch") : "nao";
+        var btns = document.querySelectorAll(".branch-btn.active");
+        for (var i = 0; i < btns.length; i++) {
+            var b = branchOfButton(btns[i]);
+            if (BRANCHES.indexOf(b) !== -1) return b;
+        }
+        return ownBranch() || "nao";
     }
 
     function key() {

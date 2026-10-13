@@ -665,7 +665,11 @@
         <script>
             let tableData = {
                 branch: "almaty",
-                sheet: "ss_almaty",
+                // Ключ pu_ss_almaty_<филиал> — под ним лист ищут импорт,
+                // главная и синхронизация. Раньше здесь было «ss_almaty»: без
+                // префикса ключ не уезжал в базу, а импорт был не виден.
+                // Старые ss_almaty_* переносит db-sync.js.
+                sheet: "pu_ss_almaty",
                 lastModified: new Date().toISOString(),
                 cells: {},
             };
@@ -793,7 +797,15 @@
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = { ...tableData, ...data };
+                    // Ключ строится из sheet/branch — сохранённые данные (в
+                    // том числе старые, с sheet «ss_almaty») их не подменяют
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        sheet: tableData.sheet,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
                     Object.keys(data.cells || {}).forEach((cell) => {
                         const input = document.querySelector(
