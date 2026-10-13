@@ -641,7 +641,9 @@
 
         <script>
             let tableData = {
-                branch: "almaty",
+                // Совпадает с активной по умолчанию кнопкой НАО: с «almaty»
+                // под кнопкой НАО показывался и сохранялся лист Алматы
+                branch: "nao",
                 // Ключ pu_ss_almaty_<филиал> — под ним лист ищут импорт,
                 // главная и синхронизация. Раньше здесь было «ss_almaty»: без
                 // префикса ключ не уезжал в базу, а импорт был не виден.
@@ -728,8 +730,13 @@
                 updateCell("totalF", grandTotalF);
             }
 
+            // Есть несохранённые правки текущего филиала. auth.js жмёт кнопку
+            // своего филиала при каждом открытии — без правок switchBranch
+            // ничего не пишет (иначе нули или чужой лист уходили в базу)
+            let dirty = false;
             let saveTimeout;
             function autoSave() {
+                dirty = true;
                 clearTimeout(saveTimeout);
 
                 const status = document.getElementById("saveStatus");
@@ -747,6 +754,8 @@
 
             function saveData() {
                 if (tableData.branch === "consolidated") return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 document.querySelectorAll("input").forEach((input) => {
                     if (input.dataset.cell) {
                         tableData.cells[input.dataset.cell] = input.value;
@@ -804,7 +813,7 @@
             }
 
             function switchBranch(branch, btn) {
-                if (tableData.branch !== "consolidated") {
+                if (tableData.branch !== "consolidated" && dirty) {
                     saveData();
                 }
                 if (

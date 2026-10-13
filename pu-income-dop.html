@@ -305,8 +305,11 @@
             const SHEET_KEY = "pu_income_dop";
             let currentBranch = "nao";
             let saveTimeout;
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
 
-            function update(r) {
+            // Итог строки — без сохранения: зовётся и при загрузке
+            function calcRow(r) {
                 let sum = 0;
                 for (let m = 1; m <= 12; m++) {
                     sum +=
@@ -316,6 +319,16 @@
                 }
                 document.getElementById(`r${r}-total`).textContent =
                     sum.toLocaleString("ru-RU", { minimumFractionDigits: 2 });
+            }
+
+            // Пересчёт после загрузки: итоги строк и таблицы, без записи
+            function calcAll() {
+                for (let r = 1; r <= 2; r++) calcRow(r);
+                updateTotals();
+            }
+
+            function update(r) {
+                calcRow(r);
                 updateTotals();
                 scheduleAutoSave();
             }
@@ -343,6 +356,7 @@
             }
 
             function scheduleAutoSave() {
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Сохраняю...";
                 document.getElementById("saveStatus").style.background =
@@ -355,6 +369,8 @@
                 // Не сохранять в режиме консолидации
                 // До первой загрузки в полях заготовка — не пишем её поверх данных
                 if (currentBranch === "consolidated" || !pageReady) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
 
                 const data = { rows: {} };
                 for (let r = 1; r <= 2; r++) {
@@ -393,13 +409,16 @@
                         }
                     }
                 }
-                updateTotals();
+                calcAll();
             }
 
             function switchBranch(newBranch, btn) {
+                // Сохраняем только реальные правки: клик auth.js по своему
+                // филиалу не должен писать лист ЦА (_nao) в базу
                 if (
                     currentBranch !== "consolidated" &&
-                    currentBranch !== newBranch
+                    currentBranch !== newBranch &&
+                    dirty
                 ) {
                     saveData();
                 }
@@ -468,7 +487,7 @@
                         document.getElementById(`r${r}-m${m}`).disabled = true;
                     }
                 }
-                updateTotals();
+                calcAll();
             }
 
             // Данные филиала загружены: до этого switchBranch и сохранение ждут

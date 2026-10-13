@@ -130,7 +130,25 @@
                 sched();
             }
 
+            // Есть несохранённые правки текущего филиала. Пересчёт при загрузке
+            // листа (quiet) — не правка: auth.js жмёт кнопку своего филиала при
+            // каждом открытии, и сохранение без ввода писало лист в базу — у ЦА
+            // поверх данных, у филиала с отказом RLS
+            let dirty = false;
+            let loading = false;
+
+            function quiet(fn) {
+                loading = true;
+                try {
+                    fn();
+                } finally {
+                    loading = false;
+                }
+            }
+
             function sched() {
+                if (loading) return;
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Сохраняю...";
                 clearTimeout(timeout);
@@ -141,6 +159,8 @@
                 // Не сохранять в режиме консолидации
                 // До первой загрузки в полях заготовка — не пишем её поверх данных
                 if (branch === "consolidated" || !pageReady) return;
+                clearTimeout(timeout);
+                dirty = false;
 
                 const data = { trips: [] };
                 const tbody = document.getElementById("tableBody");
@@ -181,26 +201,30 @@
                         document.getElementById(`country-${counter}`).value =
                             r.country || "";
                         document.getElementById(`trips-${counter}`).value =
-                            r.trips || 1;
+                            r.trips ?? 1;
                         document.getElementById(`days-${counter}`).value =
-                            r.days || 5;
+                            r.days ?? 5;
                         document.getElementById(`people-${counter}`).value =
-                            r.people || 3;
+                            r.people ?? 3;
                         document.getElementById(`ticket-${counter}`).value =
-                            r.ticket || 0;
+                            r.ticket ?? 0;
                         document.getElementById(`hotel-${counter}`).value =
-                            r.hotel || 0;
+                            r.hotel ?? 0;
                         document.getElementById(`daily-${counter}`).value =
-                            r.daily || 0;
+                            r.daily ?? 0;
                         document.getElementById(`visa-${counter}`).value =
-                            r.visa || 0;
+                            r.visa ?? 0;
                         calc(counter);
                     });
                 }
             }
 
             function switchBranch(newBranch, btn) {
-                if (branch !== "consolidated" && branch !== newBranch) {
+                if (
+                    branch !== "consolidated" &&
+                    branch !== newBranch &&
+                    dirty
+                ) {
                     save();
                 }
                 branch = newBranch;
@@ -221,9 +245,9 @@
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = true;
                     });
-                    loadConsolidatedData();
+                    quiet(loadConsolidatedData);
                 } else {
-                    load();
+                    quiet(load);
                 }
             }
 
@@ -268,13 +292,13 @@
                     const vals = {
                         purpose: r.purpose || "",
                         country: r.country || "",
-                        trips: r.trips || 1,
-                        days: r.days || 5,
-                        people: r.people || 3,
-                        ticket: r.ticket || 0,
-                        hotel: r.hotel || 0,
-                        daily: r.daily || 0,
-                        visa: r.visa || 0,
+                        trips: r.trips ?? 1,
+                        days: r.days ?? 5,
+                        people: r.people ?? 3,
+                        ticket: r.ticket ?? 0,
+                        hotel: r.hotel ?? 0,
+                        daily: r.daily ?? 0,
+                        visa: r.visa ?? 0,
                     };
                     Object.keys(vals).forEach((f) => {
                         document.getElementById(`${f}-${counter}`).value =
@@ -289,7 +313,7 @@
             let pageReady = false;
             window.addEventListener("load", () => {
                 pageReady = true;
-                load();
+                quiet(load);
             });
         </script>
         <script>
