@@ -347,5 +347,47 @@ for (const [page, sheet, cell] of [
     win.close();
 }
 
+/* Главная: год бюджета при открытии только читается. Запись budget_year
+   уходит в базу — у ЦА выбор админа (2027) откатывался на текущий год,
+   у филиала был отказ RLS. Пишет только смена года пользователем. */
+console.log("\n── Главная: год бюджета пишется только при смене");
+{
+    let win = await open("index.html", { budget_year: 2027, budget_year_end: 2029 });
+    let doc = win.document;
+    ok("index.html: выбран сохранённый 2027–2029",
+        val(doc, "yearInput") === "2027" && val(doc, "yearEndInput") === "2029",
+        `${val(doc, "yearInput")}–${val(doc, "yearEndInput")}`);
+    ok("index.html: открытие без записи", win.__writes.length === 0, win.__writes.join(", "));
+    doc.getElementById("yearInput").value = "2028";
+    doc.getElementById("yearInput").dispatchEvent(new win.Event("change", { bubbles: true }));
+    ok("index.html: смена года сохраняется",
+        win.localStorage.getItem("budget_year") === "2028" && win.localStorage.getItem("budget_year_end") === "2030",
+        `${win.localStorage.getItem("budget_year")}–${win.localStorage.getItem("budget_year_end")}`);
+    win.close();
+
+    win = await open("index.html", {});
+    doc = win.document;
+    const y = String(new Date().getFullYear());
+    ok("index.html: без сохранённого года — текущий, без записи",
+        val(doc, "yearInput") === y && win.__writes.length === 0,
+        `год ${val(doc, "yearInput")}; записи: ${win.__writes.join(", ") || "нет"}`);
+    win.close();
+}
+
+/* Свод доходов: calc() при открытии ставил сохранение kb_income_svod_nao */
+console.log("\n── Свод доходов: сохранение только после правки");
+{
+    const KEY = "kb_income_svod_nao";
+    const win = await open("income-consolidation.html", {});
+    await new Promise((r) => win.setTimeout(r, 1800));
+    ok("income-consolidation.html: открытие без записи", win.__writes.length === 0, win.__writes.join(", "));
+    const inp = win.document.querySelector('#sectionsContainer input[type="number"]');
+    inp.value = "5";
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await new Promise((r) => win.setTimeout(r, 1800));
+    ok("income-consolidation.html: правка сохраняется", win.__writes.includes(KEY), win.__writes.join(", ") || "записей нет");
+    win.close();
+}
+
 console.log(`\n${"=".repeat(78)}\nпроверок: ${total}, расхождений: ${failed}`);
 process.exit(failed ? 1 : 0);

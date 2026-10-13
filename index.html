@@ -1248,20 +1248,28 @@
                 "use strict";
 
                 /* ── Период бюджета ─────────────────────────────── */
+                /* При открытии год только читаем: budget_year уходит в базу,
+                   и запись здесь откатывала выбор админа (2027) на текущий
+                   календарный год, а у филиала давала отказ RLS. Без
+                   сохранённого года — текущий, но без записи; пишут только
+                   обработчики change ниже. */
                 var currentYear = new Date().getFullYear();
-                var savedEndYear = localStorage.getItem("budget_year_end");
-                var budgetYear = currentYear;
-                var budgetEndYear = savedEndYear
-                    ? Math.max(parseInt(savedEndYear, 10), budgetYear)
-                    : budgetYear + 2;
-                if (budgetEndYear < budgetYear) budgetEndYear = budgetYear + 2;
-                localStorage.setItem("budget_year", budgetYear);
-                localStorage.setItem("budget_year_end", budgetEndYear);
+                var savedYear = parseInt(localStorage.getItem("budget_year"), 10);
+                var savedEndYear = parseInt(localStorage.getItem("budget_year_end"), 10);
+                var budgetYear =
+                    savedYear >= 2020 && savedYear <= 2050 ? savedYear : currentYear;
+                var budgetEndYear =
+                    savedEndYear >= budgetYear && savedEndYear <= budgetYear + 5
+                        ? savedEndYear
+                        : budgetYear + 2;
 
                 var yearInput = document.getElementById("yearInput");
                 var yearEndInput = document.getElementById("yearEndInput");
 
-                for (var yi = currentYear; yi <= currentYear + 5; yi++) {
+                // Сохранённый год может быть вне окна от текущего — он тоже в списке
+                var firstYear = Math.min(currentYear, budgetYear);
+                var lastYear = Math.max(currentYear + 5, budgetYear);
+                for (var yi = firstYear; yi <= lastYear; yi++) {
                     var opt = document.createElement("option");
                     opt.value = yi;
                     opt.textContent = yi;
