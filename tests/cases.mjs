@@ -209,4 +209,33 @@ export const CASES = [
             ["R33 ВСЕГО", "totalSum", 6],
         ],
     },
+
+    {
+        // Раньше страница не различала филиалы: всегда читала и писала
+        // ключ ЦА. Теперь у города свой ключ, консолидация — поездки всех
+        title: "План командировок РБ — филиалы и консолидация",
+        file: "rb-plan-komandir.html",
+        sheet: "Бюджет РБ 2026 → План командир 2026 (по городам)",
+        needle: 'SHEET_KEY = "rb_plan_komandir"',
+        exports: ["switchBranch"],
+        prepare(api, ensure, document, window) {
+            const ls = window.localStorage;
+            ls.setItem("rb_plan_komandir_almaty", JSON.stringify({
+                rows: [{ name: "А", mrp: 10, perNorm: 1, days: 2, people: 1, tripSum: 5 }],
+            }));
+            ls.setItem("rb_plan_komandir_uralsk", JSON.stringify({
+                rows: [{ name: "У", mrp: 10, fee: 7 }, { name: "", dest: "", mrp: 10 }],
+            }));
+            window._onload(); // обработчик load страницы
+            api.switchBranch("consolidated");
+        },
+        checks: [
+            // Алматы: J = 1×10×2×1 = 20, R = 20 + 5 = 25; Уральск: R = 7
+            ["суточные: только Алматы", "tot-perDiem", 20],
+            ["оргвзнос: только Уральск", "tot-fee", 7],
+            ["ВСЕГО по городам 25 + 7", "totalSum", 32],
+            ["строка 1 — Алматы", "r1-total", 25],
+            ["строка 2 — Уральск", "r2-total", 7],
+        ],
+    },
 ];
