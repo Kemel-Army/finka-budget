@@ -230,6 +230,62 @@ console.log("\n── Правки: переименование, добавле
     win.close();
 }
 
+/* ── Итоги самой страницы не попадают в «ИТОГО по таблице» ───────── */
+/* Строки sub-row («Итого по тарификации», «Рентабельность 8%») и grand-row
+   («ВСЕГО») — расчётные итоги страницы. Пока они считались строками данных,
+   «ИТОГО по таблице» складывал их вместе с исходными строками: введённая
+   1000 превращалась в итоге в 2000–3000. */
+console.log("\n── «ИТОГО по таблице» без промежуточных итогов страницы");
+for (const [page, inputId, value, label] of [
+    ["pu-fot-almaty.html", "r1-fzp", 1000, "ФЗП: 1000 в строке 1"],
+    ["pu-income-pu.html", "row-2-m1", 1000, "январь: 1000 в строке 2"],
+]) {
+    const { win, errors } = await load(page);
+    const doc = win.document;
+    const inp = doc.getElementById(inputId);
+    ok(`${page}: поле ${inputId} есть`, !!inp);
+    if (!inp) {
+        win.close();
+        continue;
+    }
+    inp.value = String(value);
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 300);
+
+    const table = inp.closest("table");
+    const sx = table.querySelectorAll("tr.sx-total");
+    ok(`${page}: одна строка «ИТОГО по таблице»`, sx.length === 1, `строк: ${sx.length}`);
+
+    // Колонка поля в строке итога — с учётом colspan в первой ячейке
+    const col = (tr, cell) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            if (td === cell) return c;
+            c += parseInt(td.getAttribute("colspan"), 10) || 1;
+        }
+        return -1;
+    };
+    const at = (tr, idx) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            const span = parseInt(td.getAttribute("colspan"), 10) || 1;
+            if (idx >= c && idx < c + span) return td;
+            c += span;
+        }
+        return null;
+    };
+    const idx = col(inp.closest("tr"), inp.closest("td"));
+    const cell = sx.length ? at(sx[0], idx) : null;
+    const got = cell
+        ? parseFloat(cell.textContent.replace(/[\s ]/g, "").replace(",", "."))
+        : NaN;
+    ok(`${page}: ${label} → в итоге ${value}`, got === value, `получили ${cell ? cell.textContent.trim() : "—"}`);
+
+    const hard = errors.filter((e) => !/Not implemented|Could not parse CSS/i.test(e));
+    ok(`${page}: без ошибок`, hard.length === 0, hard.slice(0, 1).join("").slice(0, 120));
+    win.close();
+}
+
 /* ── Добавленная строка принадлежит своей таблице ────────────────── */
 /* Список добавленных строк был один на страницу и накладывался на каждую
    таблицу: строка, заведённая под «Водоотведением», появлялась во всех
