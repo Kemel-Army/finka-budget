@@ -458,6 +458,58 @@
         applyZoom();
     }
 
+    /* ── Всплывающие сообщения ─────────────────────────────────── */
+    /* Вместо alert(): окно alert останавливает страницу, пока не нажмёшь
+       «ОК», и выглядит как сообщение браузера, а не программы.
+       Раньше finkaToast рисовал только shared-nav.js, а на главной (без
+       навигации) его не было вовсе. Здесь он есть на каждой странице,
+       где подключён ui-kit.js; текст выводится как текст, не как HTML —
+       в сообщения попадают тексты ошибок и имена файлов.
+       Длинное сообщение висит дольше, ошибка — не меньше 6 секунд. */
+    var TOAST_ICONS = {
+        success: "\u2714",
+        error: "\u2718",
+        warning: "\u26A0",
+        info: "\u2139",
+    };
+
+    function toast(message, type, ms) {
+        type = TOAST_ICONS[type] ? type : "info";
+        var text = String(message == null ? "" : message);
+        var box = document.getElementById("finkaToasts");
+        if (!box) {
+            box = document.createElement("div");
+            box.className = "finka-toast-container";
+            box.id = "finkaToasts";
+            document.body.appendChild(box);
+        }
+
+        var el = document.createElement("div");
+        el.className = "finka-toast " + type;
+        el.setAttribute("role", type === "error" || type === "warning" ? "alert" : "status");
+        var icon = document.createElement("span");
+        icon.className = "finka-toast-icon";
+        icon.textContent = TOAST_ICONS[type];
+        var body = document.createElement("span");
+        body.style.whiteSpace = "pre-line";
+        body.textContent = text;
+        el.appendChild(icon);
+        el.appendChild(body);
+        box.appendChild(el);
+
+        var life = ms || Math.min(10000, 3000 + Math.floor(text.length / 60) * 1000);
+        if (type === "error" && !ms) life = Math.max(life, 6000);
+        setTimeout(function () {
+            el.classList.add("removing");
+            setTimeout(function () {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 200);
+        }, life);
+    }
+
+    // Подменяем и вариант из shared-nav.js: тот вставлял текст как HTML
+    window.finkaToast = toast;
+
     /* ── Запуск ────────────────────────────────────────────────── */
     var timer = null;
     var observer = null;
@@ -511,6 +563,7 @@
             applyZoom();
         },
         steps: STEPS,
+        toast: toast,
     };
 
     if (document.readyState === "loading") {

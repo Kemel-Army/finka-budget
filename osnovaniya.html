@@ -509,7 +509,7 @@
                                 );
                         })
                         .catch(function (err) {
-                            alert("Не удалось сохранить файл: " + err);
+                            window.finkaToast("Не удалось сохранить вложение в браузере: " + err, "error");
                         });
                 }
 
@@ -517,9 +517,10 @@
                     dbGet(meta.id)
                         .then(function (blob) {
                             if (!blob) {
-                                alert(
+                                window.finkaToast(
                                     "Файл не найден в этом браузере. Вложения хранятся локально: " +
                                         "на другом компьютере их нужно прикрепить заново.",
+                                    "warning",
                                 );
                                 return;
                             }
@@ -533,7 +534,7 @@
                             }, 30000);
                         })
                         .catch(function (err) {
-                            alert("Не удалось открыть файл: " + err);
+                            window.finkaToast("Не удалось открыть вложение: " + err, "error");
                         });
                 }
 

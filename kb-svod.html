@@ -676,7 +676,7 @@ function renderBody() {
    EXCEL EXPORT
 ═══════════════════════════════════════════════════════ */
 function doExportExcel() {
-    if (typeof XLSX === 'undefined') { alert('Библиотека XLSX не загружена'); return; }
+    if (typeof XLSX === 'undefined') { window.finkaToast('Не удалось выгрузить в Excel: модуль выгрузки не загрузился. Обновите страницу.', 'error'); return; }
     var total26 = rowTotal(2026);
     var years   = allYears();
     var aoa     = [];

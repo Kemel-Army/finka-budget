@@ -901,13 +901,14 @@
                «Сводной общей». Адреса ячеек и порядок шагов — в derive.js. */
             function pullFromSources() {
                 if (!window.FinkaDerive) {
-                    alert("Модуль разнесения не загрузился");
+                    window.finkaToast("Не загрузился модуль разнесения (derive.js) — обновите страницу", "error");
                     return;
                 }
                 if (currentBranch === "consolidated") {
-                    alert(
+                    window.finkaToast(
                         "Подтянуть можно по конкретному филиалу — " +
                             "выберите филиал вместо консолидации.",
+                        "warning",
                     );
                     return;
                 }
@@ -938,8 +939,7 @@
                 );
 
                 var msg = parts.join("; ");
-                if (window.finkaToast) window.finkaToast(msg, res.ok ? "success" : "warning");
-                else alert(msg);
+                window.finkaToast(msg, res.ok ? "success" : "warning");
             }
 
             function switchBranch(branch) {

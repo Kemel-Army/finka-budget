@@ -173,7 +173,7 @@
                 if (!section) return;
                 var tbl = section.querySelector("table");
                 if (!tbl) {
-                    alert("Таблица не найдена");
+                    window.finkaToast("В этом разделе нет таблицы для выгрузки", "warning");
                     return;
                 }
                 var title =
@@ -206,7 +206,7 @@
                     "#sections-container table",
                 );
                 if (!tables.length) {
-                    alert("Нет таблиц");
+                    window.finkaToast("Разделы ещё не загрузились — выгружать нечего", "warning");
                     return;
                 }
                 var tblArr = [];
@@ -1396,9 +1396,10 @@
                 var branch =
                     typeof currentBranch !== "undefined" ? currentBranch : "nao";
                 if (branch === "consolidated") {
-                    alert(
+                    window.finkaToast(
                         "Разнести можно из данных конкретного филиала — " +
-                            "выберите филиал вместо сводного вида.",
+                            "выберите филиал вместо консолидации.",
+                        "warning",
                     );
                     return;
                 }
@@ -1411,7 +1412,7 @@
 
                 var res = window.FinkaDerive.toSvod(branch);
                 if (!res.ok) {
-                    alert(res.reason);
+                    window.finkaToast(res.reason, "warning");
                     return;
                 }
                 if (fot.ok) res.moved = res.moved.concat(fot.moved);
@@ -1432,8 +1433,7 @@
                     : "«Свод расходов» уже совпадает со «Сводной общей». Итого " +
                       money(res.total);
 
-                if (window.finkaToast) window.finkaToast(msg, "success");
-                else alert(msg);
+                window.finkaToast(msg, "success");
 
                 if (res.missing.length) {
                     var warn =

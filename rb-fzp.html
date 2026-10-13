@@ -498,7 +498,7 @@
                         });
 
                         if (jsonData.length < 2) {
-                            alert("Файл пуст или не содержит данных");
+                            window.finkaToast("В файле нет строк с данными — проверьте, что выбран нужный лист", "warning");
                             return;
                         }
 
@@ -551,14 +551,15 @@
                         });
 
                         calc();
-                        alert(
+                        window.finkaToast(
                             "Импортировано строк: " +
                                 imported +
                                 " из " +
                                 dataRows.length,
+                            imported ? "success" : "warning",
                         );
                     } catch (err) {
-                        alert("Ошибка при чтении файла: " + err.message);
+                        window.finkaToast("Не удалось прочитать файл: " + err.message, "error");
                     }
                     fileInput.value = "";
                 };
