@@ -1038,7 +1038,7 @@
                           .map(
                               (x) =>
                                   '<div class="imp-result-row">' +
-                                  '<span class="sheet-name">' + x.sheet + "</span>" +
+                                  '<span class="sheet-name">' + esc(x.sheet) + "</span>" +
                                   '<span class="imp-result-arrow">→</span>' +
                                   "<span>" + x.title + " · " + x.branch + "</span>" +
                                   '<a class="imp-result-open" href="' + x.page + '">Открыть</a>' +
@@ -1101,7 +1101,7 @@
                 .map(
                     (r) =>
                         "<tr>" +
-                        '<td class="sheet-name">' + r.sheet + "</td>" +
+                        '<td class="sheet-name">' + esc(r.sheet) + "</td>" +
                         "<td>" + r.title + "</td>" +
                         '<td class="rows-count">' + r.xlRows + "</td>" +
                         '<td class="rows-count">' + r.xlNumbers + " → " + r.gotNumbers + "</td>" +
@@ -1194,6 +1194,16 @@
         let sheetRows = {}; // имя листа → массив строк
         let currentFileName = ""; // нужен для определения филиала
 
+        // Имена листов приходят из чужого файла — в разметку только через esc
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
         function addLog(message, type = "info") {
             const log = document.getElementById("log");
             const entry = document.createElement("div");
@@ -1273,7 +1283,7 @@
                     "<tr>" +
                     '<td><input type="checkbox" class="row-on" data-i="' + i +
                     '" ' + (guess ? "checked" : "") + "></td>" +
-                    '<td class="sheet-name">' + name + "</td>" +
+                    '<td class="sheet-name">' + esc(name) + "</td>" +
                     '<td class="rows-count">' + rows.length + "</td>" +
                     '<td><select class="row-target" data-i="' + i + '">' +
                     '<option value="">— не импортировать —</option>' +
@@ -1314,9 +1324,10 @@
         // не видно в построчном логе
         function buildViewer() {
             const sel = document.getElementById("viewSheet");
-            sel.innerHTML = workbook.SheetNames.map(
-                (n) => '<option value="' + n + '">' + n.trim() + "</option>",
-            ).join("");
+            sel.textContent = "";
+            workbook.SheetNames.forEach((n) => {
+                sel.appendChild(new Option(n.trim(), n));
+            });
             document.getElementById("viewBlock").hidden = false;
             renderSheet(workbook.SheetNames[0]);
         }

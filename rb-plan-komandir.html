@@ -221,6 +221,15 @@
             }
 
             /* ── Разметка ─────────────────────────────────────────────── */
+            // Строки приходят из localStorage/базы — в атрибуты только через esc
+            function esc(s) {
+                return String(s == null ? "" : s)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
             function buildTable() {
                 let html = "";
                 rows.forEach((row, i) => {
@@ -229,17 +238,17 @@
                         '<tr data-row="' + r + '">' +
                         "<td>" + r + "</td>" +
                         '<td><input type="text" id="r' + r + '-name" value="' +
-                        (row.name || "").replace(/"/g, "&quot;") +
+                        esc(row.name) +
                         '" oninput="onEdit()"></td>' +
                         '<td><input type="text" id="r' + r + '-dest" value="' +
-                        (row.dest || "").replace(/"/g, "&quot;") +
+                        esc(row.dest) +
                         '" oninput="onEdit()"></td>';
                     FIELDS.forEach((f) => {
                         html += f.calc
                             ? '<td class="formula-cell" id="r' + r + "-" + f.id +
                               '">0,00</td>'
                             : '<td><input type="number" id="r' + r + "-" + f.id +
-                              '" value="' + (row[f.id] ?? 0) +
+                              '" value="' + esc(row[f.id] ?? 0) +
                               '" oninput="onEdit()"></td>';
                     });
                     html += "</tr>";

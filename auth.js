@@ -736,11 +736,11 @@
         var hasRole = !!profile.role;
         var body = hasRole
             ? "Роль «" +
-              profile.role.label +
+              escapeHtml(profile.role.label) +
               "» не даёт доступа к этому разделу.<br>" +
               "Если доступ нужен по работе — обратитесь к администратору системы."
             : "Учётной записи " +
-              profile.email +
+              escapeHtml(profile.email) +
               " не назначена роль в бюджетной системе.<br>" +
               "Доступ выдаёт администратор.";
         document.body.innerHTML =
