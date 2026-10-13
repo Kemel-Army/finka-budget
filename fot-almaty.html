@@ -471,10 +471,19 @@
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = data;
+                    // Не «tableData = data»: в импортированном листе и в данных
+                    // из базы нет поля branch, и следующее сохранение уходило
+                    // под ключ «fot_undefined». Ключ — всегда по выбранному
+                    // филиалу.
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
                     // Загружаем значения в поля
-                    Object.keys(data.cells).forEach((cell) => {
+                    Object.keys(tableData.cells).forEach((cell) => {
                         const input = document.querySelector(
                             `input[data-cell="${cell}"]`,
                         );
