@@ -52,6 +52,10 @@
     --c-danger: #b91c1c;
     --c-danger-light: #fef2f2;
 
+    /* Ввод и расчёт: поле — белое со светлой рамкой, расчёт — серо-голубой */
+    --c-input-border: #d3dbe6;
+    --c-calc-bg: #edf2f8;
+
     /* Тени минимальные — работу делают границы */
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
     --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.07);
@@ -1033,13 +1037,13 @@ table tbody tr:hover td:not(.title-cell):not(.total-row):not(.formula-cell):not(
     border-bottom: 0 !important;
 }
 
-/* Расчётные ячейки */
+/* Расчётные ячейки — серо-голубые: считаются сами, сюда не пишут */
 .formula-cell {
     font-family: var(--font-mono) !important;
     font-size: 12px;
     font-weight: 500 !important;
-    color: var(--c-gray-600) !important;
-    background: var(--c-gray-50) !important;
+    color: var(--c-gray-700) !important;
+    background: var(--c-calc-bg) !important;
     text-align: right;
 }
 
@@ -1904,8 +1908,8 @@ input[type="text"]:focus,
     font-family: var(--font-mono);
     font-size: 12px;
     font-weight: 500;
-    color: var(--c-gray-600);
-    background: var(--c-gray-50) !important;
+    color: var(--c-gray-700);
+    background: var(--c-calc-bg) !important;
 }
 
 .negative {
@@ -2087,6 +2091,69 @@ input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+/* ── Ввод, расчёт и недоступное ────────────────────────────────────
+   Раньше поле ввода в таблице было прозрачным и без рамки, а расчётная
+   ячейка — почти белой (#f8fafc): не видно, куда писать, а что считается
+   само. Теперь поле — белое со светлой рамкой, расчётная ячейка —
+   серо-голубая без рамки (цвет задан в .formula-cell и .auto-cell выше),
+   а то, что править нельзя (консолидация, только чтение), — серое.
+   У ячеек td.editable рамку поля рисует сама ячейка (см. ui-kit.js). */
+table input[type="number"],
+table input[type="text"],
+table input:not([type]) {
+    background: #fff;
+    border-color: var(--c-input-border) !important;
+}
+
+input:disabled,
+input:disabled:hover,
+select:disabled,
+textarea:disabled,
+input[readonly],
+input[readonly]:hover,
+textarea[readonly] {
+    background: var(--c-gray-100) !important;
+    border-color: var(--c-gray-200) !important;
+    color: var(--c-gray-500);
+    cursor: not-allowed;
+}
+
+input[readonly],
+textarea[readonly] {
+    cursor: default;
+}
+
+/* подпись с разрядами поверх поля (ui-kit.js) — того же серого */
+td.editable input:disabled ~ .uk-shadow,
+td.editable input[readonly] ~ .uk-shadow {
+    background: var(--c-gray-100);
+    color: var(--c-gray-500);
+}
+
+/* ── Фокус с клавиатуры ────────────────────────────────────────────
+   Заметный контур у того, что в фокусе, — иначе при ходьбе по Tab не
+   видно, где курсор. У полей контур внутри, чтобы не сдвигать таблицу. */
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--c-primary) !important;
+    outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--c-primary) !important;
+    outline-offset: -2px;
+}
+
+.finka-nav a:focus-visible,
+.finka-nav button:focus-visible {
+    outline-color: #93c5fd !important;
 }
 
 /* ── Печать ────────────────────────────────────────────────────── */
