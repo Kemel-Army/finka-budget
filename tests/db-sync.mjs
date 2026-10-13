@@ -32,7 +32,7 @@ function eq(label, got, want) {
 /* Модуль — самовызывающаяся функция, наружу отдаёт window.finkaSync.
    Без window.finkaAuth он должен молча ничего не делать: так страница
    работает и без входа в систему. */
-function loadModule() {
+function loadModule(seed) {
     const vc = new VirtualConsole();
     const errors = [];
     vc.on("jsdomError", (e) => errors.push(e.message));
@@ -43,6 +43,8 @@ function loadModule() {
         virtualConsole: vc,
     });
     const win = dom.window;
+    // Кэш, оставшийся в браузере до загрузки модуля
+    if (seed) seed(win);
     const s = win.document.createElement("script");
     s.textContent = fs.readFileSync(path.join(ROOT, "db-sync.js"), "utf8");
     win.document.body.appendChild(s);
@@ -144,6 +146,70 @@ console.log("\n── Перехват записи не мешает чужим
         "xxx",
     );
     ok("публичное API на месте", typeof sync.pull === "function" && typeof sync.push === "function");
+}
+
+console.log("\n── Кэш чужого пользователя стирается при входе другого");
+{
+    // Сессию Supabase кладёт под storageKey из auth.js
+    const session = (id) => JSON.stringify({ access_token: "t", user: { id } });
+    const fill = (win, owner, user) => {
+        win.localStorage.setItem("rb_svodnaya_almaty", '{"a":1}');
+        win.localStorage.setItem("pu_ss_almaty_nao", '{"b":2}');
+        win.localStorage.setItem("budget_year", "2026");
+        win.localStorage.setItem("theme", "dark");
+        if (owner) win.localStorage.setItem("finka_cache_owner", owner);
+        if (user) win.localStorage.setItem("finka-auth", session(user));
+        win.sessionStorage.setItem("finka_synced_rb-svodnaya.html", "1");
+    };
+
+    // Алматы вышел, на том же компьютере вошёл Уральск
+    {
+        const { win } = loadModule((w) => fill(w, "user-almaty", "user-uralsk"));
+        const ls = win.localStorage;
+        eq("алматинские таблицы стёрты", ls.getItem("rb_svodnaya_almaty"), null);
+        eq("ключи ПУ стёрты", ls.getItem("pu_ss_almaty_nao"), null);
+        eq("год бюджета — общая настройка, остался", ls.getItem("budget_year"), "2026");
+        eq("не наши ключи не тронуты", ls.getItem("theme"), "dark");
+        eq("сессия не тронута", ls.getItem("finka-auth"), session("user-uralsk"));
+        eq("кэш теперь за Уральском", ls.getItem("finka_cache_owner"), "user-uralsk");
+        eq(
+            "отметка «уже перезагружали» снята",
+            win.sessionStorage.getItem("finka_synced_rb-svodnaya.html"),
+            null,
+        );
+    }
+
+    // Тот же пользователь перезашёл — кэш его, ничего не трогаем
+    {
+        const { win } = loadModule((w) => fill(w, "user-uralsk", "user-uralsk"));
+        eq("свой кэш на месте", win.localStorage.getItem("rb_svodnaya_almaty"), '{"a":1}');
+        eq(
+            "отметка перезагрузки на месте",
+            win.sessionStorage.getItem("finka_synced_rb-svodnaya.html"),
+            "1",
+        );
+    }
+
+    // Кэш от версии без владельца — неизвестно чей, стираем
+    {
+        const { win } = loadModule((w) => fill(w, "", "user-astana"));
+        eq("кэш без владельца стёрт", win.localStorage.getItem("rb_svodnaya_almaty"), null);
+        eq("владелец записан", win.localStorage.getItem("finka_cache_owner"), "user-astana");
+    }
+
+    // Не вошли — auth.js уведёт на вход, кэш не трогаем
+    {
+        const { win } = loadModule((w) => fill(w, "user-almaty", ""));
+        eq("без сессии кэш на месте", win.localStorage.getItem("rb_svodnaya_almaty"), '{"a":1}');
+    }
+
+    // Повторный вызов для того же пользователя ничего не стирает
+    {
+        const { win, sync } = loadModule((w) => fill(w, "user-almaty", "user-uralsk"));
+        win.localStorage.setItem("rb_svod_uralsk", "1");
+        ok("повтор для того же пользователя — без стирания", sync._dropForeignCache() === false);
+        eq("новые данные пользователя остаются", win.localStorage.getItem("rb_svod_uralsk"), "1");
+    }
 }
 
 console.log(`\n${"=".repeat(78)}\nпроверок: ${total}, расхождений: ${failed}\n`);

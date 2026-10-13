@@ -29,10 +29,69 @@
     // Ключи бюджета. Всё остальное в localStorage (сессия Supabase,
     // настройки браузера) не наше и в базу не уезжает.
     var OURS =
-        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|sheet_edits_|budget_year)/;
+        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|deposit_|sheet_edits_|budget_year)/;
 
     var PAGE = location.pathname.split("/").pop() || "index.html";
-    var RELOAD_FLAG = "finka_synced_" + PAGE;
+    var RELOAD_PREFIX = "finka_synced_";
+    var RELOAD_FLAG = RELOAD_PREFIX + PAGE;
+
+    /* ── Чей кэш ───────────────────────────────────────────────── */
+    /* localStorage один на браузер, а не на учётную запись. Вошёл
+       администратор или Алматы — их данные легли в кэш; следом на том же
+       компьютере входит Уральск, и страницы показывают ему алматинские
+       таблицы: база через RLS отдаёт только Уральск, но старый кэш никто не
+       стирал. Поэтому кэш помечается владельцем, и при входе другого
+       пользователя чужие ключи удаляются — синхронно, до того как скрипты
+       страницы их прочтут. Сессию Supabase кладёт в localStorage под ключом
+       storageKey из auth.js. */
+    var OWNER_KEY = "finka_cache_owner";
+    var AUTH_KEY = "finka-auth";
+
+    function sessionUserId() {
+        try {
+            var s = JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+            return (s && s.user && s.user.id) || "";
+        } catch (e) {
+            return "";
+        }
+    }
+
+    function dropForeignCache() {
+        var uid = sessionUserId();
+        // Не вошли — не трогаем: auth.js всё равно уведёт на вход
+        if (!uid) return false;
+        if (localStorage.getItem(OWNER_KEY) === uid) return false;
+
+        // Чужой кэш или кэш без владельца (от версии без этой проверки).
+        // Запись в базу ещё не перехвачена — удаление туда не уедет.
+        var drop = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            // Год бюджета — общая настройка, а не данные филиала
+            if (OURS.test(k) && !GLOBALS[k]) drop.push(k);
+        }
+        drop.forEach(function (k) {
+            localStorage.removeItem(k);
+        });
+
+        // Отметки «уже перезагружали» прошлого пользователя тоже не наши:
+        // без перезагрузки страница так и останется пустой
+        try {
+            var flags = [];
+            for (var j = 0; j < sessionStorage.length; j++) {
+                var f = sessionStorage.key(j);
+                if (f.indexOf(RELOAD_PREFIX) === 0) flags.push(f);
+            }
+            flags.forEach(function (f) {
+                sessionStorage.removeItem(f);
+            });
+        } catch (e) {
+            /* приватный режим */
+        }
+
+        localStorage.setItem(OWNER_KEY, uid);
+        return true;
+    }
 
     var dirty = Object.create(null);
     var pushTimer = null;
@@ -50,6 +109,13 @@
        rb_svodnaya_almaty_full — филиал в середине, а не в конце. Без этого
        разбора такой ключ уезжал в «ЦА», и филиал не видел собственный лист. */
     var TAIL = "_full";
+
+    // Ниже GLOBALS: без него год бюджета не отличить от данных филиала
+    try {
+        dropForeignCache();
+    } catch (e) {
+        /* localStorage недоступен — страница работает как работала */
+    }
 
     function split(storageKey) {
         if (GLOBALS[storageKey]) return { key: storageKey, branch: "nao" };
@@ -363,6 +429,7 @@
         _join: join,
         _encode: encode,
         _decode: decode,
+        _dropForeignCache: dropForeignCache,
     };
 
     if (document.readyState === "loading") {

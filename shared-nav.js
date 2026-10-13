@@ -37,6 +37,12 @@
                     title: "Основания (приказы)",
                     key: "osnovaniya",
                 },
+                {
+                    // Видна только главбуху ЦА и админу — см. RESTRICTED в auth.js
+                    href: "deposit.html",
+                    title: "Депозит (доход и расход)",
+                    key: "deposit",
+                },
             ],
         },
         rb: {
@@ -210,7 +216,14 @@
             var item = section.items[i];
             var cls = item.href === currentPage ? ' class="current"' : "";
             html +=
-                '<a href="' + item.href + '"' + cls + ">" + item.title + "</a>";
+                '<a href="' + item.href + '"' + cls + ">" +
+                // «Алматы» в названии листа — город выбранного филиала,
+                // auth.js подставит свой (см. «Город в заголовках»)
+                item.title.replace(
+                    "Алматы",
+                    '<span data-city-own="city">Алматы</span>',
+                ) +
+                "</a>";
         }
         return html;
     }

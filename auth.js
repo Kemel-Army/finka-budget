@@ -230,8 +230,23 @@
         };
     }
 
+    /* ── Страницы для узкого круга ─────────────────────────────── */
+    /* Открываются только тем, кому разрешены здесь, — поверх роли: у
+       «Просмотра» и «Работы» доступ ко всем страницам, но эти им не нужны. */
+    var RESTRICTED = {
+        // Депозит ведёт главный бухгалтер ЦА — учётка «Работа (огранич.)»
+        // центрального аппарата, она видит все города
+        "deposit.html": function (p) {
+            return (
+                p.roleKey === "admin" ||
+                (p.roleKey === "limited" && p.branchKey === "nao")
+            );
+        },
+    };
+
     function canOpen(profile, page) {
         if (!profile.role) return false;
+        if (RESTRICTED[page]) return RESTRICTED[page](profile);
         if (!profile.role.pages) return true;
         return profile.role.pages.indexOf(page) !== -1;
     }
@@ -519,6 +534,22 @@
         }
     }
 
+    // Ссылки на закрытые для учётки страницы из RESTRICTED: карточки главной
+    // и пункты навигации. Навигация дорисовывается позже — ждём её.
+    function hideRestrictedLinks(profile) {
+        function hide() {
+            Object.keys(RESTRICTED).forEach(function (page) {
+                if (canOpen(profile, page)) return;
+                var links = document.querySelectorAll('a[href="' + page + '"]');
+                for (var i = 0; i < links.length; i++) {
+                    links[i].style.display = "none";
+                }
+            });
+        }
+        hide();
+        findHost(hide);
+    }
+
     /* ── Привязка к своему филиалу ─────────────────────────────── */
     /* Филиал кнопки: часть страниц размечена атрибутом data-branch, а
        тринадцать других зовут switchBranch('almaty') прямо из onclick.
@@ -555,19 +586,148 @@
             return { found: found, own: own };
         }
 
+        function selectOwn(res) {
+            if (res.own && !res.own.classList.contains("active")) res.own.click();
+        }
+
+        // Страницы перерисовывают панель филиалов при загрузке данных, а
+        // часть из них при этом возвращает филиал по умолчанию — проходим
+        // ещё раз, когда всё успокоится, и снова встаём на свой город
+        function again() {
+            selectOwn(pass());
+        }
+
         (function poll() {
             var res = pass();
             if (!res.found) {
                 if (++tries > 40) return;
                 return setTimeout(poll, 50);
             }
-            if (res.own && !res.own.classList.contains("active")) res.own.click();
-
-            // Страницы перерисовывают панель филиалов при загрузке данных —
-            // проходим ещё раз, когда всё успокоится
-            setTimeout(pass, 800);
-            setTimeout(pass, 2000);
+            selectOwn(res);
+            setTimeout(again, 800);
+            setTimeout(again, 2000);
         })();
+    }
+
+    /* ── Город в заголовках ────────────────────────────────────── */
+    /* Страницы ПУ и часть РБ свёрстаны с алматинских листов Excel: в
+       заголовках, подписях и навигации зашито «Алматы» («СС Алматы»,
+       «филиал г. Алматы»). Пользователь Уральска или Астаны видел свои числа
+       под алматинской шапкой. Такие места размечены атрибутом data-city с
+       формой подписи, текст берётся по выбранному филиалу. */
+    var CITY_TEXT = {
+        city: {
+            nao: "НАО «РФМШ»",
+            almaty: "Алматы",
+            astana: "Астана",
+            uralsk: "Уральск",
+            consolidated: "(консолидация)",
+        },
+        branch: {
+            nao: "НАО «РФМШ»",
+            almaty: "филиал г. Алматы",
+            astana: "филиал г. Астана",
+            uralsk: "филиал г. Уральск",
+            consolidated: "консолидация по филиалам",
+        },
+        "branch-of": {
+            nao: "НАО «РФМШ»",
+            almaty: "филиала НАО «РФМШ» в г. Алматы",
+            astana: "филиала НАО «РФМШ» в г. Астана",
+            uralsk: "филиала НАО «РФМШ» в г. Уральск",
+            consolidated: "НАО «РФМШ» и филиалов (консолидация)",
+        },
+        school: {
+            nao: "Школа",
+            almaty: "Школа г. Алматы",
+            astana: "Школа г. Астана",
+            uralsk: "Школа г. Уральск",
+            consolidated: "Школы",
+        },
+    };
+
+    var cityBranch = "";
+    var ownBranch = "";
+    var baseTitle = "";
+
+    function fill(attr, branch) {
+        var els = document.querySelectorAll("[" + attr + "]");
+        for (var i = 0; i < els.length; i++) {
+            var forms = CITY_TEXT[els[i].getAttribute(attr)];
+            if (forms && forms[branch] != null) {
+                els[i].textContent = forms[branch];
+            }
+        }
+    }
+
+    function relabelCity() {
+        // Навигация и главная (data-city-own) ведут на листы вообще, а не
+        // на выбранный сейчас филиал: свой город в них подставляется только
+        // учётке, привязанной к филиалу
+        if (ownBranch) fill("data-city-own", ownBranch);
+        if (!cityBranch) return;
+        fill("data-city", cityBranch);
+        if (!baseTitle) baseTitle = document.title;
+        if (baseTitle.indexOf("Алматы") !== -1) {
+            document.title = baseTitle.replace(
+                /Алматы/g,
+                CITY_TEXT.city[cityBranch] || "Алматы",
+            );
+        }
+    }
+
+    function setCityBranch(branch) {
+        if (!branch || !CITY_TEXT.city[branch]) return;
+        cityBranch = branch;
+        relabelCity();
+    }
+
+    // Филиал страницы — активная кнопка с филиалом. У «Справок» и «Плана
+    // финансирования» тем же классом размечены кнопки вида бюджета, их
+    // пропускаем.
+    function activeBranchOnPage() {
+        var btns = document.querySelectorAll(".branch-btn.active");
+        for (var i = 0; i < btns.length; i++) {
+            var b = branchOfButton(btns[i]);
+            if (b) return b;
+        }
+        return "";
+    }
+
+    function trackCity(profile) {
+        if (profile.branchLocked) ownBranch = profile.branchKey;
+
+        // Филиал привязан — подписи всегда его, даже на страницах без
+        // переключателя
+        function initial() {
+            relabelCity();
+            setCityBranch(
+                profile.branchLocked ? profile.branchKey : activeBranchOnPage(),
+            );
+        }
+
+        document.addEventListener(
+            "click",
+            function (e) {
+                var btn = e.target && e.target.closest
+                    ? e.target.closest(".branch-btn")
+                    : null;
+                if (btn) setCityBranch(branchOfButton(btn));
+            },
+            true,
+        );
+
+        // Навигация и переключатели филиалов дорисовываются позже — тогда
+        // и подписи в них, и сам выбранный филиал надо подхватить заново
+        function refresh() {
+            if (cityBranch) relabelCity();
+            else initial();
+        }
+
+        initial();
+        findHost(refresh);
+        if (document.readyState === "complete") refresh();
+        else window.addEventListener("load", refresh, { once: true });
     }
 
     /* ── Экран «нет доступа» ───────────────────────────────────── */
@@ -619,7 +779,9 @@
 
         if (!profile.role.canEdit) enableReadOnly(profile);
         if (!profile.role.canImport) hideImportLinks();
+        hideRestrictedLinks(profile);
         if (profile.branchLocked) lockBranch(profile);
+        trackCity(profile);
     }
 
     /* ── «Вы вошли» ────────────────────────────────────────────── */
