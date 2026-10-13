@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Штатное расписание</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             /* Таблица широкая — колонки не должны сжиматься до нечитаемых */
@@ -49,9 +49,9 @@
         </style>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
 
         <div class="header">
+            <div data-export-bar data-excel="exportExcel"></div>
             <h1>🧾 Штатное расписание</h1>
             <p>
                 НАО «РФМШ» • по месяцам • оклады, доплаты, налоги и ФОТ
@@ -137,8 +137,6 @@
                 ➕ Добавить строку
             </button>
             <button class="btn btn-primary" id="shSave">💾 Сохранить</button>
-            <button class="btn btn-success" id="shExcel">📥 Excel</button>
-            <button class="btn btn-secondary" id="shPrint">🖨️ Печать</button>
         </div>
 
         <script src="sheet-ux.js"></script>
@@ -687,14 +685,6 @@
                 });
 
                 document.getElementById("shSave").addEventListener("click", save);
-                document
-                    .getElementById("shExcel")
-                    .addEventListener("click", exportExcel);
-                document
-                    .getElementById("shPrint")
-                    .addEventListener("click", function () {
-                        window.print();
-                    });
 
                 // Правка ставки в панели «Ставки и формулы» — пересчитываем
                 document.addEventListener("finka:rates", function () {

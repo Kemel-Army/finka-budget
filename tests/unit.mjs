@@ -198,6 +198,33 @@ console.log("\n══ Формула объясняется по заголов�
     win.close();
 }
 
+/* Ставки лежат под ключом rates_<филиал>, и филиал должен быть настоящим:
+   по нему db-sync.js раскладывает ключ на строку базы. Кнопки филиалов на
+   большинстве страниц — onclick="switchBranch('…')" без data-branch, и
+   раньше на них всегда выходил «nao». */
+console.log("\n══ Ставки — по выбранному филиалу\n");
+{
+    const html = `<!doctype html><html><body>
+      <button class="branch-btn" onclick="switchBranch('almaty')">Алматы</button>
+      <button class="branch-btn active" onclick="switchBranch('astana')">Астана</button>
+      </body></html>`;
+    const win = load(["formulas.js"], html);
+    win.finkaRates.set("opv", 11);
+    ok("кнопка с onclick — ставки Астаны", win.localStorage.getItem("rates_astana") !== null);
+    eq("в «nao» не попало", win.localStorage.getItem("rates_nao"), null);
+
+    // Консолидация: активна кнопка без филиала — берём филиал учётки
+    win.document.querySelector(".active").setAttribute("onclick", "switchBranch('consolidated')");
+    win.localStorage.setItem(
+        "finka-auth",
+        JSON.stringify({ user: { app_metadata: { branch: "uralsk" } } }),
+    );
+    win.finkaRates.set("opv", 12);
+    ok("консолидация — филиал учётной записи", win.localStorage.getItem("rates_uralsk") !== null);
+    eq("ключа rates_consolidated нет", win.localStorage.getItem("rates_consolidated"), null);
+    win.close();
+}
+
 /* ══ Состав строк расходов ════════════════════════════════════════ */
 console.log("\n══ Типовой состав строк\n");
 {

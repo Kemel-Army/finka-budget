@@ -8,7 +8,9 @@ RUN rm -rf ./*
 COPY . .
 
 # Конфигурация сервера выносится из корня сайта
-RUN mv docker/nginx.conf /etc/nginx/conf.d/default.conf && rm -rf docker
+RUN mv docker/nginx.conf /etc/nginx/conf.d/default.conf \
+ && mv docker/security-headers.conf /etc/nginx/security-headers.conf \
+ && rm -rf docker
 
 EXPOSE 80
 

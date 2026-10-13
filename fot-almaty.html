@@ -7,12 +7,12 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Свод ФОТ Алматы - Онлайн таблица</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Свод оплаты труда филиала НАО "РФМШ"</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Бюджет собственных средств (ПУ) 2026
@@ -245,19 +245,6 @@
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
             </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button class="btn btn-secondary" onclick="printTable()">
-                🖨️ Печать
-            </button>
             <button class="btn btn-secondary" onclick="viewHistory()">
                 📜 История изменений
             </button>
@@ -420,7 +407,10 @@
 
             // Автосохранение
             let saveTimeout;
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
             function autoSave() {
+                dirty = true;
                 clearTimeout(saveTimeout);
 
                 const status = document.getElementById("saveStatus");
@@ -471,10 +461,19 @@
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = data;
+                    // Не «tableData = data»: в импортированном листе и в данных
+                    // из базы нет поля branch, и следующее сохранение уходило
+                    // под ключ «fot_undefined». Ключ — всегда по выбранному
+                    // филиалу.
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
                     // Загружаем значения в поля
-                    Object.keys(data.cells).forEach((cell) => {
+                    Object.keys(tableData.cells).forEach((cell) => {
                         const input = document.querySelector(
                             `input[data-cell="${cell}"]`,
                         );
@@ -497,10 +496,14 @@
 
             // Переключение филиала
             function switchBranch(branch) {
-                // Сохраняем текущие данные перед переключением (кроме консолидации)
-                if (currentBranch !== "consolidated") {
+                // Сохраняем текущие данные перед переключением (кроме
+                // консолидации) — только если их правили: клик по филиалу
+                // без изменений не должен писать в localStorage и базу
+                if (currentBranch !== "consolidated" && dirty) {
+                    clearTimeout(saveTimeout);
                     saveData();
                 }
+                dirty = false;
 
                 // Меняем филиал
                 tableData.branch = branch;
@@ -516,11 +519,11 @@
 
                 // Обновляем название филиала
                 const branchNames = {
-                    almaty: "Алмата",
+                    almaty: "Алматы",
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
 
                 const branchName = branchNames[branch];
@@ -577,7 +580,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 const brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({
@@ -592,18 +595,13 @@
                 });
             }
 
-            // Печать
-            function printTable() {
-                window.print();
-            }
-
-            // История изменений
+            // История изменений. Раньше здесь всплывал список из трёх
+            // строк, вписанный в код, — не настоящая история листа.
             function viewHistory() {
-                alert(
-                    "История изменений:\n\n" +
-                        "• 25.12.2025 15:30 - Обновление ФЗП (Экономист)\n" +
-                        "• 25.12.2025 10:15 - Корректировка тарификации (Экономист)\n" +
-                        "• 24.12.2025 14:00 - Начальное заполнение (Экономист)",
+                window.finkaToast(
+                    "Журнал изменений для этого листа пока не ведётся. " +
+                        "Время последнего сохранения — в строке «Последнее изменение».",
+                    "info",
                 );
             }
         </script>

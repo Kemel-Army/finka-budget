@@ -8,12 +8,12 @@
         <script src="db-sync.js"></script>
         <script src="derive.js"></script>
         <title>Свод РБ 2026-2028</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Бюджет РБ - Свод расходов 2026-2028</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Республиканский бюджет • Лист 1 из 6
@@ -696,32 +696,15 @@
             >
                 🔄 Подтянуть из ФЗП и Сводной общей
             </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button class="btn btn-secondary" onclick="window.print()">
-                🖨️ Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
-            </button>
         </div>
 
         <script>
             let currentBranch = "nao"; // Текущий филиал
 
             let tableData = {
-                branch: "almaty",
+                // Совпадает с активной по умолчанию кнопкой НАО: с «almaty»
+                // под кнопкой НАО показывался и сохранялся лист Алматы
+                branch: "nao",
                 sheet: "rb_svod",
                 lastModified: new Date().toISOString(),
                 cells: {},
@@ -849,8 +832,13 @@
                 );
             }
 
+            // Есть несохранённые правки текущего филиала. auth.js жмёт кнопку
+            // своего филиала при каждом открытии — без правок switchBranch
+            // ничего не пишет (иначе нули или чужой лист уходили в базу)
+            let dirty = false;
             let saveTimeout;
             function autoSave() {
+                dirty = true;
                 clearTimeout(saveTimeout);
 
                 const status = document.getElementById("saveStatus");
@@ -869,11 +857,17 @@
             function saveData() {
                 // Не сохраняем в режиме консолидации
                 if (currentBranch === "consolidated") return;
+                clearTimeout(saveTimeout);
+                dirty = false;
 
-                document.querySelectorAll("input").forEach((input) => {
+                // Только ячейки листа: поля без data-cell (строки sheet-edit.js и
+                // прочие) давали ключ cells["undefined"]
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     tableData.cells[input.dataset.cell] = input.value;
                     input.parentElement.classList.remove("changed");
                 });
+                // мусорный ключ из прежних сохранений
+                delete tableData.cells["undefined"];
 
                 tableData.lastModified = new Date().toISOString();
 
@@ -888,15 +882,25 @@
                 const storageKey = `${tableData.sheet}_${tableData.branch}`;
                 const saved = localStorage.getItem(storageKey);
 
-                document.querySelectorAll("input").forEach((input) => {
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     input.value = "0";
                 });
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = data;
+                    // Не «tableData = data»: в импортированном листе и в данных
+                    // из базы нет полей sheet/branch, и следующее сохранение
+                    // уходило под ключ «undefined_undefined». Ключ — всегда по
+                    // текущей странице и выбранному филиалу.
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        sheet: tableData.sheet,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
-                    Object.keys(data.cells).forEach((cell) => {
+                    Object.keys(tableData.cells).forEach((cell) => {
                         const input = document.querySelector(
                             `input[data-cell="${cell}"]`,
                         );
@@ -920,13 +924,14 @@
                «Сводной общей». Адреса ячеек и порядок шагов — в derive.js. */
             function pullFromSources() {
                 if (!window.FinkaDerive) {
-                    alert("Модуль разнесения не загрузился");
+                    window.finkaToast("Не загрузился модуль разнесения (derive.js) — обновите страницу", "error");
                     return;
                 }
                 if (currentBranch === "consolidated") {
-                    alert(
+                    window.finkaToast(
                         "Подтянуть можно по конкретному филиалу — " +
                             "выберите филиал вместо консолидации.",
+                        "warning",
                     );
                     return;
                 }
@@ -957,13 +962,12 @@
                 );
 
                 var msg = parts.join("; ");
-                if (window.finkaToast) window.finkaToast(msg, res.ok ? "success" : "warning");
-                else alert(msg);
+                window.finkaToast(msg, res.ok ? "success" : "warning");
             }
 
             function switchBranch(branch) {
                 // Не сохраняем данные если текущий режим - консолидация
-                if (currentBranch !== "consolidated") {
+                if (currentBranch !== "consolidated" && dirty) {
                     saveData();
                 }
 
@@ -991,7 +995,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
 
                 document.getElementById("currentBranch").textContent =
@@ -1032,7 +1036,7 @@
                 // Суммируем данные
                 const consolidatedCells = {};
 
-                document.querySelectorAll("input").forEach((input) => {
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     const cellId = input.dataset.cell;
                     let sum = 0;
 
@@ -1212,7 +1216,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
                 var brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({

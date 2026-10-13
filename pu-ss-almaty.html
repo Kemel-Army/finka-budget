@@ -7,33 +7,33 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>СС Алматы 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-pu">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
-            <h1>📊 Собственные средства Алматы 2026</h1>
+            <div data-export-bar data-excel="exportToExcel"></div>
+            <h1>📊 Собственные средства <span data-city="city">Алматы</span> 2026</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Бюджет ПУ — лист 1 из 11 — за счет средств от реализации
                 образовательных услуг
             </p>
             <div class="branch-selector">
-                <button class="branch-btn active" onclick="switchBranch('nao')">
+                <button class="branch-btn active" onclick="switchBranch('nao', this)">
                     НАО «РФМШ»
                 </button>
-                <button class="branch-btn" onclick="switchBranch('almaty')">
+                <button class="branch-btn" onclick="switchBranch('almaty', this)">
                     Алматы
                 </button>
-                <button class="branch-btn" onclick="switchBranch('astana')">
+                <button class="branch-btn" onclick="switchBranch('astana', this)">
                     Астана
                 </button>
-                <button class="branch-btn" onclick="switchBranch('uralsk')">
+                <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                     Уральск
                 </button>
                 <button
                     class="branch-btn"
-                    onclick="switchBranch('consolidated')"
+                    onclick="switchBranch('consolidated', this)"
                 >
                     Консолидация
                 </button>
@@ -65,7 +65,7 @@
                         <td colspan="6" class="title-cell">
                             Сводный расчет расходов собственных средств на 2026
                             год<br />
-                            филиала НАО «РФМШ» в г.Алматы<br />
+                            <span data-city="branch-of">филиала НАО «РФМШ» в г. Алматы</span><br />
                             <span style="font-size: 12px"
                                 >за счет средств от реализации образовательных
                                 услуг на возмездной основе</span
@@ -78,7 +78,7 @@
                         <th>Наименование расходов</th>
                         <th style="width: 70px">Специфика</th>
                         <th style="width: 16%">Всего (тенге)</th>
-                        <th style="width: 16%">Школа г. Алматы</th>
+                        <th style="width: 16%"><span data-city="school">Школа г. Алматы</span></th>
                         <th style="width: 16%">АО "Финансовый центр"</th>
                     </tr>
 
@@ -637,35 +637,18 @@
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
             </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                � Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                🖨️ Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
-            </button>
         </div>
 
         <script>
             let tableData = {
-                branch: "almaty",
-                sheet: "ss_almaty",
+                // Совпадает с активной по умолчанию кнопкой НАО: с «almaty»
+                // под кнопкой НАО показывался и сохранялся лист Алматы
+                branch: "nao",
+                // Ключ pu_ss_almaty_<филиал> — под ним лист ищут импорт,
+                // главная и синхронизация. Раньше здесь было «ss_almaty»: без
+                // префикса ключ не уезжал в базу, а импорт был не виден.
+                // Старые ss_almaty_* переносит db-sync.js.
+                sheet: "pu_ss_almaty",
                 lastModified: new Date().toISOString(),
                 cells: {},
             };
@@ -747,8 +730,13 @@
                 updateCell("totalF", grandTotalF);
             }
 
+            // Есть несохранённые правки текущего филиала. auth.js жмёт кнопку
+            // своего филиала при каждом открытии — без правок switchBranch
+            // ничего не пишет (иначе нули или чужой лист уходили в базу)
+            let dirty = false;
             let saveTimeout;
             function autoSave() {
+                dirty = true;
                 clearTimeout(saveTimeout);
 
                 const status = document.getElementById("saveStatus");
@@ -766,6 +754,8 @@
 
             function saveData() {
                 if (tableData.branch === "consolidated") return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 document.querySelectorAll("input").forEach((input) => {
                     if (input.dataset.cell) {
                         tableData.cells[input.dataset.cell] = input.value;
@@ -793,7 +783,15 @@
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = { ...tableData, ...data };
+                    // Ключ строится из sheet/branch — сохранённые данные (в
+                    // том числе старые, с sheet «ss_almaty») их не подменяют
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        sheet: tableData.sheet,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
                     Object.keys(data.cells || {}).forEach((cell) => {
                         const input = document.querySelector(
@@ -814,8 +812,8 @@
                 calculateTotals();
             }
 
-            function switchBranch(branch) {
-                if (tableData.branch !== "consolidated") {
+            function switchBranch(branch, btn) {
+                if (tableData.branch !== "consolidated" && dirty) {
                     saveData();
                 }
                 if (
@@ -828,7 +826,13 @@
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + branch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
                 if (branch === "consolidated") {
                     document
                         .querySelectorAll("input")
@@ -878,7 +882,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 const brName = branchNames[tableData.branch] || "";
                 SharedExport.exportTableToExcel({

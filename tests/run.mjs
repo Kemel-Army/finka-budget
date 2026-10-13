@@ -66,7 +66,7 @@ function runPage(file, needle, exports, prepare) {
     );
 
     const api = sandbox.__api;
-    prepare(api, ensure, document);
+    prepare(api, ensure, document, window);
     return { api, document, ensure };
 }
 

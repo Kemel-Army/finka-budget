@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Свод доходной части — НАО «РФМШ» 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             /* Раскладка колонок — оформление в shared.css */
@@ -24,6 +24,7 @@
     <body class="page-rb">
         <div class="container" style="max-width: 1600px">
             <div class="header">
+                <div data-export-bar data-excel="exportXlsx"></div>
                 <h1>Свод доходной части НАО «РФМШ» на 2026 год</h1>
                 <p>
                     По прогнозным данным — Республиканский бюджет + Платные
@@ -31,15 +32,9 @@
                 </p>
             </div>
             <div class="controls">
-                <div style="display: flex; gap: 8px; flex-wrap: wrap">
-                    <button onclick="exportXlsx()">📥 Excel</button>
-                    <button onclick="SharedExport.exportToPDF()">📄 PDF</button>
-                    <button onclick="window.print()">🖨️ Печать</button>
-                </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <div class="summary-cards">
                     <div class="summary-card card-rb">
@@ -108,7 +103,10 @@
                 "Ноябрь",
                 "Декабрь",
             ];
-            const KEY = "income_svod";
+            // Лист центрального аппарата. Раньше ключ был «income_svod» — без
+            // префикса и филиала он не попадал в синхронизацию (db-sync.js) и
+            // жил в одном браузере. Старое значение db-sync переносит сам.
+            const KEY = "kb_income_svod_nao";
             let saveTimer;
             const computed = {};
 
@@ -770,8 +768,6 @@
                 el("cardRB").textContent = fmt(rbYear);
                 el("cardPU").textContent = fmt(puYear);
                 el("cardTotal").textContent = fmt(rbYear + puYear);
-
-                schedSave();
             }
 
             /* ── Save / Load ── */
@@ -875,8 +871,13 @@
             document.getElementById("sectionsContainer").innerHTML = allHtml;
             document.getElementById("tblCons").innerHTML = buildConsolidation();
 
+            /* Сохраняем только после правки пользователя. Раньше calc() сам
+               ставил сохранение, и открытие страницы писало kb_income_svod_nao
+               в базу — у ЦА без изменений, у филиала с отказом RLS. */
             document.addEventListener("input", (e) => {
-                if (e.target.matches('input[type="number"]')) calc();
+                if (!e.target.matches('input[type="number"]')) return;
+                calc();
+                schedSave();
             });
 
             load();

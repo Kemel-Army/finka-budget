@@ -7,14 +7,13 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>План командировок в пределах РК - Бюджет ПУ 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="shared-export.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-pu">
         <div class="container">
             <div class="header">
+                <div data-export-bar></div>
                 <h1>План командировок в пределах РК</h1>
                 <p>Бюджет командировочных расходов по территории - 2026</p>
             </div>
@@ -22,22 +21,22 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         Консолидация
                     </button>
@@ -45,114 +44,9 @@
                 <button onclick="addTrip()" id="addBtn">
                     + Добавить командировку
                 </button>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
-                </div>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
-                </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
                 <div class="info">
                     <strong
                         >МРП на <span class="dyn-year">2026</span> год:
@@ -249,7 +143,25 @@
                 sched();
             }
 
+            // Есть несохранённые правки текущего филиала. Пересчёт при загрузке
+            // листа (quiet) — не правка: auth.js жмёт кнопку своего филиала при
+            // каждом открытии, и сохранение без ввода писало лист в базу — у ЦА
+            // поверх данных, у филиала с отказом RLS
+            let dirty = false;
+            let loading = false;
+
+            function quiet(fn) {
+                loading = true;
+                try {
+                    fn();
+                } finally {
+                    loading = false;
+                }
+            }
+
             function sched() {
+                if (loading) return;
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Сохраняю...";
                 clearTimeout(timeout);
@@ -258,7 +170,10 @@
 
             function save() {
                 // Не сохранять в режиме консолидации
-                if (branch === "consolidated") return;
+                // До первой загрузки в полях заготовка — не пишем её поверх данных
+                if (branch === "consolidated" || !pageReady) return;
+                clearTimeout(timeout);
+                dirty = false;
 
                 const data = { trips: [] };
                 const tbody = document.getElementById("tableBody");
@@ -297,36 +212,49 @@
                         document.getElementById(`city-${counter}`).value =
                             r.city || "";
                         document.getElementById(`trips-${counter}`).value =
-                            r.trips || 1;
+                            r.trips ?? 1;
                         document.getElementById(`days-${counter}`).value =
-                            r.days || 3;
+                            r.days ?? 3;
                         document.getElementById(`people-${counter}`).value =
-                            r.people || 2;
+                            r.people ?? 2;
                         document.getElementById(`ticket-${counter}`).value =
-                            r.ticket || 0;
+                            r.ticket ?? 0;
                         document.getElementById(`hotel-${counter}`).value =
-                            r.hotel || 0;
+                            r.hotel ?? 0;
                         calc(counter);
                     });
                 }
             }
 
-            function switchBranch(newBranch) {
-                if (branch !== "consolidated" && branch !== newBranch) {
+            function switchBranch(newBranch, btn) {
+                if (
+                    branch !== "consolidated" &&
+                    branch !== newBranch &&
+                    dirty
+                ) {
                     save();
                 }
                 branch = newBranch;
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
+                // auth.js жмёт кнопку своего филиала раньше load — тогда только
+                // запоминаем филиал, данные загрузит обработчик load
+                if (!pageReady) return;
                 if (branch === "consolidated") {
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = true;
                     });
-                    loadConsolidatedData();
+                    quiet(loadConsolidatedData);
                 } else {
-                    load();
+                    quiet(load);
                 }
             }
 
@@ -352,28 +280,46 @@
                 allTrips.forEach((r) => {
                     counter++;
                     const row = tbody.insertRow();
+                    // Значения из localStorage/базы не вставляем в разметку —
+                    // кладём через .value, чтобы кавычки и теги не ломали страницу
                     row.innerHTML = `
                     <td>${counter}</td>
-                    <td><input type="text" id="purpose-${counter}" value="${r.purpose || ""}" disabled></td>
-                    <td><input type="text" id="city-${counter}" value="${r.city || ""}" disabled></td>
-                    <td><input type="number" id="trips-${counter}" value="${r.trips || 1}" disabled></td>
-                    <td><input type="number" id="days-${counter}" value="${r.days || 3}" disabled></td>
-                    <td><input type="number" id="people-${counter}" value="${r.people || 2}" disabled></td>
-                    <td><input type="number" id="ticket-${counter}" value="${r.ticket || 0}" disabled></td>
-                    <td><input type="number" id="hotel-${counter}" value="${r.hotel || 0}" disabled></td>
+                    <td><input type="text" id="purpose-${counter}" disabled></td>
+                    <td><input type="text" id="city-${counter}" disabled></td>
+                    <td><input type="number" id="trips-${counter}" disabled></td>
+                    <td><input type="number" id="days-${counter}" disabled></td>
+                    <td><input type="number" id="people-${counter}" disabled></td>
+                    <td><input type="number" id="ticket-${counter}" disabled></td>
+                    <td><input type="number" id="hotel-${counter}" disabled></td>
                     <td class="formula-cell" id="daily-${counter}">0</td>
                     <td class="formula-cell" id="total-${counter}">0</td>
                     <td></td>
                 `;
+                    const vals = {
+                        purpose: r.purpose || "",
+                        city: r.city || "",
+                        trips: r.trips ?? 1,
+                        days: r.days ?? 3,
+                        people: r.people ?? 2,
+                        ticket: r.ticket ?? 0,
+                        hotel: r.hotel ?? 0,
+                    };
+                    Object.keys(vals).forEach((f) => {
+                        document.getElementById(`${f}-${counter}`).value =
+                            String(vals[f]);
+                    });
                     calc(counter);
                 });
 
                 document.getElementById("addBtn").disabled = true;
             }
+            // Данные филиала загружены: до этого switchBranch и сохранение ждут
+            let pageReady = false;
             window.addEventListener("load", function () {
+                pageReady = true;
                 var disp = document.getElementById("mrpDisplay");
                 if (disp) disp.textContent = MRP.toLocaleString("ru-RU");
-                load();
+                quiet(load);
             });
         </script>
         <script>

@@ -7,39 +7,27 @@
     <script src="auth.js"></script>
     <script src="db-sync.js"></script>
     <title>Свод ФОТ Алматы - Бюджет ПУ 2026</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="shared-export.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="vendor/xlsx-0.20.3.full.min.js"></script>
     <script src="shared-export.js"></script>
 </head>
 <body class="page-pu">
     <div class="container">
         <div class="header">
-            <h1>Свод ФОТ филиала Алматы</h1>
+            <div data-export-bar></div>
+            <h1>Свод ФОТ <span data-city="branch-of">филиала Алматы</span></h1>
             <p>Сводная таблица фонда оплаты труда на 2026 год</p>
         </div>
         <div class="controls">
             <div class="branch-selector">
-                <button class="branch-btn active" onclick="switchBranch('nao')">НАО «РФМШ»</button>
-                <button class="branch-btn" onclick="switchBranch('almaty')">Алматы</button>
-                <button class="branch-btn" onclick="switchBranch('astana')">Астана</button>
-                <button class="branch-btn" onclick="switchBranch('uralsk')">Уральск</button>
-                <button class="branch-btn" onclick="switchBranch('consolidated')">Консолидация</button>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <button onclick="SharedExport.exportTableToExcel({title:document.title})" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">📥 Excel</button>
-                <button onclick="SharedExport.exportToPDF()" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">📄 PDF</button>
-                <button onclick="window.print()" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">🖨️ Печать</button>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <button onclick="SharedExport.exportTableToExcel({title:document.title})" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">📥 Excel</button>
-                <button onclick="SharedExport.exportToPDF()" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">📄 PDF</button>
-                <button onclick="window.print()" style="padding:6px 14px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:13px">🖨️ Печать</button>
+                <button class="branch-btn active" onclick="switchBranch('nao', this)">НАО «РФМШ»</button>
+                <button class="branch-btn" onclick="switchBranch('almaty', this)">Алматы</button>
+                <button class="branch-btn" onclick="switchBranch('astana', this)">Астана</button>
+                <button class="branch-btn" onclick="switchBranch('uralsk', this)">Уральск</button>
+                <button class="branch-btn" onclick="switchBranch('consolidated', this)">Консолидация</button>
             </div>
             <div class="save-status" id="saveStatus">Сохранено</div>
         </div>
         <div class="content">
-            <a href="index.html" class="back-link">← Вернуться к списку</a>
             <table id="fotTable" data-sheet data-sticky-cols="2">
                 <thead>
                     <tr>
@@ -138,7 +126,7 @@
                     html +=
                         r.type === "data"
                             ? '<td><input type="number" id="' + r.id + "-" + c.id +
-                              '" value="0" oninput="calc()"></td>'
+                              '" value="0" oninput="calc(true)"></td>'
                             : '<td class="formula-cell" id="' + r.id + "-" + c.id +
                               '">0,00</td>';
                 });
@@ -177,7 +165,9 @@
             );
         }
 
-        function calc() {
+        // edited — пересчёт после ввода пользователя: только тогда и
+        // сохраняем. Загрузка филиала сама по себе ничего не пишет.
+        function calc(edited) {
             ROWS.forEach((r) => {
                 vals[r.id] = rowValues(r);
             });
@@ -202,11 +192,15 @@
                 document.getElementById(r.id + "-fot").textContent = fmt(fot);
             });
 
-            schedSave();
+            if (edited) schedSave();
         }
 
         /* ── Сохранение ───────────────────────────────────────────── */
+        // Есть несохранённые правки текущего филиала
+        let dirty = false;
+
         function schedSave() {
+            dirty = true;
             const st = document.getElementById("saveStatus");
             st.textContent = "Сохраняю...";
             st.className = "auto-save-status saving";
@@ -215,7 +209,10 @@
         }
 
         function save() {
-            if (branch === "consolidated") return;
+            // До построения таблицы полей нет — сохранили бы нули
+            if (branch === "consolidated" || !tableReady) return;
+            clearTimeout(timeout);
+            dirty = false;
             const data = {};
             ROWS.filter((r) => r.type === "data").forEach((r) => {
                 data[r.id] = {};
@@ -245,14 +242,23 @@
             apply(saved ? JSON.parse(saved) : null, false);
         }
 
-        function switchBranch(newBranch) {
-            if (branch !== "consolidated" && branch !== newBranch) save();
+        function switchBranch(newBranch, btn) {
+            // Сохраняем только реальные правки: клик по филиалу без
+            // изменений не должен писать в localStorage и базу
+            if (branch !== "consolidated" && branch !== newBranch && dirty) save();
             branch = newBranch;
             document
                 .querySelectorAll(".branch-btn")
                 .forEach((b) => b.classList.remove("active"));
-            if (window.event && window.event.target)
-                window.event.target.classList.add("active");
+            // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+            const activeBtn =
+                btn ||
+                document.querySelector(
+                    ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                );
+            if (activeBtn) activeBtn.classList.add("active");
+            // Таблица ещё не построена — филиал загрузит initPage()
+            if (!tableReady) return;
             if (branch === "consolidated") loadConsolidated();
             else load();
         }
@@ -281,10 +287,23 @@
             apply(acc, true);
         }
 
-        window.addEventListener("load", () => {
+        /* Таблица строится сразу, а не по load: auth.js жмёт кнопку
+           своего филиала, как только проверит сессию, — раньше load,
+           и switchBranch писал в ещё не созданные ячейки
+           («Cannot set properties of null»). Скрипт стоит после
+           разметки таблицы, tbody уже есть. */
+        let tableReady = false;
+
+        function initPage() {
+            if (tableReady) return;
             buildTable();
-            load();
-        });
+            tableReady = true;
+            if (branch === "consolidated") loadConsolidated();
+            else load();
+        }
+
+        if (document.getElementById("tableBody")) initPage();
+        else document.addEventListener("DOMContentLoaded", initPage);
     </script>
     <script>
         // НЕ инициализируем редактируемые таблицы - структура уже готова

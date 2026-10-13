@@ -29,7 +29,7 @@
         almaty: "Алматы",
         astana: "Астана",
         uralsk: "Уральск",
-        consolidated: "Сводный",
+        consolidated: "Консолидация",
     };
     var REAL_BRANCHES = ["nao", "almaty", "astana", "uralsk"];
 
@@ -99,6 +99,8 @@
         function render() {
             var html =
                 '<div class="header">' +
+                // Панель «Excel / PDF / Печать» рисует shared-export.js
+                '<div data-export-bar data-excel="exportExcel"></div>' +
                 "<h1>📊 " + esc(title) + "</h1>" +
                 (subtitle ? "<p>" + esc(subtitle) + "</p>" : "") +
                 '<div class="branch-selector" id="pfBranches">' +
@@ -145,8 +147,6 @@
                 (sumOf
                     ? ""
                     : '<button class="btn btn-primary" id="pfSaveBtn">💾 Сохранить</button>') +
-                '<button class="btn btn-success" id="pfExcelBtn">📥 Excel</button>' +
-                '<button class="btn btn-secondary" id="pfPrintBtn">🖨️ Печать</button>' +
                 "</div>";
             root.innerHTML = html;
         }
@@ -291,6 +291,7 @@
         /* ── Значения ─────────────────────────────────────────────── */
         // На сводной странице полей ввода нет — там всё лежит в auto-ячейках
         function getVal(id, col) {
+            /** @type {HTMLInputElement} */
             var inp = document.querySelector(
                 '#pfBody input[data-row="' + id + '"][data-col="' + col + '"]',
             );
@@ -300,6 +301,7 @@
         }
 
         function setVal(id, col, v) {
+            /** @type {HTMLInputElement} */
             var inp = document.querySelector(
                 '#pfBody input[data-row="' + id + '"][data-col="' + col + '"]',
             );
@@ -464,7 +466,9 @@
 
         function applyReadOnly() {
             var ro = isReadOnly();
-            document.querySelectorAll("#pfBody input").forEach(function (inp) {
+            document.querySelectorAll("#pfBody input").forEach(function (
+                /** @type {HTMLInputElement} */ inp,
+            ) {
                 inp.disabled = ro;
                 inp.style.opacity = ro ? ".7" : "1";
             });
@@ -491,7 +495,7 @@
             });
 
             body.push(
-                ["", "", "Итого:"].concat(
+                /** @type {any[]} */ (["", "", "Итого:"]).concat(
                     ALL_COLS.map(function (c) {
                         var el = document.getElementById("pfT" + capitalize(c));
                         return el ? parseFmt(el.textContent) : 0;
@@ -499,7 +503,7 @@
                 ),
             );
             body.push(
-                ["", "111-124", "Фонд оплаты труда"].concat(
+                /** @type {any[]} */ (["", "111-124", "Фонд оплаты труда"]).concat(
                     ALL_COLS.map(function (c) {
                         var el = document.getElementById("pfFot" + capitalize(c));
                         return el ? parseFmt(el.textContent) : 0;
@@ -544,10 +548,7 @@
 
         var saveBtn = document.getElementById("pfSaveBtn");
         if (saveBtn) saveBtn.addEventListener("click", save);
-        document.getElementById("pfExcelBtn").addEventListener("click", exportExcel);
-        document.getElementById("pfPrintBtn").addEventListener("click", function () {
-            window.print();
-        });
+        if (global.SharedExport) global.SharedExport.mountBars(root);
 
         load();
 

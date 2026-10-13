@@ -71,6 +71,12 @@
         var activeVariant = variants[0].key;
         var model = { rows: [], doc: {} };
         var saveTimer = null;
+        // Есть несохранённые правки текущей таблицы. Без этого флага клик
+        // по филиалу или вкладке записывал таблицу как есть — в том числе
+        // типовые строки филиала, который никто не заполнял, — в
+        // localStorage и оттуда в базу. А auth.js у учётки филиала жмёт
+        // кнопку её города сам, сразу после входа.
+        var dirty = false;
 
         function isSum() {
             return !!(sumVariant && activeVariant === sumVariant.key);
@@ -94,6 +100,8 @@
         function render() {
             root.innerHTML =
                 '<div class="header">' +
+                // Панель «Excel / PDF / Печать» рисует shared-export.js
+                '<div data-export-bar data-excel="exportExcel"></div>' +
                 "<h1>" + esc(cfg.icon || "🗓️") + " " + esc(cfg.title) + "</h1>" +
                 (cfg.subtitle ? "<p>" + esc(cfg.subtitle) + "</p>" : "") +
                 '<div class="branch-selector" id="mpBranches">' +
@@ -163,8 +171,6 @@
                 '<div class="buttons">' +
                 '<button class="btn btn-add-row" id="mpAddBtn">➕ Добавить строку</button>' +
                 '<button class="btn btn-primary" id="mpSaveBtn">💾 Сохранить</button>' +
-                '<button class="btn btn-success" id="mpExcelBtn">📥 Excel</button>' +
-                '<button class="btn btn-secondary" id="mpPrintBtn">🖨️ Печать</button>' +
                 '<button class="btn btn-danger" id="mpResetBtn">↺ Вернуть типовые строки</button>' +
                 "</div>";
         }
@@ -195,12 +201,12 @@
 
             model.rows.forEach(function (row, idx) {
                 var tr = document.createElement("tr");
-                tr.dataset.idx = idx;
+                tr.dataset.idx = String(idx);
 
                 var tdN = document.createElement("td");
                 tdN.className = "label-cell";
                 tdN.style.textAlign = "center";
-                tdN.textContent = idx + 1;
+                tdN.textContent = String(idx + 1);
                 tr.appendChild(tdN);
 
                 tr.appendChild(textCell(row, "code", idx, ro, "center"));
@@ -236,9 +242,9 @@
                 tbody.appendChild(tr);
             });
 
-            document.getElementById("mpAddBtn").disabled = ro;
-            document.getElementById("mpSaveBtn").disabled = ro;
-            document.getElementById("mpResetBtn").disabled = ro;
+            ["mpAddBtn", "mpSaveBtn", "mpResetBtn"].forEach(function (id) {
+                /** @type {HTMLButtonElement} */ (document.getElementById(id)).disabled = ro;
+            });
         }
 
         function textCell(row, field, idx, ro, align) {
@@ -315,7 +321,7 @@
             }
 
             document.getElementById("mpCardYear").textContent = fmt(totYear);
-            document.getElementById("mpCardRows").textContent = model.rows.length;
+            document.getElementById("mpCardRows").textContent = String(model.rows.length);
         }
 
         /* ── Хранение ─────────────────────────────────────────────── */
@@ -337,6 +343,7 @@
             }
 
             docFields.forEach(function (f) {
+                /** @type {HTMLInputElement} */
                 var el = document.querySelector('[data-doc="' + f.key + '"]');
                 if (el) el.value = model.doc[f.key] || "";
             });
@@ -420,7 +427,10 @@
 
         function save() {
             if (isSum()) return;
+            clearTimeout(saveTimer);
+            dirty = false;
             docFields.forEach(function (f) {
+                /** @type {HTMLInputElement} */
                 var el = document.querySelector('[data-doc="' + f.key + '"]');
                 if (el) model.doc[f.key] = el.value;
             });
@@ -436,6 +446,7 @@
 
         function scheduleSave() {
             if (isSum()) return;
+            dirty = true;
             clearTimeout(saveTimer);
             setStatus("⏳ Сохранение...", "saving");
             saveTimer = setTimeout(save, 800);
@@ -504,7 +515,7 @@
         document.getElementById("mpBranches").addEventListener("click", function (e) {
             var btn = e.target.closest(".branch-btn");
             if (!btn) return;
-            save();
+            if (dirty) save();
             this.querySelectorAll(".branch-btn").forEach(function (b) {
                 b.classList.remove("active");
             });
@@ -516,7 +527,7 @@
         document.getElementById("mpVariants").addEventListener("click", function (e) {
             var btn = e.target.closest(".branch-btn");
             if (!btn) return;
-            save();
+            if (dirty) save();
             this.querySelectorAll(".branch-btn").forEach(function (b) {
                 b.classList.remove("active");
             });
@@ -529,6 +540,7 @@
             model.rows.push({ code: "", name: "", m: new Array(12).fill(0) });
             buildBody();
             recalc();
+            /** @type {HTMLInputElement} */
             var last = document.querySelector(
                 "#mpBody tr:last-child input[type=text]",
             );
@@ -545,10 +557,7 @@
         });
 
         document.getElementById("mpSaveBtn").addEventListener("click", save);
-        document.getElementById("mpExcelBtn").addEventListener("click", exportExcel);
-        document.getElementById("mpPrintBtn").addEventListener("click", function () {
-            window.print();
-        });
+        if (global.SharedExport) global.SharedExport.mountBars(root);
 
         docFields.forEach(function (f) {
             var el = document.querySelector('[data-doc="' + f.key + '"]');

@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="shared.css" />
     <script src="auth.js"></script>
     <script src="db-sync.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="vendor/xlsx-0.20.3.full.min.js"></script>
+    <script src="shared-export.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -299,7 +300,6 @@
 </head>
 <body>
 
-<a href="index.html" class="back-link">← Вернуться на главную</a>
 
 <div class="wrapper">
 
@@ -316,18 +316,7 @@
 
     <!-- TOOLBAR -->
     <div class="toolbar">
-        <button class="btn btn-primary" onclick="doExportExcel()">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/></svg>
-            Скачать Excel
-        </button>
-        <button class="btn btn-ghost" onclick="doExportPDF()">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
-            PDF
-        </button>
-        <button class="btn btn-ghost" onclick="window.print()">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5V2h8v3M4 11H2V6h12v5h-2M4 11v3h8v-3"/></svg>
-            Печать
-        </button>
+        <div data-export-bar data-excel="doExportExcel" data-pdf="doExportPDF"></div>
         <!-- Соседние формы руководства: план финансирования и справки -->
         <a class="btn btn-ghost" href="plan-finansirovaniya.html">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
@@ -424,6 +413,15 @@ function fmt(v) {
     if (!n) return '';
     return n.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
+/* Значение в поле ввода — без округления: fmt() режет копейки, и при
+   перерисовке таблицы (добавили год, перезагрузили страницу) в поле
+   оставалось «1 235» вместо 1234,56 — правка поля сохраняла уже
+   округлённое число. Разряды для читаемости оставляем, дробь — как есть. */
+function fmtInput(v) {
+    var n = +v || 0;
+    if (!n) return '';
+    return n.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:10});
+}
 function pctOf(v, total) {
     var n = +v||0, t = +total||0;
     if (!t || !n) return null;
@@ -439,7 +437,8 @@ function loadData() {
         var raw = localStorage.getItem(KEY);
         if (!raw) return;
         var s = JSON.parse(raw);
-        if (s.extraYears) extraYears = s.extraYears;
+        // годы идут в onclick/id без экранирования — пускаем только целые числа
+        if (Array.isArray(s.extraYears)) extraYears = s.extraYears.map(Number).filter(function(y){ return Number.isInteger(y); });
         if (s.rows) ROWS.forEach(function(r) {
             if (s.rows[r.id]) {
                 if (s.rows[r.id].name != null) r.name = s.rows[r.id].name;
@@ -648,7 +647,7 @@ function renderBody() {
         FACT_YEARS.forEach(function(y, fi) {
             var cls = 'td-val fact-col' + (fi===FACT_YEARS.length-1?' fact-col-end':'');
             html += '<td class="'+cls.trim()+'">'
-                  + '<input type="text" value="'+fmt(getVal(r,y))+'" placeholder="0"'
+                  + '<input type="text" value="'+fmtInput(getVal(r,y))+'" placeholder="0"'
                   + ' id="inp_'+r.id+'_'+y+'"'
                   + ' oninput="onValInput(\''+r.id+'\','+y+',this)"'
                   + ' onfocus="this.select()">'
@@ -658,7 +657,7 @@ function renderBody() {
         /* plan cols */
         planYears().forEach(function(y) {
             html += '<td class="td-val plan-col">'
-                  + '<input type="text" value="'+fmt(getVal(r,y))+'" placeholder="0"'
+                  + '<input type="text" value="'+fmtInput(getVal(r,y))+'" placeholder="0"'
                   + ' id="inp_'+r.id+'_'+y+'"'
                   + ' oninput="onValInput(\''+r.id+'\','+y+',this)"'
                   + ' onfocus="this.select()">'
@@ -687,7 +686,7 @@ function renderBody() {
    EXCEL EXPORT
 ═══════════════════════════════════════════════════════ */
 function doExportExcel() {
-    if (typeof XLSX === 'undefined') { alert('Библиотека XLSX не загружена'); return; }
+    if (typeof XLSX === 'undefined') { window.finkaToast('Не удалось выгрузить в Excel: модуль выгрузки не загрузился. Обновите страницу.', 'error'); return; }
     var total26 = rowTotal(2026);
     var years   = allYears();
     var aoa     = [];

@@ -52,6 +52,10 @@
     --c-danger: #b91c1c;
     --c-danger-light: #fef2f2;
 
+    /* Ввод и расчёт: поле — белое со светлой рамкой, расчёт — серо-голубой */
+    --c-input-border: #d3dbe6;
+    --c-calc-bg: #edf2f8;
+
     /* Тени минимальные — работу делают границы */
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
     --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.07);
@@ -207,6 +211,27 @@ button {
 
 .finka-nav-brand span:not(.finka-nav-logo) {
     opacity: 0.95;
+}
+
+/* «← На главную» — одна на лист, рисует shared-nav.js. Класс back-link
+   оставлен для печати и тестов, вид — под тёмную шапку. */
+.finka-nav .finka-nav-home {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    margin: 0 14px 0 -8px;
+    padding: 0 10px !important;
+    border-radius: var(--radius-sm) !important;
+    color: #cbd5e1 !important;
+    font-size: 13px !important;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.finka-nav .finka-nav-home:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.08) !important;
 }
 
 .finka-nav-links {
@@ -754,6 +779,71 @@ body.page-util button:not(.btn).pu:hover {
     transform: none;
 }
 
+/* ── Панель «Excel / PDF / Печать» ─────────────────────────────────
+   Рисует shared-export.js по заглушке <div data-export-bar>. Стоит в шапке
+   листа справа, на всех страницах одна и та же: три спокойные кнопки
+   в порядке Excel → PDF → Печать. */
+.header {
+    display: flow-root;
+}
+
+.export-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.header > .export-bar {
+    float: right;
+    margin: 0 0 8px 16px;
+}
+
+.export-bar .export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px !important;
+    margin: 0;
+    font-family: var(--font) !important;
+    font-size: 12.5px !important;
+    font-weight: 550 !important;
+    line-height: 1;
+    color: var(--c-gray-700) !important;
+    background: #fff !important;
+    border: 1px solid var(--c-gray-300) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition) !important;
+}
+
+.export-bar .export-btn:hover {
+    color: var(--accent) !important;
+    background: var(--c-gray-50) !important;
+    border-color: var(--accent) !important;
+    transform: none;
+}
+
+.export-bar .export-btn-excel .uk-ico {
+    color: var(--c-success);
+}
+
+@media (max-width: 900px) {
+    .header > .export-bar {
+        float: none;
+        margin: 0 0 10px;
+    }
+}
+
+@media print {
+    .export-bar {
+        display: none !important;
+    }
+}
+
 /* ── Поля ввода ────────────────────────────────────────────────── */
 input:not([type]),
 input[type="text"],
@@ -947,13 +1037,13 @@ table tbody tr:hover td:not(.title-cell):not(.total-row):not(.formula-cell):not(
     border-bottom: 0 !important;
 }
 
-/* Расчётные ячейки */
+/* Расчётные ячейки — серо-голубые: считаются сами, сюда не пишут */
 .formula-cell {
     font-family: var(--font-mono) !important;
     font-size: 12px;
     font-weight: 500 !important;
-    color: var(--c-gray-600) !important;
-    background: var(--c-gray-50) !important;
+    color: var(--c-gray-700) !important;
+    background: var(--c-calc-bg) !important;
     text-align: right;
 }
 
@@ -1818,8 +1908,8 @@ input[type="text"]:focus,
     font-family: var(--font-mono);
     font-size: 12px;
     font-weight: 500;
-    color: var(--c-gray-600);
-    background: var(--c-gray-50) !important;
+    color: var(--c-gray-700);
+    background: var(--c-calc-bg) !important;
 }
 
 .negative {
@@ -2001,6 +2091,92 @@ input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+/* ── Ввод, расчёт и недоступное ────────────────────────────────────
+   Раньше поле ввода в таблице было прозрачным и без рамки, а расчётная
+   ячейка — почти белой (#f8fafc): не видно, куда писать, а что считается
+   само. Теперь поле — белое со светлой рамкой, расчётная ячейка —
+   серо-голубая без рамки (цвет задан в .formula-cell и .auto-cell выше),
+   а то, что править нельзя (консолидация, только чтение), — серое.
+   У ячеек td.editable рамку поля рисует сама ячейка (см. ui-kit.js). */
+table input[type="number"],
+table input[type="text"],
+table input:not([type]) {
+    background: #fff;
+    border-color: var(--c-input-border) !important;
+}
+
+/* Ячейка td.editable: поле растянуто на всю ячейку и без своей рамки
+   (см. ui-kit.js), поверх него лежит подпись с разрядами. Рамку поля
+   рисуем внутри ячейки отдельным слоем — иначе пустая ячейка для ввода
+   ничем не отличалась от пустой ячейки текста. */
+td.editable {
+    position: relative;
+}
+
+td.editable::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--c-input-border);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+}
+
+td.editable.uk-editing::after,
+td.editable:has(input:disabled)::after,
+td.editable:has(input[readonly])::after {
+    border-color: transparent;
+}
+
+input:disabled,
+input:disabled:hover,
+select:disabled,
+textarea:disabled,
+input[readonly],
+input[readonly]:hover,
+textarea[readonly] {
+    background: var(--c-gray-100) !important;
+    border-color: var(--c-gray-200) !important;
+    color: var(--c-gray-500);
+    cursor: not-allowed;
+}
+
+input[readonly],
+textarea[readonly] {
+    cursor: default;
+}
+
+/* подпись с разрядами поверх поля (ui-kit.js) — того же серого */
+td.editable input:disabled ~ .uk-shadow,
+td.editable input[readonly] ~ .uk-shadow {
+    background: var(--c-gray-100);
+    color: var(--c-gray-500);
+}
+
+/* ── Фокус с клавиатуры ────────────────────────────────────────────
+   Заметный контур у того, что в фокусе, — иначе при ходьбе по Tab не
+   видно, где курсор. У полей контур внутри, чтобы не сдвигать таблицу. */
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--c-primary) !important;
+    outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--c-primary) !important;
+    outline-offset: -2px;
+}
+
+.finka-nav a:focus-visible,
+.finka-nav button:focus-visible {
+    outline-color: #93c5fd !important;
 }
 
 /* ── Печать ────────────────────────────────────────────────────── */

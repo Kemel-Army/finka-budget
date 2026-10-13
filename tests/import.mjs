@@ -14,6 +14,7 @@ import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeDom } from "./dom-stub.mjs";
+import jsdomPkg from "jsdom";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -75,7 +76,10 @@ function loadImporter() {
             "\n;globalThis.__imp = { TARGETS, BRANCHES, guessTarget, guessBranch," +
             " convIncomePu, convFotAlmaty, convGrafik, convKomandir," +
             " convMonthlyPlan, convShtatnoe, convRaw, colName," +
-            " excelStats, storedStats, verify, pageOf, showResult };",
+            " excelStats, storedStats, verify, pageOf, showResult," +
+            " convSsAlmaty, convSsDotacia, convPuKalkulyacia, convPuSvod," +
+            " convIncomeDt, convIncomeDop, convPlanRk, convPlanAbroad, convFzp," +
+            " storeImported };",
         sandbox,
     );
     return { imp: sandbox.__imp, storage: window.localStorage, document: document };
@@ -121,6 +125,12 @@ const read = (doc, id) => {
 const { imp, storage, document: storageDoc } = loadImporter();
 let failed = 0;
 let total = 0;
+
+function pass0(label, cond, extra = "") {
+    total++;
+    if (!cond) failed++;
+    console.log(`   ${cond ? "OK  " : "FAIL"} ${String(label).padEnd(44)} ${extra}`);
+}
 
 function check(label, got, want) {
     total++;
@@ -612,6 +622,439 @@ console.log("\n── Итоговое сообщение после импор�
     console.log(
         `   ${hasLink ? "OK  " : "FAIL"} в итоге есть ссылка на страницу`.padEnd(58),
     );
+}
+
+/* ── «СВОД ФЗП»: колонки по шапке, а не по номерам ───────────────── */
+// В книге-заготовке ОПВ стоит в K, в рабочей «Бюджет РБ 2026» — в H, а
+// налоги сдвинуты на колонку. С номерами колонок в ОПВ уезжал медстрах,
+// но итог ФОТ сходился — поэтому сверяем каждое поле по отдельности.
+console.log("\n── «СВОД ФЗП»: каждое поле из своей колонки");
+{
+    const FIELDS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9"];
+    // Синтетический лист: в каждой колонке своё число, поле ↔ колонка
+    // задаётся шапкой. want — какое число должно оказаться в c1…c9
+    function sheet(head, sr, tr) {
+        return [
+            [], [], [], [], [], [], [], [], [], [],
+            ["№ п/п", "Наименование", ...head],
+            [1, "Штатное расписание", ...sr],
+            [2, "Тарификация ", ...tr],
+            ["", "ИТОГО"],
+        ];
+    }
+    const sameRow = (label, got, want) => {
+        total++;
+        const bad = FIELDS.filter((f, i) => Number(got[f]) !== want[i]);
+        if (bad.length) failed++;
+        console.log(
+            `   ${bad.length ? "FAIL" : "OK  "} ${label}`.padEnd(58) +
+                (bad.length
+                    ? " не те поля: " + bad.map((f) => `${f}=${got[f]}`).join(", ")
+                    : " c1…c9 на своих местах"),
+        );
+    };
+
+    // Раскладка книги-заготовки: G пособия, H соцналог, I соцотч, J медстрах, K ОПВ
+    const TPL = [
+        " Фактическая численность един.", "Кол-во часов ", "Заработная плата за месяц",
+        " Годовой ФЗП за  2026 год", "Лечебно оздоровительные пособия",
+        "Социальный налог 6%", "Социальные отчисления 5%",
+        "Обязательное  социальное медицинское схрахование 3% ", "ОПВ 3,5%",
+        " Годовой ФОТ за  2026 года с налогами (соц.налог,соц отч, мед страх, пен.взн)",
+    ];
+    const tpl = imp.convFzp(sheet(TPL, [1, 2, 3, 4, 5, 7, 8, 9, 6, 99], [11, 12, 13, 14, 15, 17, 18, 19, 16, 99]));
+    sameRow("заготовка (ОПВ в K): штатное", tpl.rows.sr1, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    sameRow("заготовка (ОПВ в K): тарификация", tpl.rows.tr1, [11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    // Рабочая раскладка + шапка с переносами, неразрывными пробелами и
+    // другим регистром: G пособия, H ОПВ, I соцналог, J соцотч, K медстрах
+    const WORK = [
+        "Фактическая\nчисленность", "КОЛ-ВО ЧАСОВ", "заработная плата\nза месяц",
+        "Годовой  ФЗП", "Лечебно-оздоровительные пособия", "опв\n3,5%",
+        "СОЦИАЛЬНЫЙ\nналог 6%", "Социальные  отчисления", "ОСМС 3%",
+        "Годовой ФОТ с налогами (соц.налог, соц отч, мед страх, пен.взн)",
+    ];
+    const work = imp.convFzp(sheet(WORK, [1, 2, 3, 4, 5, 6, 7, 8, 9, 99], [11, 12, 13, 14, 15, 16, 17, 18, 19, 99]));
+    sameRow("рабочая (ОПВ в H), шапка с переносами", work.rows.sr1, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    sameRow("рабочая (ОПВ в H): тарификация", work.rows.tr1, [11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    // Настоящий лист рабочей книги: ОПВ — H12, соцналог — I12, медстрах — K12
+    const real = SHEETS["СВОД ФЗП [Бюджет РБ 2026]"];
+    if (!real) {
+        pass0("лист «СВОД ФЗП [Бюджет РБ 2026]» есть в фикстурах", false);
+    } else {
+        const d = imp.convFzp(real);
+        check("Бюджет РБ 2026: штатное c4 ФЗП = F12", d.rows.sr1.c4, real[11][5]);
+        check("Бюджет РБ 2026: штатное c5 пособия = G12", d.rows.sr1.c5, real[11][6]);
+        check("Бюджет РБ 2026: штатное c6 ОПВ = H12", d.rows.sr1.c6, real[11][7]);
+        check("Бюджет РБ 2026: штатное c7 соцналог = I12", d.rows.sr1.c7, real[11][8]);
+        check("Бюджет РБ 2026: штатное c8 соцотч = J12", d.rows.sr1.c8, real[11][9]);
+        check("Бюджет РБ 2026: штатное c9 медстрах = K12", d.rows.sr1.c9, real[11][10]);
+        check("Бюджет РБ 2026: тарификация c6 ОПВ = H13", d.rows.tr1.c6, real[12][7]);
+        check("Бюджет РБ 2026: тарификация c9 медстрах = K13", d.rows.tr1.c9, real[12][10]);
+    }
+
+    // Шапки нет — понятная ошибка, а не молча нули или перестановка
+    const noHead = [[], [1, "Штатное расписание", 1, 2, 3, 4, 5, 6, 7, 8, 9]];
+    let msg = "";
+    try {
+        imp.convFzp(noHead);
+    } catch (e) {
+        msg = e.message;
+    }
+    pass0("нет шапки — ошибка с объяснением", /шапк/.test(msg), msg.slice(0, 60));
+
+    const noOsms = TPL.slice();
+    noOsms[7] = "Что-то другое";
+    msg = "";
+    try {
+        imp.convFzp(sheet(noOsms, [1], [1]));
+    } catch (e) {
+        msg = e.message;
+    }
+    pass0("нет колонки медстраха — ошибка называет её", /медстрах/.test(msg), msg.slice(0, 70));
+}
+
+/* ── План командировок: пустые ночи — ноль, а не одна ночь ────────── */
+console.log("\n── План командировок: проживание при пустой колонке ночей");
+{
+    const row = (no, nights) => [no, "поездка " + no, "", "Астана", 100, 1, 3, 2, 0, 5000, 0, 20000, nights];
+    const rows = [["№"], row(1, 3), row(2, ""), ["", "Всего :"]];
+    const d = imp.convPlanRk(rows);
+    check("ночей 3 → проживание 20000 × 3", d.trips[0].hotel, 60000);
+    check("ночей нет → проживание 0", d.trips[1].hotel, 0);
+}
+
+/* ── Повторный импорт не стирает введённое на странице ──────────────
+   Ключ страницы раньше перезаписывался целиком: повторный импорт «СВОД
+   общий» писал fact-N = 0 и note-N = "" и стирал факт и примечания,
+   введённые на pu-svod-2026. То же с МРП/БДО «Свода ФЗП», визами плана
+   за рубеж, реквизитами планов финансирования, настройками и прошлыми
+   периодами штатного расписания. */
+console.log("\n── Повторный импорт: введённое вручную остаётся");
+{
+    const T = (key) => imp.TARGETS.find((t) => t.key === key);
+    const ls = storage;
+    const get = (k) => JSON.parse(ls.getItem(k));
+
+    // «Свод общий»: факт и примечания переживают импорт, план обновляется
+    {
+        const key = "pu_svod_2026_merge";
+        ls.setItem(key, JSON.stringify({
+            "plan-1": "1", "fact-1": "500", "note-1": "оплачено в марте",
+            "plan-3": "7", "fact-3": "77", "note-3": "",
+        }));
+        const data = imp.convPuSvod(SHEETS["СВОД общий 2026"]);
+        imp.storeImported(T("pu_svod_2026"), key, data);
+        const got = get(key);
+        pass0("СВОД общий: fact-1 остался", got["fact-1"] === "500", String(got["fact-1"]));
+        pass0("СВОД общий: note-1 остался", got["note-1"] === "оплачено в марте", String(got["note-1"]));
+        pass0("СВОД общий: fact-3 остался", got["fact-3"] === "77", String(got["fact-3"]));
+        check("СВОД общий: plan-1 — из листа", Number(got["plan-1"]), data["plan-1"]);
+        check("СВОД общий: plan-3 — из листа", Number(got["plan-3"]), data["plan-3"]);
+        pass0("СВОД общий: конвертер факт не пишет", !("fact-1" in data) && !("note-1" in data));
+
+        // Первый импорт (ключа ещё нет) — просто план
+        ls.removeItem(key);
+        imp.storeImported(T("pu_svod_2026"), key, data);
+        pass0("СВОД общий: первый импорт — только план", !("fact-1" in get(key)));
+        ls.removeItem(key);
+    }
+
+    // «Свод ФЗП»: МРП и БДО со страницы, строки — из листа
+    {
+        const key = "rb_fzp_merge";
+        ls.setItem(key, JSON.stringify({ mrp: "4500", bdo: "30000", rows: { sr1: { c1: 1 } } }));
+        const data = imp.convFzp(SHEETS["СВОД ФЗП [Бюджет РБ 2026]"]);
+        imp.storeImported(T("rb_fzp"), key, data);
+        const got = get(key);
+        pass0("СВОД ФЗП: МРП и БДО остались", got.mrp === "4500" && got.bdo === "30000", `${got.mrp} / ${got.bdo}`);
+        check("СВОД ФЗП: строки — из листа", got.rows.sr1.c6, data.rows.sr1.c6);
+        ls.removeItem(key);
+    }
+
+    // План за рубеж: виза по цели и стране, даже если строки переставлены
+    {
+        const key = "pu_plan_abroad_merge";
+        const data = imp.convPlanAbroad(SHEETS["План команд за пределы РК"]);
+        const prevTrips = data.trips
+            .map((t, i) => Object.assign({}, t, { visa: String(1000 + i), hotel: -1 }))
+            .reverse();
+        ls.setItem(key, JSON.stringify({ trips: prevTrips }));
+        imp.storeImported(T("pu_plan_abroad"), key, data);
+        const got = get(key);
+        pass0(
+            "План за рубеж: визы остались у своих поездок",
+            got.trips.length === data.trips.length &&
+                got.trips.every((t, i) => t.visa === String(1000 + i)),
+            got.trips.map((t) => t.visa).join(", "),
+        );
+        pass0("План за рубеж: проживание — из листа", got.trips[0].hotel === data.trips[0].hotel);
+        ls.removeItem(key);
+    }
+
+    // План финансирования: реквизиты документа со страницы
+    {
+        const key = "plan_fin_rb_merge";
+        ls.setItem(key, JSON.stringify({ rows: [], doc: { head: "Директор И. И. Иванов" } }));
+        const data = imp.convMonthlyPlan(SHEETS["План РБ 2026г платежи"]);
+        imp.storeImported(T("plan_fin_rb"), key, data);
+        const got = get(key);
+        pass0("План финансирования: реквизиты остались", !!got.doc && got.doc.head === "Директор И. И. Иванов");
+        check("План финансирования: строки — из листа", got.rows.length, data.rows.length);
+        ls.removeItem(key);
+    }
+
+    // Штатное: настройки и прошлые периоды остаются, свой период заменяется
+    {
+        const key = "shtat_merge";
+        const data = imp.convShtatnoe(SHEETS["ШР на 02.02.2026 г."]);
+        const label = data.periods[0].label;
+        ls.setItem(key, JSON.stringify({
+            periods: [
+                { id: "p1", label: "Январь 2020", rows: [{ post: "Старый" }] },
+                { id: "p2", label: label, rows: [{ post: "Заменится" }] },
+            ],
+            settings: { mrp: 4500, deduction: 140000, lopK: 1.5 },
+        }));
+        imp.storeImported(T("shtat"), key, data);
+        const got = get(key);
+        pass0("Штатное: настройки остались", got.settings.mrp === 4500 && got.settings.lopK === 1.5);
+        pass0(
+            "Штатное: прошлый период остался, текущий заменён",
+            got.periods.length === 2 &&
+                got.periods[0].label === "Январь 2020" &&
+                got.periods[1].id === "p2" &&
+                got.periods[1].rows.length === data.periods[0].rows.length,
+            got.periods.map((p) => `${p.label}: ${p.rows.length}`).join("; "),
+        );
+        ls.removeItem(key);
+    }
+
+    // Цели без merge пишут ключ как раньше — целиком
+    {
+        const key = "pu_income_pu_merge";
+        ls.setItem(key, JSON.stringify({ junk: 1 }));
+        imp.storeImported(T("pu_income_pu"), key, imp.convIncomePu(SHEETS["ДОХОДНАЯ ЧАСТЬ ПУ"]));
+        pass0("без merge ключ перезаписывается целиком", !("junk" in get(key)));
+        ls.removeItem(key);
+    }
+}
+
+/* ══ Импорт → настоящая страница в jsdom → её сохранение ═════════════
+   Раньше часть листов клалась «сырыми ячейками» под ключ страницы, а
+   страница этот формат не понимала: показывала пустоту или через секунду
+   после открытия пересохраняла ключ своими нулями. Здесь лист проходит
+   весь путь: конвертер → localStorage → страница загружается → сохраняет
+   сама → в ключе остались те же числа. */
+const { JSDOM, VirtualConsole, requestInterceptor } = jsdomPkg;
+
+function pass(label, cond, extra = "") {
+    total++;
+    if (!cond) failed++;
+    console.log(`   ${cond ? "OK  " : "FAIL"} ${String(label).padEnd(50)} ${extra}`);
+}
+
+const JS_HDR = { headers: { "Content-Type": "application/javascript" } };
+const XLSX_STUB =
+    "window.XLSX = { utils: { book_new: () => ({}), aoa_to_sheet: () => ({})," +
+    " json_to_sheet: () => ({}), book_append_sheet: () => {}, sheet_to_json: () => []," +
+    " decode_range: () => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } }), encode_cell: () => 'A1' }," +
+    " read: () => ({ SheetNames: [], Sheets: {} }), writeFile: () => {} };";
+
+// Свои файлы — с диска; CDN — заглушка; auth.js пропускаем (уводит на вход)
+const fromDisk = requestInterceptor((request) => {
+    if (/^https?:\/\/(cdn|cdnjs|unpkg)/i.test(request.url)) return new Response(XLSX_STUB, JS_HDR);
+    const name = decodeURIComponent(request.url.split("/").pop().split("?")[0]);
+    const p = path.join(ROOT, name);
+    if (name === "auth.js" || !fs.existsSync(p)) return new Response("", JS_HDR);
+    return new Response(fs.readFileSync(p, "utf8"), JS_HDR);
+});
+
+async function openPage(file, seed) {
+    const errors = [];
+    const vc = new VirtualConsole();
+    vc.on("jsdomError", (e) => errors.push(e.message));
+    const dom = new JSDOM(fs.readFileSync(path.join(ROOT, file), "utf8"), {
+        runScripts: "dangerously",
+        url: "http://localhost/" + file,
+        pretendToBeVisual: true,
+        virtualConsole: vc,
+        resources: { interceptors: [fromDisk] },
+        beforeParse(w) {
+            w.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {} });
+            w.fetch = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => "" });
+            for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
+        },
+    });
+    const win = dom.window;
+    await new Promise((r) => win.addEventListener("load", r, { once: true }));
+    // Страницы пересохраняют ключ через секунду после расчёта — ждём дольше
+    await new Promise((r) => win.setTimeout(r, 1300));
+    return { win, errors };
+}
+
+const sumOf = (data) => imp.storedStats(data);
+
+console.log("\n── Импорт → страница: формат понятен, нулями не затирается");
+{
+    // Какую часть сохранённого сравнивать: МРП и БДО «Свода ФЗП» листу
+    // не принадлежат — их страница подставляет сама
+    // cells["undefined"] у «Свода» и «Доходов РБ» — поле без data-cell,
+    // которое страница пишет при сохранении (отдельная правка страниц);
+    // к листу оно не относится
+    const noUndef = (d) => {
+        if (!d || !d.cells) return d;
+        const cells = { ...d.cells };
+        delete cells.undefined;
+        return { ...d, cells };
+    };
+    const PICK = { rb_fzp: (d) => d && d.rows, rb_svod: noUndef, rb_income: noUndef };
+    const PAGES = [
+        "rb_svod", "rb_income", "rb_kalkulyacia", "rb_fzp",
+        "pu_svod_2026", "pu_ss_almaty", "pu_ss_dotacia",
+        "pu_income_dt", "pu_income_dop", "pu_kalkulyacia_almaty",
+        "pu_plan_rk", "pu_plan_abroad",
+    ];
+    for (const key of PAGES) {
+        const target = imp.TARGETS.find((t) => t.key === key);
+        const rows = SHEETS[target.sheets[0]];
+        if (!rows) {
+            pass(`${key}: лист есть в фикстурах`, false);
+            continue;
+        }
+        const data = await (target.conv || imp.convRaw)(rows);
+        const pick = PICK[key] || ((d) => d);
+        const want = sumOf(pick(data));
+
+        // Часть страниц открывается на НАО, часть — на Алматы: кладём в оба
+        const json = JSON.stringify(data);
+        const seed = {};
+        seed[key + "_nao"] = json;
+        seed[key + "_almaty"] = json;
+        const file = imp.pageOf(key);
+        const { win, errors } = await openPage(file, seed);
+
+        // Сохранение самой страницей: то, что она поняла, она и запишет
+        const save = win.saveData || win.save;
+        if (typeof save === "function") save();
+
+        const ls = win.localStorage;
+        const stored = ["nao", "almaty"].map((b) => {
+            try {
+                return sumOf(pick(JSON.parse(ls.getItem(key + "_" + b))));
+            } catch (e) {
+                return { numbers: 0, sum: 0 };
+            }
+        });
+        const same = stored.every(
+            (s) => s.numbers > 0 && Math.abs(s.sum - want.sum) < 0.01,
+        );
+        pass(
+            `${file}`,
+            want.numbers > 0 && same && !errors.length,
+            errors.length
+                ? "ошибка страницы: " + errors[0].slice(0, 60)
+                : `чисел ${want.numbers}, Σ ${Math.round(want.sum)} → ` +
+                      stored.map((s) => Math.round(s.sum)).join(" / "),
+        );
+
+        // Ключ строится из sheet/branch — сырые ячейки их не содержат
+        const bad = Object.keys(ls).filter((k) => /undefined/.test(k));
+        pass(`${file}: нет ключей с «undefined»`, bad.length === 0, bad.join(", "));
+        win.close();
+    }
+}
+
+console.log("\n── «Свод общий»: факт со страницы переживает повторный импорт");
+{
+    const target = imp.TARGETS.find((t) => t.key === "pu_svod_2026");
+    const data = imp.convPuSvod(SHEETS["СВОД общий 2026"]);
+    // Как после работы на странице: план прошлого импорта, факт и
+    // примечание введены руками. Повторный импорт кладёт план поверх
+    const prev = { ...data, "plan-2": "1", "fact-2": "1234.5", "note-2": "аванс" };
+    const merged = JSON.stringify(target.merge(prev, data));
+    const { win, errors } = await openPage("pu-svod-2026.html", {
+        pu_svod_2026_nao: merged,
+        pu_svod_2026_almaty: merged,
+    });
+    const val = (id) => {
+        const el = win.document.getElementById(id);
+        return el ? el.value : undefined;
+    };
+    pass(
+        "pu-svod-2026: факт и примечание на месте",
+        !errors.length && Number(val("fact-2")) === 1234.5 && val("note-2") === "аванс",
+        errors.length ? errors[0].slice(0, 60) : `fact-2 = ${val("fact-2")}, note-2 = «${val("note-2")}»`,
+    );
+    pass(
+        "pu-svod-2026: план — из листа",
+        Number(val("plan-2")) === Number(data["plan-2"]),
+        `plan-2 = ${val("plan-2")}`,
+    );
+    win.close();
+}
+
+console.log("\n── Сырые ячейки без sheet/branch: ключ сохранения не теряется");
+{
+    // rb-svod, rb-income, rb-kalkulyacia, fot-almaty делали tableData = data
+    // и следующее сохранение уходило в «undefined_undefined» / «fot_undefined»
+    const CASES = [
+        ["rb-svod.html", "rb_svod", { C10: 5 }],
+        ["rb-income.html", "rb_income", { E7: 7 }],
+        ["rb-kalkulyacia.html", "rb_kalkulyacia", { C5: 9 }],
+        ["fot-almaty.html", "fot", { D7: 3 }],
+    ];
+    for (const [file, key, cells] of CASES) {
+        const raw = JSON.stringify({ lastModified: "2026-01-01T00:00:00Z", cells });
+        const seed = {};
+        ["nao", "almaty"].forEach((b) => (seed[key + "_" + b] = raw));
+        const { win } = await openPage(file, seed);
+        win.saveData();
+        const ls = win.localStorage;
+        const bad = Object.keys(ls).filter((k) => /undefined/.test(k));
+        pass(`${file}: сохранение не в «undefined»`, bad.length === 0, bad.join(", "));
+        const saved = ["nao", "almaty"]
+            .map((b) => JSON.parse(ls.getItem(key + "_" + b)))
+            .find((d) => d && d.branch);
+        const cell = Object.keys(cells)[0];
+        pass(
+            `${file}: значение ${cell} на месте`,
+            !!saved && Number(saved.cells[cell]) === cells[cell],
+            saved ? `${cell} = ${saved.cells[cell]}, филиал ${saved.branch}` : "страница не сохранила",
+        );
+        win.close();
+    }
+}
+
+console.log("\n── Статьи СС и калькуляции по номеру статьи, а не по строке");
+{
+    // Синтетический лист с разными числами: № n → D = 10n, E = n, F = 100n
+    const rows = [[], ["№", "", "Наименование расходов", "ВСЕГО"], ["", "", "Контингент учащихся", 0, 159, 164]];
+    for (let n = 1; n <= 23; n++) {
+        rows.push(["", n, "статья " + n, 10 * n, n, 100 * n]);
+        if (n === 9) rows.push(["", "", "ИТОГО ФОТ", 999999, 999999, 999999]);
+    }
+    rows.push(["", "", "Всего расходов", 888888, 888888, 888888]);
+
+    const ss = imp.convSsAlmaty(rows).cells;
+    check("СС Алматы D10 = 111: № 1+2+3", ss.D10, 60);
+    check("СС Алматы D11 = 113: № 4+9 (с арендой)", ss.D11, 130);
+    check("СС Алматы D12 = 116: № 8 (ОПВ)", ss.D12, 80);
+    check("СС Алматы D13 = 121: № 5", ss.D13, 50);
+    check("СС Алматы F15 = 124: № 7, финцентр", ss.F15, 700);
+    check("СС Алматы D20 = 141: № 10", ss.D20, 100);
+    check("СС Алматы E32 = 419: № 22, школа", ss.E32, 22);
+
+    const dt = imp.convSsDotacia(rows);
+    check("СС Дотация, контингент школы", dt.contingent.school, 159);
+    check("СС Дотация, статья 2 всего", dt.items[2].total, 130);
+    check("СС Дотация, статья 19 финцентр", dt.items[19].fc, 2200);
+
+    // В калькуляции нет «ИТОГО ФОТ» — номера те же, строки сдвинуты
+    const k = imp.convPuKalkulyacia(rows.filter((r) => r[2] !== "ИТОГО ФОТ"));
+    check("Калькуляция i1 = (10+20+30) × 323", k.i1, 60 * 323);
+    check("Калькуляция i19 = 220 × 323", k.i19, 220 * 323);
 }
 
 console.log(

@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Форма 4-20 — сводный отчёт по расходам</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             .num-cell {
@@ -40,8 +40,8 @@
         </style>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>Форма № 4-20 — сводный отчёт по расходам</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 План-факт по бюджетной классификации. План на год берётся из
@@ -60,7 +60,7 @@
                     data-branch="consolidated"
                     style="border-color: #8e44ad; color: #8e44ad"
                 >
-                    По организации
+                    Консолидация
                 </button>
             </div>
         </div>
@@ -183,22 +183,6 @@
             <button class="btn btn-primary" onclick="saveData()">
                 Сохранить
             </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
-            </button>
         </div>
 
         <script>
@@ -226,7 +210,7 @@
                 almaty: "Алматы",
                 astana: "Астана",
                 uralsk: "Уральск",
-                consolidated: "По организации",
+                consolidated: "Консолидация",
             };
 
             // Строки формы = строки «Свода»
@@ -431,7 +415,7 @@
 
                 SPECS.forEach((s) => {
                     const v = {};
-                    INPUTS.forEach((k) => (v[k] = valueOf(k + "-" + s.code, s.code, k)));
+                    INPUTS.forEach((k) => (v[k] = fieldValue(k + "-" + s.code, s.code, k)));
 
                     const unpaid = v.taken - v.paidYear;        //  9 = 6 − 7
                     const restOblig = v.planOblig - v.taken;    // 11 = 4 − 6
@@ -454,7 +438,9 @@
             }
 
             // В режиме «по организации» полей ввода нет — берём из данных
-            function valueOf(id, code, key) {
+            // Не valueOf: объявление на верхнем уровне скрипта подменяло
+            // window.valueOf
+            function fieldValue(id, code, key) {
                 const el = document.getElementById(id);
                 if (el && el.tagName === "INPUT") return parseNum(el.value);
                 return parseNum(facts[code][key]);
@@ -485,7 +471,11 @@
             }
 
             /* ── Хранение ─────────────────────────────────────────────── */
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+
             function scheduleSave() {
+                dirty = true;
                 const st = document.getElementById("saveStatus");
                 if (st) {
                     st.textContent = "Сохраняю…";
@@ -506,6 +496,8 @@
             function saveData() {
                 if (currentBranch === "consolidated") return;
                 if (readOnly()) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 collect();
 
                 const out = {};
@@ -548,7 +540,10 @@
 
             /* ── Филиалы ──────────────────────────────────────────────── */
             function switchBranch(branch) {
-                if (currentBranch !== "consolidated") saveData();
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
+                if (currentBranch !== "consolidated" && dirty) saveData();
+                dirty = false;
                 currentBranch = branch;
 
                 document.querySelectorAll(".branch-btn").forEach((btn) => {

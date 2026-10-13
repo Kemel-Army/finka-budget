@@ -7,17 +7,17 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Доходная часть ПУ - Бюджет ПУ 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="shared-export.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-pu">
         <div class="container">
             <div class="header">
+                <div data-export-bar></div>
                 <h1>Доходная часть ПУ (подушевое обучение)</h1>
                 <p>
-                    План поступлений по доходам на 2026 год - филиал г. Алматы
+                    План поступлений по доходам на 2026 год -
+                    <span data-city="branch">филиал г. Алматы</span>
                 </p>
             </div>
 
@@ -25,135 +25,30 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         Консолидация
-                    </button>
-                </div>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
-                </div>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
                     </button>
                 </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
 
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <div class="budget-table-wrapper">
                     <table id="budgetTable" data-sheet data-sticky-cols="3">
@@ -175,6 +70,9 @@
                                 <th class="month-col">Октябрь</th>
                                 <th class="month-col">Ноябрь</th>
                                 <th class="month-col">Декабрь</th>
+                                <!-- Excel R8, S8: «Стоимость на одного» в месяц и в год -->
+                                <th class="month-col">Стоимость на одного в месяц</th>
+                                <th class="month-col">Стоимость на одного в год</th>
                                 <th class="month-col">Итого</th>
                             </tr>
                         </thead>
@@ -287,7 +185,12 @@
             }
 
             /* ── Расчёт ───────────────────────────────────────────────── */
+            // Итоги строк в режиме консолидации: сумма итогов строк филиалов
+            // (null — обычный режим, итог считается из полей)
+            let consTotals = null;
+
             function rowTotal(r) {
+                if (consTotals) return consTotals[r] || 0;
                 const def = ROW_DEFS[r - 1];
                 if (def.mode === "annual") {
                     // T = контингент * стоимость в год
@@ -295,6 +198,17 @@
                 }
                 let s = 0;
                 for (let m = 1; m <= MONTHS; m++) s += num("row-" + r + "-m" + m);
+                return s;
+            }
+
+            // Тот же итог строки, но из сохранённых данных филиала
+            function savedRowTotal(r, row) {
+                const def = ROW_DEFS[r - 1];
+                if (def.mode === "annual") {
+                    return (parseFloat(row.cont) || 0) * (parseFloat(row.py) || 0);
+                }
+                let s = 0;
+                for (let m = 1; m <= MONTHS; m++) s += parseFloat(row["m" + m]) || 0;
                 return s;
             }
 
@@ -345,7 +259,11 @@
             }
 
             /* ── Сохранение ───────────────────────────────────────────── */
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+
             function scheduleAutoSave() {
+                dirty = true;
                 const st = document.getElementById("saveStatus");
                 st.textContent = "Сохраняю...";
                 st.className = "auto-save-status saving";
@@ -354,7 +272,10 @@
             }
 
             function saveData() {
-                if (currentBranch === "consolidated") return;
+                // До построения таблицы полей нет — сохранили бы нули
+                if (currentBranch === "consolidated" || !tableReady) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 const data = { rows: {} };
                 for (let r = 1; r <= ROWS; r++) {
                     const row = {
@@ -394,6 +315,7 @@
                     SHEET_KEY + "_" + currentBranch,
                 );
                 const data = saved ? JSON.parse(saved) : { rows: {} };
+                consTotals = null;
                 for (let r = 1; r <= ROWS; r++)
                     applyRow(r, (data.rows || {})[r], false);
                 updateAllRows();
@@ -406,19 +328,28 @@
                 updateTotals();
             }
 
-            function switchBranch(newBranch) {
+            function switchBranch(newBranch, btn) {
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
                 if (
                     currentBranch !== "consolidated" &&
-                    currentBranch !== newBranch
+                    currentBranch !== newBranch &&
+                    dirty
                 ) {
                     saveData();
                 }
                 currentBranch = newBranch;
                 document
                     .querySelectorAll(".branch-btn")
-                    .forEach((btn) => btn.classList.remove("active"));
-                if (window.event && window.event.target)
-                    window.event.target.classList.add("active");
+                    .forEach((b) => b.classList.remove("active"));
+                const active =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                    );
+                if (active) active.classList.add("active");
+                // Таблица ещё не построена — филиал загрузит initPage()
+                if (!tableReady) return;
                 if (currentBranch === "consolidated") loadConsolidatedData();
                 else loadData();
             }
@@ -426,9 +357,13 @@
             function loadConsolidatedData() {
                 const branches = ["almaty", "uralsk", "astana", "nao"];
                 const acc = {};
+                const totals = {};
                 for (let r = 1; r <= ROWS; r++) {
-                    acc[r] = { cont: 0, pm: 0, py: 0 };
+                    // Стоимость на одного по филиалам не складывается — в
+                    // консолидации её не показываем
+                    acc[r] = { cont: 0, pm: null, py: null };
                     for (let m = 1; m <= MONTHS; m++) acc[r]["m" + m] = 0;
+                    totals[r] = 0;
                 }
 
                 branches.forEach((b) => {
@@ -440,11 +375,12 @@
                             const row = (data.rows || {})[r];
                             if (!row) continue;
                             acc[r].cont += parseFloat(row.cont) || 0;
-                            // Стоимость на одного не суммируется — берём последнюю
-                            if (parseFloat(row.pm)) acc[r].pm = parseFloat(row.pm);
-                            if (parseFloat(row.py)) acc[r].py = parseFloat(row.py);
                             for (let m = 1; m <= MONTHS; m++)
                                 acc[r]["m" + m] += parseFloat(row["m" + m]) || 0;
+                            // Итог строки — сумма итогов филиалов. Для строк
+                            // «за год» (E×S) это Σ контингент×стоимость, а не
+                            // Σконтингент × стоимость одного из филиалов
+                            totals[r] += savedRowTotal(r, row);
                         }
                     } catch (e) {
                         console.error("Ошибка чтения " + b, e);
@@ -452,13 +388,27 @@
                 });
 
                 for (let r = 1; r <= ROWS; r++) applyRow(r, acc[r], true);
+                consTotals = totals;
                 updateAllRows();
             }
 
-            window.addEventListener("load", () => {
+            /* Таблица строится сразу, а не по load: auth.js жмёт кнопку
+               своего филиала, как только проверит сессию, — раньше load,
+               и switchBranch писал в ещё не созданные ячейки
+               («Cannot set properties of null»). Скрипт стоит после
+               разметки таблицы, tbody уже есть. */
+            let tableReady = false;
+
+            function initPage() {
+                if (tableReady) return;
                 buildTable();
-                loadData();
-            });
+                tableReady = true;
+                if (currentBranch === "consolidated") loadConsolidatedData();
+                else loadData();
+            }
+
+            if (document.getElementById("tableBody")) initPage();
+            else document.addEventListener("DOMContentLoaded", initPage);
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова

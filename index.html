@@ -589,6 +589,25 @@
                             ></div>
                         </a>
                         <a
+                            href="deposit.html"
+                            class="page-card"
+                            data-key="deposit"
+                            data-search="депозит доход расход вознаграждение остатки непредвиденные главный бухгалтер"
+                        >
+                            <div class="card-icon">🏦</div>
+                            <div class="card-body">
+                                <div class="card-title">Депозит</div>
+                                <div class="card-desc">
+                                    Доходная и расходная часть средств от
+                                    размещения депозита — ЦА, филиалы, консолидация
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
                             href="fot-consolidation.html"
                             class="page-card rb"
                             data-key=""
@@ -809,8 +828,8 @@
                                     <span class="dyn-year">2026</span>
                                 </div>
                                 <div class="card-desc">
-                                    Детальная расшифровка всех разделов — 641
-                                    строка
+                                    Детальная расшифровка всех разделов
+                                    расходов по строкам
                                 </div>
                             </div>
                             <div
@@ -952,13 +971,16 @@
                             href="pu-ss-dotacia.html"
                             class="page-card pu"
                             data-key="pu_ss_dotacia"
-                            data-search="сс дотация социальное страхование"
+                            data-search="сс дотация собственные средства дотации"
                         >
                             <div class="card-icon">🏥</div>
                             <div class="card-body">
-                                <div class="card-title">СС Дотация</div>
+                                <div class="card-title">
+                                    Собственные средства (Дотация)
+                                </div>
                                 <div class="card-desc">
-                                    Социальное страхование и дотации
+                                    Расчёт расходов собственных средств за
+                                    счёт дотаций
                                 </div>
                             </div>
                             <div
@@ -1063,13 +1085,13 @@
                             href="pu-grafik-almaty.html"
                             class="page-card pu"
                             data-key="pu_grafik_almaty"
-                            data-search="график алматы работа расчёт"
+                            data-search="график алматы родительская оплата транши"
                         >
                             <div class="card-icon">📅</div>
                             <div class="card-body">
-                                <div class="card-title">График</div>
+                                <div class="card-title">График оплаты</div>
                                 <div class="card-desc">
-                                    График работы и расчёты
+                                    График родительской оплаты по траншам
                                 </div>
                             </div>
                             <div
@@ -1226,20 +1248,28 @@
                 "use strict";
 
                 /* ── Период бюджета ─────────────────────────────── */
+                /* При открытии год только читаем: budget_year уходит в базу,
+                   и запись здесь откатывала выбор админа (2027) на текущий
+                   календарный год, а у филиала давала отказ RLS. Без
+                   сохранённого года — текущий, но без записи; пишут только
+                   обработчики change ниже. */
                 var currentYear = new Date().getFullYear();
-                var savedEndYear = localStorage.getItem("budget_year_end");
-                var budgetYear = currentYear;
-                var budgetEndYear = savedEndYear
-                    ? Math.max(parseInt(savedEndYear, 10), budgetYear)
-                    : budgetYear + 2;
-                if (budgetEndYear < budgetYear) budgetEndYear = budgetYear + 2;
-                localStorage.setItem("budget_year", budgetYear);
-                localStorage.setItem("budget_year_end", budgetEndYear);
+                var savedYear = parseInt(localStorage.getItem("budget_year"), 10);
+                var savedEndYear = parseInt(localStorage.getItem("budget_year_end"), 10);
+                var budgetYear =
+                    savedYear >= 2020 && savedYear <= 2050 ? savedYear : currentYear;
+                var budgetEndYear =
+                    savedEndYear >= budgetYear && savedEndYear <= budgetYear + 5
+                        ? savedEndYear
+                        : budgetYear + 2;
 
                 var yearInput = document.getElementById("yearInput");
                 var yearEndInput = document.getElementById("yearEndInput");
 
-                for (var yi = currentYear; yi <= currentYear + 5; yi++) {
+                // Сохранённый год может быть вне окна от текущего — он тоже в списке
+                var firstYear = Math.min(currentYear, budgetYear);
+                var lastYear = Math.max(currentYear + 5, budgetYear);
+                for (var yi = firstYear; yi <= lastYear; yi++) {
                     var opt = document.createElement("option");
                     opt.value = yi;
                     opt.textContent = yi;

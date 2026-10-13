@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <script src="db-sync.js"></script>
+        <title>Депозит — доход и расход 2026</title>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
+        <script src="shared-export.js"></script>
+        <script src="deposit-core.js"></script>
+        <style>
+            .dep-table td.name {
+                text-align: left;
+                white-space: normal;
+                line-height: 1.35;
+                min-width: 360px;
+            }
+            .dep-table td.num-col {
+                text-align: center;
+                width: 44px;
+            }
+            .dep-table td.val {
+                text-align: right;
+                white-space: nowrap;
+                width: 150px;
+            }
+            .dep-table td.val input {
+                width: 100%;
+                text-align: right;
+            }
+            .dep-table tr.section td {
+                background: #eef2ff;
+                font-weight: 700;
+            }
+            .dep-table tr.group td,
+            .dep-table tr.total td {
+                font-weight: 700;
+            }
+            .dep-table tr.total td {
+                background: #f8fafc;
+            }
+            .dep-table tr.balance td {
+                background: #ecfdf5;
+                font-weight: 700;
+            }
+            .dep-table tr.balance.neg td {
+                background: #fef2f2;
+                color: #b91c1c;
+            }
+            .dep-table tr.split td.name {
+                padding-left: 32px;
+                color: #475569;
+            }
+            .dep-limit {
+                margin: 10px 0 0;
+                font-size: 13px;
+                color: #475569;
+            }
+            .dep-limit.over {
+                color: #b91c1c;
+                font-weight: 600;
+            }
+            .dep-sign {
+                margin-top: 28px;
+                display: grid;
+                grid-template-columns: max-content max-content;
+                gap: 10px 48px;
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body class="page-rb">
+        <div class="container">
+            <div class="header">
+                <div data-export-bar data-excel="exportDepositExcel"></div>
+                <h1>🏦 Депозит — доходная и расходная часть</h1>
+                <p>
+                    Свод доходной и расходной части денежных средств, полученных
+                    за счёт размещения депозита, на 2026 год ·
+                    <span data-city="city">НАО «РФМШ»</span>
+                </p>
+            </div>
+            <div class="controls">
+                <div class="branch-selector" id="depBranches">
+                    <button class="branch-btn active" data-branch="nao">
+                        НАО «РФМШ»
+                    </button>
+                    <button class="branch-btn" data-branch="almaty">Алматы</button>
+                    <button class="branch-btn" data-branch="astana">Астана</button>
+                    <button class="branch-btn" data-branch="uralsk">Уральск</button>
+                    <button class="branch-btn" data-branch="consolidated">
+                        Консолидация
+                    </button>
+                </div>
+                <div class="save-status" id="saveStatus">Сохранено</div>
+            </div>
+            <div class="content">
+                <table class="dep-table" id="depTable" data-sheet>
+                    <thead>
+                        <tr>
+                            <th>№ п/п</th>
+                            <th>Наименование</th>
+                            <th>Сумма на 2026 год</th>
+                            <th>Стратегические расходы</th>
+                            <th>Сумма без НДС</th>
+                            <th>Сумма НДС</th>
+                        </tr>
+                    </thead>
+                    <tbody id="depBody"></tbody>
+                </table>
+                <p class="dep-limit" id="depLimit"></p>
+                <div class="dep-sign">
+                    <span>Председатель Правления НАО «РФМШ»</span>
+                    <span>Калиев Р.С.</span>
+                    <span>Финансовый директор НАО «РФМШ»</span>
+                    <span>Калкенова Г.К.</span>
+                    <span>Главный экономист НАО «РФМШ»</span>
+                    <span>Каужапарова С.С.</span>
+                </div>
+            </div>
+        </div>
+        <script>
+            (function () {
+                "use strict";
+
+                var D = window.DepositCore;
+
+                /* Депозит ведут все: каждый город — свой лист под ключом
+                   deposit_<город>, он лежит в строке своего филиала, и по RLS
+                   филиал пишет только его. Учётки ЦА читают все строки — у
+                   главного бухгалтера ЦА книга заполняется целиком: свой лист,
+                   листы филиалов и «Консолидация» с разбивкой непредвиденных
+                   по ЦА и филиалам (строки 25–28 книги). */
+                var PREFIX = "deposit_";
+
+                var branch = "nao";
+                var store = loadStore();
+                var timer = null;
+                // Правки текущего листа, ещё не сохранённые: без них ни
+                // переключение города, ни уход со страницы ничего не пишут
+                var dirty = false;
+
+                function loadSheet(b) {
+                    try {
+                        var s = JSON.parse(localStorage.getItem(PREFIX + b) || "null");
+                        if (s && s.rows) return s.rows;
+                        // Первая версия страницы клала все города одним
+                        // ключом в строку ЦА — свой лист ЦА берём оттуда
+                        if (b === "nao" && s && s.branches) return s.branches.nao || {};
+                    } catch (e) {
+                        /* битый кэш — начинаем с пустого */
+                    }
+                    return {};
+                }
+
+                function loadStore() {
+                    var branches = {};
+                    D.BRANCHES.forEach(function (b) {
+                        branches[b] = loadSheet(b);
+                    });
+                    return { branches: branches };
+                }
+
+                function sheet(b) {
+                    if (!store.branches[b]) store.branches[b] = {};
+                    return store.branches[b];
+                }
+
+                function isCons() {
+                    return branch === "consolidated";
+                }
+
+                function year() {
+                    return (
+                        parseInt(localStorage.getItem("budget_year"), 10) ||
+                        new Date().getFullYear()
+                    );
+                }
+
+                function fmt(n) {
+                    if (n == null) return "";
+                    return n.toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                    });
+                }
+
+                function esc(s) {
+                    return String(s)
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;");
+                }
+
+                function inputCell(row, col) {
+                    var raw = (sheet(branch)[row.id] || {})[col];
+                    return (
+                        '<td class="val"><input type="number" step="0.01" ' +
+                        'data-row="' + row.id + '" data-col="' + col + '" ' +
+                        'value="' + (raw == null || raw === "" ? "" : esc(raw)) +
+                        '" placeholder="0,00" /></td>'
+                    );
+                }
+
+                function valCell(row, col) {
+                    return (
+                        '<td class="val formula-cell" data-out="' + row.id +
+                        "-" + col + '"></td>'
+                    );
+                }
+
+                // Колонки: d — сумма, e — стратегические, f — без НДС, g — НДС
+                function cellsFor(row) {
+                    var editable = !isCons();
+                    if (row.kind === "income" && editable) {
+                        return inputCell(row, "d") + "<td></td><td></td><td></td>";
+                    }
+                    if (row.kind === "expense" && editable) {
+                        return (
+                            valCell(row, "d") +
+                            valCell(row, "e") +
+                            inputCell(row, "f") +
+                            inputCell(row, "g")
+                        );
+                    }
+                    return ["d", "e", "f", "g"]
+                        .map(function (c) {
+                            return valCell(row, c);
+                        })
+                        .join("");
+                }
+
+                function render() {
+                    var html = "";
+                    D.ROWS.forEach(function (row) {
+                        if (row.kind === "section") {
+                            html +=
+                                '<tr class="section"><td class="num-col">' +
+                                esc(row.num) + '</td><td class="name" colspan="5">' +
+                                esc(row.name) + "</td></tr>";
+                            return;
+                        }
+                        var cls = row.kind;
+                        if (row.id === "r32") cls += " balance";
+                        html +=
+                            '<tr class="' + cls + '" data-id="' + row.id + '">' +
+                            '<td class="num-col">' + esc(row.num || "") + "</td>" +
+                            '<td class="name">' + esc(row.name) +
+                            (row.split && isCons() ? ". Из них:" : "") +
+                            "</td>" + cellsFor(row) + "</tr>";
+
+                        // Строки 25–28 книги: разбивка по ЦА и филиалам
+                        if (row.split && isCons()) {
+                            D.BRANCHES.forEach(function (b) {
+                                html +=
+                                    '<tr class="split"><td></td><td class="name">' +
+                                    esc(D.BRANCH_NAMES[b]) + "</td>" +
+                                    ["d", "e", "f", "g"]
+                                        .map(function (c) {
+                                            return (
+                                                '<td class="val formula-cell" data-split="' +
+                                                b + "-" + c + '"></td>'
+                                            );
+                                        })
+                                        .join("") +
+                                    "</tr>";
+                            });
+                        }
+                    });
+                    document.getElementById("depBody").innerHTML = html;
+                    recalc();
+                }
+
+                function recalc() {
+                    var v = isCons()
+                        ? D.consolidate(store.branches)
+                        : D.compute(sheet(branch));
+
+                    var outs = document.querySelectorAll("[data-out]");
+                    for (var i = 0; i < outs.length; i++) {
+                        var p = outs[i].getAttribute("data-out").split("-");
+                        outs[i].textContent = fmt(v[p[0]][p[1]]);
+                    }
+
+                    if (isCons()) {
+                        D.splitRows(store.branches, "r24").forEach(function (s) {
+                            ["d", "e", "f", "g"].forEach(function (c) {
+                                var el = document.querySelector(
+                                    '[data-split="' + s.branch + "-" + c + '"]',
+                                );
+                                if (el) el.textContent = fmt(s.value[c]);
+                            });
+                        });
+                    }
+
+                    var bal = document.querySelector('tr[data-id="r32"]');
+                    if (bal) bal.classList.toggle("neg", v.r32.d < 0);
+
+                    // Лимит непредвиденных — на НАО целиком, поэтому
+                    // показываем его на любой вкладке
+                    var lim = D.limitCheck(store.branches, year());
+                    var box = document.getElementById("depLimit");
+                    box.className = "dep-limit" + (lim.over ? " over" : "");
+                    box.textContent =
+                        "Непредвиденные расходы по НАО и филиалам: " +
+                        fmt(lim.used) + " ₸ из лимита " +
+                        D.MRP_LIMIT.toLocaleString("ru-RU") + " МРП = " +
+                        fmt(lim.limit) + " ₸" +
+                        (lim.over ? " — лимит превышен" : "");
+                }
+
+                function save() {
+                    if (isCons() || !dirty) return;
+                    localStorage.setItem(
+                        PREFIX + branch,
+                        JSON.stringify({ v: 2, rows: sheet(branch) }),
+                    );
+                    dirty = false;
+                    var st = document.getElementById("saveStatus");
+                    st.textContent = "Сохранено";
+                }
+
+                document
+                    .getElementById("depBody")
+                    .addEventListener("input", function (e) {
+                        var el = e.target;
+                        if (!el.dataset || !el.dataset.row || isCons()) return;
+                        var s = sheet(branch);
+                        if (!s[el.dataset.row]) s[el.dataset.row] = {};
+                        s[el.dataset.row][el.dataset.col] = el.value;
+                        dirty = true;
+                        recalc();
+                        document.getElementById("saveStatus").textContent =
+                            "Сохраняю…";
+                        clearTimeout(timer);
+                        timer = setTimeout(save, 600);
+                    });
+
+                document
+                    .getElementById("depBranches")
+                    .addEventListener("click", function (e) {
+                        var btn = e.target.closest(".branch-btn");
+                        if (!btn) return;
+                        clearTimeout(timer);
+                        save();
+                        this.querySelectorAll(".branch-btn").forEach(function (b) {
+                            b.classList.remove("active");
+                        });
+                        btn.classList.add("active");
+                        branch = btn.getAttribute("data-branch");
+                        render();
+                    });
+
+                // Кнопку «Excel» рисует shared-export.js (data-excel на заглушке)
+                window.exportDepositExcel = function () {
+                    var label = isCons()
+                        ? "Консолидация"
+                        : (D.BRANCH_NAMES[branch] || branch);
+                    SharedExport.exportTableToExcel({
+                        table: "#depTable",
+                        title: "Депозит 2026 — " + label,
+                        sheetName: "Депозит",
+                    });
+                };
+
+                window.addEventListener("beforeunload", function () {
+                    if (timer) {
+                        clearTimeout(timer);
+                        save();
+                    }
+                });
+
+                render();
+            })();
+        </script>
+        <script src="sheet-ux.js"></script>
+        <script src="shared-nav.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

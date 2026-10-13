@@ -7,18 +7,17 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Доходная часть ДТ - Бюджет ПУ 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="shared-export.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-pu">
         <div class="container">
             <div class="header">
+                <div data-export-bar></div>
                 <h1>Доходная часть ДТ</h1>
                 <p>
-                    По доле подушевого тарификации на 2026 год - филиал г.
-                    Алматы
+                    По доле подушевого тарификации на 2026 год -
+                    <span data-city="branch">филиал г. Алматы</span>
                 </p>
             </div>
 
@@ -26,135 +25,30 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         Консолидация
-                    </button>
-                </div>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
-                </div>
-                <div
-                    style="
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: wrap;
-                        align-items: center;
-                    "
-                >
-                    <button
-                        onclick="
-                            SharedExport.exportTableToExcel({
-                                title: document.title,
-                            })
-                        "
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
                     </button>
                 </div>
                 <div class="save-status" id="saveStatus">Сохранено</div>
             </div>
 
             <div class="content">
-                <a href="index.html" class="back-link">← Вернуться к списку</a>
 
                 <div class="budget-table-wrapper">
                     <table>
@@ -435,8 +329,11 @@
             const SHEET_KEY = "pu_income_dt";
             let currentBranch = "nao";
             let saveTimeout;
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
 
-            function update(r) {
+            // Итог строки — без сохранения: зовётся и при загрузке
+            function calcRow(r) {
                 let sum = 0;
                 for (let m = 1; m <= 12; m++) {
                     sum +=
@@ -446,6 +343,16 @@
                 }
                 document.getElementById(`r${r}-total`).textContent =
                     sum.toLocaleString("ru-RU", { minimumFractionDigits: 2 });
+            }
+
+            // Пересчёт после загрузки: итоги строк и таблицы, без записи
+            function calcAll() {
+                for (let r = 1; r <= 2; r++) calcRow(r);
+                updateTotals();
+            }
+
+            function update(r) {
+                calcRow(r);
                 updateTotals();
                 scheduleAutoSave();
             }
@@ -479,6 +386,7 @@
             }
 
             function scheduleAutoSave() {
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Сохраняю...";
                 document.getElementById("saveStatus").style.background =
@@ -489,7 +397,10 @@
 
             function saveData() {
                 // Не сохранять в режиме консолидации
-                if (currentBranch === "consolidated") return;
+                // До первой загрузки в полях заготовка — не пишем её поверх данных
+                if (currentBranch === "consolidated" || !pageReady) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
 
                 const data = { rows: {} };
                 for (let r = 1; r <= 2; r++) {
@@ -534,13 +445,16 @@
                         }
                     }
                 }
-                updateTotals();
+                calcAll();
             }
 
-            function switchBranch(newBranch) {
+            function switchBranch(newBranch, btn) {
+                // Сохраняем только реальные правки: клик auth.js по своему
+                // филиалу не должен писать лист ЦА (_nao) в базу
                 if (
                     currentBranch !== "consolidated" &&
-                    currentBranch !== newBranch
+                    currentBranch !== newBranch &&
+                    dirty
                 ) {
                     saveData();
                 }
@@ -548,7 +462,16 @@
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
+                // auth.js жмёт кнопку своего филиала раньше load — тогда только
+                // запоминаем филиал, данные загрузит обработчик load
+                if (!pageReady) return;
                 if (currentBranch === "consolidated") {
                     loadConsolidatedData();
                 } else {
@@ -605,10 +528,15 @@
                         document.getElementById(`r${r}-m${m}`).disabled = true;
                     }
                 }
-                updateTotals();
+                calcAll();
             }
 
-            window.addEventListener("load", loadData);
+            // Данные филиала загружены: до этого switchBranch и сохранение ждут
+            let pageReady = false;
+            window.addEventListener("load", () => {
+                pageReady = true;
+                loadData();
+            });
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова

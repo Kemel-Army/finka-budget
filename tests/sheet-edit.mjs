@@ -66,6 +66,10 @@ const localFiles = requestInterceptor((request) => {
     if (/^https?:\/\/(cdn|cdnjs|unpkg)/i.test(url)) {
         return new Response(XLSX_STUB, JS);
     }
+    // SheetJS лежит в vendor/ — в тесте его заменяет та же заглушка
+    if (/\/vendor\/xlsx[^/]*\.js$/i.test(url.split("?")[0])) {
+        return new Response(XLSX_STUB, JS);
+    }
     const name = decodeURIComponent(url.split("/").pop().split("?")[0]);
     if (name === "auth.js") return new Response("", JS);
     const p = path.join(ROOT, name);
@@ -100,7 +104,8 @@ function installStubs(window) {
     };
 }
 
-async function load(file) {
+// seed — данные в localStorage до первого скрипта страницы
+async function load(file, seed = {}) {
     const errors = [];
     const vc = new VirtualConsole();
     vc.on("jsdomError", (e) => errors.push(e.message));
@@ -112,7 +117,10 @@ async function load(file) {
         pretendToBeVisual: true,
         virtualConsole: vc,
         resources: { interceptors: [localFiles] },
-        beforeParse: installStubs,
+        beforeParse(w) {
+            installStubs(w);
+            for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
+        },
     });
 
     const win = dom.window;
@@ -230,6 +238,191 @@ console.log("\n── Правки: переименование, добавле
     win.close();
 }
 
+/* ── Итоги самой страницы не попадают в «ИТОГО по таблице» ───────── */
+/* Строки sub-row («Итого по тарификации», «Рентабельность 8%») и grand-row
+   («ВСЕГО») — расчётные итоги страницы. Пока они считались строками данных,
+   «ИТОГО по таблице» складывал их вместе с исходными строками: введённая
+   1000 превращалась в итоге в 2000–3000. */
+console.log("\n── «ИТОГО по таблице» без промежуточных итогов страницы");
+for (const [page, inputId, value, label] of [
+    ["pu-fot-almaty.html", "r1-fzp", 1000, "ФЗП: 1000 в строке 1"],
+    ["pu-income-pu.html", "row-2-m1", 1000, "январь: 1000 в строке 2"],
+]) {
+    const { win, errors } = await load(page);
+    const doc = win.document;
+    const inp = doc.getElementById(inputId);
+    ok(`${page}: поле ${inputId} есть`, !!inp);
+    if (!inp) {
+        win.close();
+        continue;
+    }
+    inp.value = String(value);
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 300);
+
+    const table = inp.closest("table");
+    const sx = table.querySelectorAll("tr.sx-total");
+    ok(`${page}: одна строка «ИТОГО по таблице»`, sx.length === 1, `строк: ${sx.length}`);
+
+    // Колонка поля в строке итога — с учётом colspan в первой ячейке
+    const col = (tr, cell) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            if (td === cell) return c;
+            c += parseInt(td.getAttribute("colspan"), 10) || 1;
+        }
+        return -1;
+    };
+    const at = (tr, idx) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            const span = parseInt(td.getAttribute("colspan"), 10) || 1;
+            if (idx >= c && idx < c + span) return td;
+            c += span;
+        }
+        return null;
+    };
+    const idx = col(inp.closest("tr"), inp.closest("td"));
+    const cell = sx.length ? at(sx[0], idx) : null;
+    const got = cell
+        ? parseFloat(cell.textContent.replace(/[\s ]/g, "").replace(",", "."))
+        : NaN;
+    ok(`${page}: ${label} → в итоге ${value}`, got === value, `получили ${cell ? cell.textContent.trim() : "—"}`);
+
+    const hard = errors.filter((e) => !/Not implemented|Could not parse CSS/i.test(e));
+    ok(`${page}: без ошибок`, hard.length === 0, hard.slice(0, 1).join("").slice(0, 120));
+    win.close();
+}
+
+/* ── Старые ключи переименований остаются на своих строках ───────── */
+/* Ключ переименования — t{таблица}r{номер строки данных}c{колонка}, и такие
+   ключи уже лежат в базе (sheet_edits_*). Строки итогов страницы (sub-row,
+   grand-row, row-total, mega-row) исключены только из «ИТОГО по таблице»;
+   выкинь их из нумерации — сохранённые наименования съехали бы на чужие
+   строки. Нумерацию здесь считаем по прежнему правилу (как в main). */
+console.log("\n── Старые ключи переименований — на тех же строках");
+{
+    const SUBTOTAL = ["sub-row", "grand-row", "row-total", "mega-row"];
+    // Прежнее правило isServiceRow — без классов итогов
+    const oldService = (tr) =>
+        ["sx-total", "total-row", "summary-row", "grand-total-row", "fot-row"]
+            .some((c) => tr.classList.contains(c)) || !!tr.querySelector(".title-cell");
+    const oldData = (tr) =>
+        !oldService(tr) && !!tr.querySelector("input, .formula-cell, .auto-cell");
+    const sheetTables = (doc) =>
+        [...doc.querySelectorAll("table")].filter(
+            (t) => !t.hasAttribute("data-no-sheet-edit") && !t.closest(".finka-nav") && t.tBodies.length,
+        );
+    const isText = (td) =>
+        !td.querySelector("input") &&
+        !td.classList.contains("formula-cell") &&
+        !td.classList.contains("auto-cell");
+    const MARK = "ПРОВЕРКА старого ключа";
+
+    for (const page of ["pu-fot-almaty.html", "rb-fzp.html", "fot-consolidation.html", "pu-grafik-almaty.html"]) {
+        // Первый проход: находим строку данных ниже строки итога
+        let { win } = await load(page);
+        let doc = win.document;
+        let found = null;
+        sheetTables(doc).forEach((table, tIdx) => {
+            if (found) return;
+            const rows = [...table.tBodies].flatMap((b) => [...b.rows]).filter(oldData);
+            let afterSub = false;
+            rows.forEach((tr, ri) => {
+                if (found) return;
+                if (SUBTOTAL.some((c) => tr.classList.contains(c))) {
+                    afterSub = true;
+                    return;
+                }
+                if (!afterSub) return;
+                const c = [...tr.cells].findIndex((td) => isText(td) && td.textContent.trim());
+                if (c < 0) return;
+                const all = [...table.querySelectorAll("tr")];
+                found = { tIdx, ri, c, rowPos: all.indexOf(tr), orig: tr.cells[c].textContent.trim() };
+            });
+        });
+        const branchBtn = doc.querySelector(".branch-btn.active");
+        const m = branchBtn && /switchBranch\(['"]([^'"]+)/.exec(branchBtn.getAttribute("onclick") || "");
+        const branch = (branchBtn && branchBtn.getAttribute("data-branch")) || (m && m[1]) || "nao";
+        win.close();
+
+        ok(`${page}: есть строка данных ниже строки итога`, !!found);
+        if (!found) continue;
+
+        // Второй проход: правка по старому ключу уже лежит в localStorage
+        const key = `t${found.tIdx}r${found.ri}c${found.c}`;
+        ({ win } = await load(page, {
+            [`sheet_edits_${page}_${branch}`]: JSON.stringify({ names: { [key]: MARK } }),
+        }));
+        doc = win.document;
+        const table = sheetTables(doc)[found.tIdx];
+        const tr = table && [...table.querySelectorAll("tr")][found.rowPos];
+        const got = tr && tr.cells[found.c] ? tr.cells[found.c].textContent.trim() : "—";
+        const where = [...doc.querySelectorAll("td")].filter((td) => td.textContent.trim() === MARK).length;
+        ok(
+            `${page}: ${key} → «${found.orig.slice(0, 20)}»`,
+            got === MARK && where === 1,
+            `в ячейке: «${got.slice(0, 30)}», совпадений: ${where}`,
+        );
+        win.close();
+    }
+}
+
+/* ── Ячейки rb-income / rb-svod: только поля с data-cell ─────────── */
+/* Сохранение собирало все <input> страницы, и поля добавленных строк
+   sheet-edit.js (у них нет data-cell) ложились в cells["undefined"]. */
+console.log('\n── Сохранение ячеек без мусорного ключа cells["undefined"]');
+for (const [page, sheet] of [
+    ["rb-income.html", "rb_income"],
+    ["rb-svod.html", "rb_svod"],
+]) {
+    // Филиал, в который страница сохраняет при открытии, — дело ключей
+    // хранения; здесь важны только ячейки, поэтому мусор кладём во все
+    const seed = {};
+    for (const b of ["nao", "almaty", "astana", "uralsk"]) {
+        seed[sheet + "_" + b] = JSON.stringify({ sheet, branch: b, cells: { undefined: "5" } });
+    }
+    const { win } = await load(page, seed);
+    const doc = win.document;
+    doc.querySelector(".sx-bar .sx-add").dispatchEvent(new win.Event("click", { bubbles: true }));
+    await tick(win, 200);
+    const extra = doc.querySelector("tr.sx-extra input");
+    const cellInput = doc.querySelector("input[data-cell]");
+    if (extra) {
+        extra.value = "77";
+        extra.dispatchEvent(new win.Event("input", { bubbles: true }));
+    }
+    cellInput.value = "123";
+    cellInput.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 1300);
+    let cells = null;
+    for (const b of ["nao", "almaty", "astana", "uralsk"]) {
+        const c = JSON.parse(win.localStorage.getItem(sheet + "_" + b) || "{}").cells || {};
+        if (c[cellInput.dataset.cell] === "123") cells = c;
+    }
+    ok(`${page}: ячейка сохранена`, !!cells);
+    ok(`${page}: нет ключа cells["undefined"]`, !!cells && !("undefined" in cells),
+        cells ? Object.keys(cells).slice(0, 5).join(",") : "");
+    win.close();
+}
+
+/* ── КБ: поле ввода не округляется ───────────────────────────────── */
+/* fmt() показывает целые тенге — для итогов это нормально, но им же
+   заполнялись поля ввода: после перерисовки 1234,56 превращалось в «1 235»,
+   и любая правка поля сохраняла уже округлённое число. */
+console.log("\n── КБ: копейки в поле ввода сохраняются");
+{
+    const { win } = await load("kb-svod.html", {
+        kb_svod_v3: JSON.stringify({ extraYears: [], rows: { r1: { vals: { y2026: 1234.56 } } } }),
+    });
+    const inp = win.document.getElementById("inp_r1_2026");
+    const shown = inp ? inp.value.replace(/[\s\u00a0\u202f]/g, "") : "";
+    ok("в поле 1234,56, а не 1235", shown === "1234,56", inp ? inp.value : "нет поля");
+    const total = win.document.getElementById("tv_2026");
+    ok("итог округлён только на экране", total && /1\s?235/.test(total.textContent), total ? total.textContent : "");
+    win.close();
+}
+
 /* ── Добавленная строка принадлежит своей таблице ────────────────── */
 /* Список добавленных строк был один на страницу и накладывался на каждую
    таблицу: строка, заведённая под «Водоотведением», появлялась во всех
@@ -279,7 +472,8 @@ console.log("\n── Все страницы бюджета выглядят о
 {
     const CHROME = [...PAGES, "plan-fact-pu.html", "plan-fact-dt.html",
         "plan-fact-pu-dt.html", "plan-finansirovaniya.html", "spravki.html",
-        "shtatnoe.html", "osnovaniya.html", "dogovory.html", "forma-4-20.html"];
+        "shtatnoe.html", "osnovaniya.html", "dogovory.html", "forma-4-20.html",
+        "deposit.html"];
 
     for (const page of CHROME) {
         const src = fs.readFileSync(path.join(ROOT, page), "utf8");
@@ -293,9 +487,23 @@ console.log("\n── Все страницы бюджета выглядят о
         const ownNav = [...doc.querySelectorAll("nav")].filter(
             (n) => !n.classList.contains("finka-nav"),
         ).length;
-        const back = !!doc.querySelector(".back-link");
+        // ссылка «на главную» ровно одна и рисуется навигацией
+        const backs = doc.querySelectorAll(".back-link");
+        const back = backs.length === 1 && !!backs[0].closest("nav.finka-nav");
+        // панель выгрузки одна, рисует shared-export.js: Excel → PDF → Печать
+        const bars = doc.querySelectorAll(".export-bar");
+        const order = bars.length
+            ? [...bars[0].querySelectorAll("[data-export-action]")]
+                  .map((b) => b.getAttribute("data-export-action"))
+                  .join(",")
+            : "";
+        const exportOk = bars.length === 1 && order === "excel,pdf,print";
+        // SheetJS — один раз и из vendor/, без CDN
+        const xlsxTags = src.match(/<script[^>]+xlsx[^>]*><\/script>/g) || [];
+        const xlsxOk = xlsxTags.length === 1 && /src="vendor\//.test(xlsxTags[0]);
 
-        const good = css && navScript && navInjected && ownNav === 0 && back;
+        const good = css && navScript && navInjected && ownNav === 0 && back &&
+            exportOk && xlsxOk;
         ok(
             page,
             good,
@@ -304,7 +512,9 @@ console.log("\n── Все страницы бюджета выглядят о
                 navScript ? "" : "нет shared-nav.js",
                 navInjected ? "" : "навигация не встроилась",
                 ownNav ? `своя <nav>: ${ownNav}` : "",
-                back ? "" : "нет ссылки «на главную»",
+                back ? "" : `ссылок «на главную»: ${backs.length}, нужна одна в навигации`,
+                exportOk ? "" : `панелей выгрузки: ${bars.length}, кнопки: ${order || "—"}`,
+                xlsxOk ? "" : `SheetJS подключён ${xlsxTags.length} раз(а) или не из vendor/`,
             ]
                 .filter(Boolean)
                 .join(", ") || "шапка, навигация и стили общие",
@@ -568,7 +778,7 @@ console.log("\n── MutationObserver не зацикливается");
     const { win } = await load("rb-svodnaya.html");
     const doc = win.document;
 
-    // Сводная общая строит 641 строку из подгружаемого JSON, и ui-kit потом
+    // Сводная общая строит ~500 строк из подгружаемого JSON, и ui-kit потом
     // расставляет значки почти пятистам кнопок. Это разовая волна — даём ей
     // пройти, иначе меряем не зацикливание, а обычную отрисовку.
     await tick(win, 1500);
@@ -587,6 +797,34 @@ console.log("\n── MutationObserver не зацикливается");
         mutations < 50,
         `мутаций за 0,8 с: ${mutations}`,
     );
+    win.close();
+}
+
+/* ── Escape и колесо мыши ────────────────────────────────────────── */
+console.log("\n── Escape отменяет правку, колесо не меняет число");
+{
+    const { win } = await load("rb-svod.html");
+    const doc = win.document;
+    const inp = doc.querySelector('tbody input[type="number"]');
+    const totalText = () => doc.querySelector("tr.sx-total").textContent;
+
+    inp.focus();
+    const start = inp.value;
+    const before = totalText();
+    inp.value = "4321";
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 250);
+    ok("введённое попало в итог", totalText() !== before);
+
+    inp.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick(win, 250);
+    ok("Escape вернул исходное значение", inp.value === start, JSON.stringify(inp.value));
+    ok("и итог пересчитан обратно", totalText() === before);
+    ok("поле вышло из фокуса", doc.activeElement !== inp);
+
+    inp.focus();
+    inp.dispatchEvent(new win.WheelEvent("wheel", { deltaY: 100, bubbles: true }));
+    ok("колесо над полем снимает фокус", doc.activeElement !== inp);
     win.close();
 }
 

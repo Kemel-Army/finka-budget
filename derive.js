@@ -295,12 +295,46 @@
         { to: "C15", from: "K14", name: "Обязательное медицинское страхование" },
     ];
 
+    /* Страница «Свод ФЗП» хранит не ячейки листа, а свои строки:
+       {rows: {sr1…sr3, tr1…tr3: {c1…c9}}}. При первом же открытии она
+       пересохраняет ключ в этом формате, и разнесение, читавшее только
+       cells, переставало работать. Итог четырнадцатой строки листа — это
+       сумма всех строк страницы. Поля страницы по смыслу: c4 ФЗП, c5
+       пособия, c6 ОПВ, c7 соцналог, c8 соцотчисления, c9 медстрах (импорт
+       раскладывает их по шапке листа). Адреса ниже — колонки рабочей книги
+       «Бюджет РБ 2026», на которые ссылается Свод!C10…C15: F ФЗП, G
+       пособия, H ОПВ, I соцналог, J соцотчисления, K медстрах.
+
+       Раньше здесь стояло H14 ← c7 … K14 ← c6: импорт клал медстрах в c6,
+       ОПВ в c7 и так далее (номера колонок книги-заготовки, где ОПВ в K),
+       и две перестановки гасили друг друга в Своде, а на странице «Свод
+       ФЗП» налоги стояли не в своих колонках. */
+    var FZP_ROW_COL = { F14: "c4", G14: "c5", H14: "c6", I14: "c7", J14: "c8", K14: "c9" };
+
+    function fzpCells(fzp) {
+        if (!fzp) return null;
+        if (fzp.rows && typeof fzp.rows === "object") {
+            var cells = {};
+            Object.keys(FZP_ROW_COL).forEach(function (addr) {
+                var sum = 0;
+                Object.keys(fzp.rows).forEach(function (id) {
+                    var n = toNumber((fzp.rows[id] || {})[FZP_ROW_COL[addr]]);
+                    if (n !== null) sum += n;
+                });
+                cells[addr] = sum;
+            });
+            return cells;
+        }
+        return fzp.cells || null;
+    }
+
     function fzpToSvod(branch, options) {
         var opts = options || {};
-        var fzp = read("rb_fzp_" + branch);
-        if (!fzp || !fzp.cells) {
+        var source = fzpCells(read("rb_fzp_" + branch));
+        if (!source) {
             return { ok: false, reason: "«Свод ФЗП» по этому филиалу ещё не заполнен" };
         }
+        var fzp = { cells: source };
 
         var key = "rb_svod_" + branch;
         var target = read(key) || { sheet: "rb_svod", branch: branch, cells: {} };

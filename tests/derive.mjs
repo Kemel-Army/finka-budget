@@ -67,7 +67,7 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, "budget-rows.js"), "utf8"), sand
 const impCode = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
     .map((m) => m[1])
     .find((s) => s.includes("TARGETS"));
-vm.runInContext(impCode + "\n;globalThis.__conv = convSvodnaya; globalThis.__raw = convRaw;", sandbox);
+vm.runInContext(impCode + "\n;globalThis.__conv = convSvodnaya; globalThis.__raw = convRaw; globalThis.__fzp = convFzp;", sandbox);
 vm.runInContext(fs.readFileSync(path.join(ROOT, "derive.js"), "utf8"), sandbox);
 
 const Derive = window.FinkaDerive;
@@ -205,6 +205,65 @@ console.log("\n── «СВОД ФЗП» → «Свод расходов», с�
         1595622564.3607502 + 182000770.4325 + 66216816.71776375 +
             136070121.62724182 + 79993050.06569627 + 53328700.04379751,
     );
+}
+
+/* Страница «Свод ФЗП» пересохраняет ключ своим форматом — строками
+   sr1…tr3 с колонками c1…c9, без ячеек листа. Разнесение должно работать
+   и с ним: итог 14-й строки листа = сумма строк страницы. */
+console.log("\n── «СВОД ФЗП» в формате страницы → «Свод расходов»");
+{
+    const row = (c4, c5, c6, c7, c8, c9) => ({ c1: 1, c2: 0, c3: 5, c4, c5, c6, c7, c8, c9 });
+    window.localStorage.setItem(
+        "rb_fzp_astana",
+        JSON.stringify({
+            mrp: "4325",
+            rows: {
+                sr1: row(100, 10, 3.5, 6, 5, 3),
+                sr2: row("200", "20", "7", "12", "10", "6"),
+                sr3: row(0, 0, 0, 0, 0, 0),
+                tr1: row(1000, 100, 35, 60, 50, 30),
+                tr2: row(0, 0, 0, 0, 0, 0),
+                tr3: row("", "", "", "", "", ""),
+            },
+        }),
+    );
+    const res = Derive.fzpToSvod("astana");
+    ok("разнесение из формата страницы", res.ok, res.reason || `строк: ${res.moved.length}`);
+    const svod = JSON.parse(window.localStorage.getItem("rb_svod_astana"));
+    eq("C10 = F14 = Σ c4 (ФЗП)", Number(svod.cells.C10), 1300);
+    eq("C11 = G14 = Σ c5", Number(svod.cells.C11), 130);
+    // c6 — ОПВ (116 → C12), c7 — соцналог (121 → C13), c8 — соцотчисления
+    // (122 → C14), c9 — медстрах (124 → C15). Раньше тест закреплял
+    // перестановку: в C12 уходил соцналог, в C15 — ОПВ
+    eq("C12 = Σ c6 (ОПВ)", Number(svod.cells.C12), 45.5);
+    eq("C13 = Σ c7 (соцналог)", Number(svod.cells.C13), 78);
+    eq("C14 = Σ c8 (соцотчисления)", Number(svod.cells.C14), 65);
+    eq("C15 = Σ c9 (медстрах)", Number(svod.cells.C15), 39);
+}
+
+/* Настоящий лист «СВОД ФЗП» через конвертер импорта → формат страницы →
+   Свод. Конвертер раскладывает колонки по шапке (в рабочей книге ОПВ в H,
+   медстрах в K), разнесение кладёт их в 116/121/122/124 — ровно как
+   формулы Свод!C12…C15 = 'СВОД ФЗП'!H14…K14 в книге. */
+console.log("\n── «СВОД ФЗП» через импорт → «Свод расходов», по налогам");
+{
+    const fzpRows = SHEETS["СВОД ФЗП [Бюджет РБ 2026]"];
+    if (!fzpRows) {
+        ok("лист «СВОД ФЗП» есть в фикстурах", false);
+    } else {
+        const page = sandbox.__fzp(fzpRows);
+        window.localStorage.setItem("rb_fzp_fzpconv", JSON.stringify(page));
+        const res = Derive.fzpToSvod("fzpconv");
+        ok("разнесение отработало", res.ok, res.reason || `строк: ${res.moved.length}`);
+        const svod = JSON.parse(window.localStorage.getItem("rb_svod_fzpconv"));
+        const total = (c) => Number(fzpRows[13][c]); // строка 14 — ИТОГО
+        eq("C10 (111) = F14 ФЗП", Number(svod.cells.C10), total(5));
+        eq("C11 (113) = G14 пособия", Number(svod.cells.C11), total(6));
+        eq("C12 (116) = H14 ОПВ", Number(svod.cells.C12), total(7));
+        eq("C13 (121) = I14 соцналог", Number(svod.cells.C13), total(8));
+        eq("C14 (122) = J14 соцотчисления", Number(svod.cells.C14), total(9));
+        eq("C15 (124) = K14 медстрах", Number(svod.cells.C15), total(10));
+    }
 }
 
 /* ── Вся цепочка разом ───────────────────────────────────────────── */

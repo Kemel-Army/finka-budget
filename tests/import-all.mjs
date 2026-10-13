@@ -49,7 +49,7 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, "budget-rows.js"), "utf8"), sand
 vm.runInContext(
     code +
         "\n;globalThis.__i = { TARGETS, guessTarget, guessBranch, convRaw," +
-        " verify, excelStats, storedStats };",
+        " verify, excelStats, storedStats, convFzp };",
     sandbox,
 );
 const I = sandbox.__i;
@@ -140,6 +140,42 @@ for (const key of FULL) {
         got.numbers > 0
             ? `чисел ${got.numbers}, Σ ${money(res.gotSum)} из ${money(res.xlSum)} · ${res.state === "ok" ? "весь лист" : "часть листа"}`
             : "разбор дал пустоту",
+    );
+}
+
+/* ── «СВОД ФЗП»: колонки по шапке в каждой книге ─────────────────── */
+// В книгах ОПВ стоит в разных колонках (заготовка — K, рабочая — H).
+// Итог ФОТ сходится при любой перестановке налогов, поэтому сверяется
+// каждое поле налогов с колонкой, найденной по шапке листа. Сумму с ФОТ
+// не сверяем: в книге-заготовке вместо формул единицы-заглушки.
+console.log("\n══ «СВОД ФЗП»: налоги из своих колонок\n");
+for (const key of FULL.filter((k) => /^СВОД ФЗП\s*\[/i.test(k))) {
+    const rows = SHEETS[key];
+    const sr = rows.findIndex((r) => /штатн/i.test(String((r || [])[1] || "")));
+    const head = rows[sr - 1] || [];
+    const col = (re) => head.findIndex((v) => re.test(String(v).toLowerCase()));
+    const want = {
+        c6: col(/опв/), c7: col(/социальный налог/),
+        c8: col(/социальные отчисл/), c9: col(/медицинск/),
+    };
+    let d = null;
+    let err = "";
+    try {
+        d = I.convFzp(rows);
+    } catch (e) {
+        err = e.message;
+    }
+    const row = d ? d.rows.sr1 : {};
+    const bad = Object.keys(want).filter(
+        (f) => want[f] < 0 || Number(row[f]) !== Number(rows[sr][want[f]] || 0),
+    );
+    ok(
+        key.length > 44 ? key.slice(0, 43) + "…" : key,
+        !err && !bad.length,
+        err ||
+            (bad.length
+                ? "не те колонки: " + bad.join(", ")
+                : `ОПВ из ${String.fromCharCode(65 + want.c6)}, медстрах из ${String.fromCharCode(65 + want.c9)}`),
     );
 }
 

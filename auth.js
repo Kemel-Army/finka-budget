@@ -30,8 +30,12 @@
 
     var SUPABASE_URL = "https://fdzwvwapcxoxllfqaoxw.supabase.co";
     var SUPABASE_ANON_KEY = "sb_publishable_ksFJ2xPiZXRTqk2l77NkMg_DSbD60u2";
-    var SDK_URL =
-        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+    // SDK лежит у нас: CDN с плавающей версией «@2» мог подменить код,
+    // который видит сессию. Файл — dist/umd/supabase.js из npm-пакета
+    // @supabase/supabase-js@2.117.3 без изменений,
+    // sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R.
+    // При обновлении — новый файл с новой версией в имени.
+    var SDK_URL = "vendor/supabase-js-2.117.3.min.js";
     var LOGIN_PAGE = "login.html";
     var HOME_PAGE = "index.html";
     var STORAGE_KEY = "finka-auth";
@@ -78,6 +82,7 @@
             "spravki.html",
             "shtatnoe.html",
             "osnovaniya.html",
+            "deposit.html",
         ],
         tools: ["import-excel.html"],
     };
@@ -258,10 +263,108 @@
         return LOGIN_PAGE + "?next=" + encodeURIComponent(next);
     }
 
+    /* ── Выход ─────────────────────────────────────────────────── */
+    // Ключи бюджета — держать в согласии с OURS в db-sync.js
+    var BUDGET_KEYS =
+        /^(rb_|pu_|fot|kb_|plan_|spravka_|shtat|osnovaniya|deposit_|sheet_edits_|rates_|budget_year)/;
+
+    /* После выхода таблицы бюджета в браузере оставаться не должны:
+       компьютер бывает общий, и кэш прошлого пользователя иначе читается
+       через DevTools без всякого входа.
+       Удаляем через delete, а не removeItem: db-sync.js подменяет
+       removeItem, и каждое удаление ключа бюджета уходит в базу как DELETE
+       строки. Встроенный удалитель Storage эту подмену не вызывает. */
+    function clearBudgetCache() {
+        try {
+            var drop = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                // Служебные ключи db-sync.js тоже: неотправленная очередь
+                // прошлого пользователя иначе уехала бы от имени следующего
+                if (
+                    BUDGET_KEYS.test(k) ||
+                    k === "finka_cache_owner" ||
+                    k === "finka_sync_queue" ||
+                    k === "finka_sync_known" ||
+                    k.indexOf("finka_conflict_") === 0
+                )
+                    drop.push(k);
+            }
+            drop.forEach(function (k) {
+                delete localStorage[k];
+            });
+        } catch (e) {
+            /* хранилище недоступно */
+        }
+        // Отметки db-sync «страницу уже перезагружали»
+        try {
+            var flags = [];
+            for (var j = 0; j < sessionStorage.length; j++) {
+                var f = sessionStorage.key(j);
+                if (f.indexOf("finka_synced_") === 0 || f === "finka_sync_notice") {
+                    flags.push(f);
+                }
+            }
+            flags.forEach(function (f) {
+                sessionStorage.removeItem(f);
+            });
+        } catch (e) {
+            /* приватный режим */
+        }
+    }
+
+    // Сколько правок так и не доехало до базы
+    function unsent() {
+        try {
+            var st = window.finkaSync && window.finkaSync.status && window.finkaSync.status();
+            return (st && st.pending) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    /* Промис вернёт false, если человек передумал выходить. */
     function signOut() {
+        // Сначала дописываем в базу то, что ещё не уехало: после выхода
+        // RLS эту запись уже не пропустит, а кэш будет стёрт. flush, а не
+        // push: он не ждёт паузы между повторами и, если при открытии
+        // страницы базы не было, пробует подключиться заново
+        var sync = window.finkaSync;
+        var flush = Promise.resolve();
+        if (sync && (sync.flush || sync.push)) {
+            flush = flush
+                .then(function () {
+                    return sync.flush ? sync.flush() : sync.push();
+                })
+                .catch(function () {
+                    /* не сохранилось — ниже спросим, выходить ли */
+                });
+        }
+        return flush.then(function () {
+            // Нет сети или база не готова — очередь не ушла, а
+            // clearBudgetCache её сотрёт. Молча терять правки нельзя
+            var n = unsent();
+            if (
+                n > 0 &&
+                !confirm(
+                    "Есть изменения, не отправленные в базу (" + n + "). " +
+                        "Выйти и потерять их?",
+                )
+            ) {
+                return false;
+            }
+            return leave();
+        });
+    }
+
+    function leave() {
         return getClient()
             .then(function (c) {
                 return c.auth.signOut();
+            })
+            .then(clearBudgetCache, function (err) {
+                clearBudgetCache();
+                throw err;
             })
             .then(function () {
                 location.replace(LOGIN_PAGE);
@@ -352,7 +455,15 @@
         out.textContent = "Выйти";
         out.addEventListener("click", function () {
             out.disabled = true;
-            signOut();
+            signOut().then(
+                function (done) {
+                    // Передумал выходить — кнопка снова доступна
+                    if (done === false) out.disabled = false;
+                },
+                function () {
+                    out.disabled = false;
+                },
+            );
         });
 
         box.appendChild(avatar);
@@ -555,19 +666,148 @@
             return { found: found, own: own };
         }
 
+        function selectOwn(res) {
+            if (res.own && !res.own.classList.contains("active")) res.own.click();
+        }
+
+        // Страницы перерисовывают панель филиалов при загрузке данных, а
+        // часть из них при этом возвращает филиал по умолчанию — проходим
+        // ещё раз, когда всё успокоится, и снова встаём на свой город
+        function again() {
+            selectOwn(pass());
+        }
+
         (function poll() {
             var res = pass();
             if (!res.found) {
                 if (++tries > 40) return;
                 return setTimeout(poll, 50);
             }
-            if (res.own && !res.own.classList.contains("active")) res.own.click();
-
-            // Страницы перерисовывают панель филиалов при загрузке данных —
-            // проходим ещё раз, когда всё успокоится
-            setTimeout(pass, 800);
-            setTimeout(pass, 2000);
+            selectOwn(res);
+            setTimeout(again, 800);
+            setTimeout(again, 2000);
         })();
+    }
+
+    /* ── Город в заголовках ────────────────────────────────────── */
+    /* Страницы ПУ и часть РБ свёрстаны с алматинских листов Excel: в
+       заголовках, подписях и навигации зашито «Алматы» («СС Алматы»,
+       «филиал г. Алматы»). Пользователь Уральска или Астаны видел свои числа
+       под алматинской шапкой. Такие места размечены атрибутом data-city с
+       формой подписи, текст берётся по выбранному филиалу. */
+    var CITY_TEXT = {
+        city: {
+            nao: "НАО «РФМШ»",
+            almaty: "Алматы",
+            astana: "Астана",
+            uralsk: "Уральск",
+            consolidated: "(консолидация)",
+        },
+        branch: {
+            nao: "НАО «РФМШ»",
+            almaty: "филиал г. Алматы",
+            astana: "филиал г. Астана",
+            uralsk: "филиал г. Уральск",
+            consolidated: "консолидация по филиалам",
+        },
+        "branch-of": {
+            nao: "НАО «РФМШ»",
+            almaty: "филиала НАО «РФМШ» в г. Алматы",
+            astana: "филиала НАО «РФМШ» в г. Астана",
+            uralsk: "филиала НАО «РФМШ» в г. Уральск",
+            consolidated: "НАО «РФМШ» и филиалов (консолидация)",
+        },
+        school: {
+            nao: "Школа",
+            almaty: "Школа г. Алматы",
+            astana: "Школа г. Астана",
+            uralsk: "Школа г. Уральск",
+            consolidated: "Школы",
+        },
+    };
+
+    var cityBranch = "";
+    var ownBranch = "";
+    var baseTitle = "";
+
+    function fill(attr, branch) {
+        var els = document.querySelectorAll("[" + attr + "]");
+        for (var i = 0; i < els.length; i++) {
+            var forms = CITY_TEXT[els[i].getAttribute(attr)];
+            if (forms && forms[branch] != null) {
+                els[i].textContent = forms[branch];
+            }
+        }
+    }
+
+    function relabelCity() {
+        // Навигация и главная (data-city-own) ведут на листы вообще, а не
+        // на выбранный сейчас филиал: свой город в них подставляется только
+        // учётке, привязанной к филиалу
+        if (ownBranch) fill("data-city-own", ownBranch);
+        if (!cityBranch) return;
+        fill("data-city", cityBranch);
+        if (!baseTitle) baseTitle = document.title;
+        if (baseTitle.indexOf("Алматы") !== -1) {
+            document.title = baseTitle.replace(
+                /Алматы/g,
+                CITY_TEXT.city[cityBranch] || "Алматы",
+            );
+        }
+    }
+
+    function setCityBranch(branch) {
+        if (!branch || !CITY_TEXT.city[branch]) return;
+        cityBranch = branch;
+        relabelCity();
+    }
+
+    // Филиал страницы — активная кнопка с филиалом. У «Справок» и «Плана
+    // финансирования» тем же классом размечены кнопки вида бюджета, их
+    // пропускаем.
+    function activeBranchOnPage() {
+        var btns = document.querySelectorAll(".branch-btn.active");
+        for (var i = 0; i < btns.length; i++) {
+            var b = branchOfButton(btns[i]);
+            if (b) return b;
+        }
+        return "";
+    }
+
+    function trackCity(profile) {
+        if (profile.branchLocked) ownBranch = profile.branchKey;
+
+        // Филиал привязан — подписи всегда его, даже на страницах без
+        // переключателя
+        function initial() {
+            relabelCity();
+            setCityBranch(
+                profile.branchLocked ? profile.branchKey : activeBranchOnPage(),
+            );
+        }
+
+        document.addEventListener(
+            "click",
+            function (e) {
+                var btn = e.target && e.target.closest
+                    ? e.target.closest(".branch-btn")
+                    : null;
+                if (btn) setCityBranch(branchOfButton(btn));
+            },
+            true,
+        );
+
+        // Навигация и переключатели филиалов дорисовываются позже — тогда
+        // и подписи в них, и сам выбранный филиал надо подхватить заново
+        function refresh() {
+            if (cityBranch) relabelCity();
+            else initial();
+        }
+
+        initial();
+        findHost(refresh);
+        if (document.readyState === "complete") refresh();
+        else window.addEventListener("load", refresh, { once: true });
     }
 
     /* ── Экран «нет доступа» ───────────────────────────────────── */
@@ -576,11 +816,11 @@
         var hasRole = !!profile.role;
         var body = hasRole
             ? "Роль «" +
-              profile.role.label +
+              escapeHtml(profile.role.label) +
               "» не даёт доступа к этому разделу.<br>" +
               "Если доступ нужен по работе — обратитесь к администратору системы."
             : "Учётной записи " +
-              profile.email +
+              escapeHtml(profile.email) +
               " не назначена роль в бюджетной системе.<br>" +
               "Доступ выдаёт администратор.";
         document.body.innerHTML =
@@ -620,6 +860,7 @@
         if (!profile.role.canEdit) enableReadOnly(profile);
         if (!profile.role.canImport) hideImportLinks();
         if (profile.branchLocked) lockBranch(profile);
+        trackCity(profile);
     }
 
     /* ── «Вы вошли» ────────────────────────────────────────────── */

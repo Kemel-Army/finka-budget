@@ -37,6 +37,11 @@
                     title: "Основания (приказы)",
                     key: "osnovaniya",
                 },
+                {
+                    href: "deposit.html",
+                    title: "Депозит (доход и расход)",
+                    key: "deposit",
+                },
             ],
         },
         rb: {
@@ -106,12 +111,12 @@
                 },
                 {
                     href: "pu-ss-dotacia.html",
-                    title: "СС Дотация",
+                    title: "Собственные средства (Дотация)",
                     key: "pu_ss_dotacia",
                 },
                 {
                     href: "pu-ss-almaty.html",
-                    title: "СС Алматы",
+                    title: "Собственные средства Алматы",
                     key: "pu_ss_almaty",
                 },
                 {
@@ -136,7 +141,7 @@
                 },
                 {
                     href: "pu-grafik-almaty.html",
-                    title: "График Алматы",
+                    title: "График родительской оплаты Алматы",
                     key: "pu_grafik_almaty",
                 },
                 {
@@ -210,7 +215,14 @@
             var item = section.items[i];
             var cls = item.href === currentPage ? ' class="current"' : "";
             html +=
-                '<a href="' + item.href + '"' + cls + ">" + item.title + "</a>";
+                '<a href="' + item.href + '"' + cls + ">" +
+                // «Алматы» в названии листа — город выбранного филиала,
+                // auth.js подставит свой (см. «Город в заголовках»)
+                item.title.replace(
+                    "Алматы",
+                    '<span data-city-own="city">Алматы</span>',
+                ) +
+                "</a>";
         }
         return html;
     }
@@ -219,10 +231,14 @@
         "" +
         '<nav class="finka-nav">' +
         '  <div class="finka-nav-inner">' +
-        '    <a href="index.html" class="finka-nav-brand">' +
+        // Единственная ссылка «на главную» на листе. Раньше у каждой
+        // страницы была своя «← Вернуться к списку» в шапке, а логотип вёл
+        // туда же — две ссылки на одно место. Теперь логотип — подпись.
+        '    <span class="finka-nav-brand">' +
         '      <span class="finka-nav-logo">\u20B8</span>' +
         "      <span>РФМШ Бюджет</span>" +
-        "    </a>" +
+        "    </span>" +
+        '    <a href="index.html" class="back-link finka-nav-home">\u2190 На главную</a>' +
         '    <div class="finka-nav-links">';
 
     for (var sKey in SECTIONS) {
@@ -268,6 +284,13 @@
             wrapper.firstChild,
             document.body.firstChild,
         );
+    }
+
+    // Если страница ещё носит свою «← Вернуться…» в разметке — убираем:
+    // ссылка на главную одна, в навигации
+    var strayBack = document.querySelectorAll("a.back-link:not(.finka-nav-home)");
+    for (var sb = 0; sb < strayBack.length; sb++) {
+        strayBack[sb].parentNode.removeChild(strayBack[sb]);
     }
 
     /* ── Dropdown Toggle Handling ──────────────────────────────── */
@@ -325,48 +348,66 @@
         });
     }
 
-    /* ── Toast Notification System ─────────────────────────────── */
-    var TOAST_ICONS = {
-        success: "\u2714",
-        error: "\u2718",
-        warning: "\u26A0",
-        info: "\u2139",
-    };
-
-    window.finkaToast = function (message, type) {
-        type = type || "info";
-        var container = document.getElementById("finkaToasts");
-        if (!container) return;
-
-        var toast = document.createElement("div");
-        toast.className = "finka-toast " + type;
-        toast.innerHTML =
-            '<span class="finka-toast-icon">' +
-            (TOAST_ICONS[type] || "") +
-            "</span>" +
-            "<span>" +
-            message +
-            "</span>";
-        container.appendChild(toast);
-
-        setTimeout(function () {
-            toast.classList.add("removing");
-            setTimeout(function () {
-                if (toast.parentNode) toast.parentNode.removeChild(toast);
-            }, 200);
-        }, 3000);
-    };
+    /* Всплывающие сообщения (finkaToast) — в ui-kit.js: он выводит текст
+       как текст, а не HTML. Контейнер #finkaToasts рисуется выше. */
 
     /* ── Keyboard Shortcut: Ctrl+S ─────────────────────────────── */
+    /* Раньше здесь безусловно писалось «Данные сохранены», хотя saveData()
+       кладёт данные только в localStorage, а в базу они уходят позже и
+       могут не уйти вовсе (нет сети, нет прав, конфликт). Теперь очередь
+       отправляется сразу (finkaSync.flush), и сообщение — по её итогу. */
+    function syncReport(st) {
+        if (st.readOnly) {
+            return ["Режим просмотра — изменения в базу не сохраняются", "warning"];
+        }
+        if (!st.enabled) return ["Сохранено в браузере (база недоступна)", "warning"];
+        if (st.code === "conflict" && st.conflicts.length) {
+            return [
+                "Лист изменён другим пользователем — ваши правки не записаны " +
+                    "поверх, загружена версия из базы",
+                "warning",
+            ];
+        }
+        if (st.pending) {
+            if (!st.ready) {
+                return ["Сохранено в браузере, уйдёт в базу после загрузки", "info"];
+            }
+            return [
+                "Сохранено только в браузере, в базу не отправлено: " +
+                    st.pending + " (" + st.text + ")",
+                "error",
+            ];
+        }
+        if (st.code === "off") return ["Не сохранено в базе: " + st.text, "error"];
+        return ["Сохранено в базе", "success"];
+    }
+
     document.addEventListener("keydown", function (e) {
         if ((e.ctrlKey || e.metaKey) && e.key === "s") {
             e.preventDefault();
-            if (typeof window.saveData === "function") {
-                window.saveData();
-                window.finkaToast("Данные сохранены", "success");
-            } else {
-                window.finkaToast("На этой странице нечего сохранять", "info");
+            if (e.repeat) return;
+            var hasSave = typeof window.saveData === "function";
+            if (hasSave) window.saveData();
+
+            var sync = window.finkaSync;
+            if (!sync || typeof sync.flush !== "function") {
+                window.finkaToast(
+                    hasSave
+                        ? "Сохранено в браузере"
+                        : "На этой странице нечего сохранять",
+                    "info",
+                );
+                return;
             }
+            sync.flush().then(
+                function (st) {
+                    var r = syncReport(st || sync.status());
+                    window.finkaToast(r[0], r[1]);
+                },
+                function () {
+                    window.finkaToast("Не удалось отправить в базу", "error");
+                },
+            );
         }
     });
 

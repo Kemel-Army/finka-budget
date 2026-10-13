@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <script src="derive.js"></script>
-        <title>Сводная общая 2026 - Полная версия (572 строки)</title>
+        <title>Сводная общая 2026 - Полная версия</title>
         <style>
             /* Column width overrides for svodnaya tables */
             .section-container table {
@@ -64,39 +64,38 @@
                 font-variant-numeric: tabular-nums;
             }
         </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="container">
             <div class="header">
+                <div data-export-bar data-excel="exportAllExcel"></div>
                 <h1>📊 Сводная общая 2026 - Полная версия</h1>
                 <div class="subtitle">
-                    ФНАО «РФМШ» в г.Алматы<br />
-                    Бюджетная программа 004 • Подпрограмма 100 • 13 разделов •
-                    572 строки
+                    <span data-city="branch-of">филиала НАО «РФМШ» в г. Алматы</span><br />
+                    Бюджетная программа 004 • Подпрограмма 100<span id="sheet-stats"></span>
                 </div>
 
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         🏛️ НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         🏛️ Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         🏛️ Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         🏛️ Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         📈 Консолидация
                     </button>
@@ -106,7 +105,7 @@
             <div class="info-bar">
                 <div>
                     <strong>Текущий филиал:</strong>
-                    <span id="current-branch">Алматы</span>
+                    <span id="current-branch">НАО «РФМШ»</span>
                 </div>
                 <div class="auto-save-status saved" id="save-status">
                     ✅ Сохранено
@@ -119,45 +118,6 @@
                         align-items: center;
                     "
                 >
-                    <button
-                        onclick="exportAllExcel()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel (все)
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
                     <button
                         onclick="spreadToPages()"
                         title="Заполнить связанные страницы итогами разделов, как в исходной книге"
@@ -212,7 +172,7 @@
                 if (!section) return;
                 var tbl = section.querySelector("table");
                 if (!tbl) {
-                    alert("Таблица не найдена");
+                    window.finkaToast("В этом разделе нет таблицы для выгрузки", "warning");
                     return;
                 }
                 var title =
@@ -222,7 +182,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 var brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({
@@ -245,7 +205,7 @@
                     "#sections-container table",
                 );
                 if (!tables.length) {
-                    alert("Нет таблиц");
+                    window.finkaToast("Разделы ещё не загрузились — выгружать нечего", "warning");
                     return;
                 }
                 var tblArr = [];
@@ -265,7 +225,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 var brName = branchNames[currentBranch] || "";
                 SharedExport.exportMultiTableExcel({
@@ -841,6 +801,33 @@
                     row.dataset.raw = String(total);
                     row.value = cellDisplay(row);
                 }
+                updateSheetStats();
+            }
+
+            /* В подзаголовке было вписано «13 разделов • 572 строки»: 572 —
+               номер последней строки листа в книге, а не число строк на
+               странице (их около пятисот, и строки добавляются), разделов же
+               одиннадцать. Считаем по тому, что реально нарисовано: разделы —
+               по номерам, строки — без строк-шапок таблиц. */
+            function plural(n, one, few, many) {
+                const m10 = n % 10;
+                const m100 = n % 100;
+                if (m10 === 1 && m100 !== 11) return one;
+                if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+                return many;
+            }
+
+            function updateSheetStats() {
+                const box = document.getElementById("sheet-stats");
+                if (!box || !SECTIONS_DATA) return;
+                const nums = new Set(SECTIONS_DATA.map((s) => String(s.num)));
+                const rows = [
+                    ...document.querySelectorAll('#sections-container tr[id^="sec"]'),
+                ].filter((tr) => !tr.querySelector("th")).length;
+                box.textContent =
+                    " • " + nums.size + " " +
+                    plural(nums.size, "раздел", "раздела", "разделов") +
+                    " • " + rows + " " + plural(rows, "строка", "строки", "строк");
             }
 
             // Строку «Итого расходы на 1186 обучающихся» страница считает
@@ -1002,7 +989,7 @@
             }
 
             // Переключение филиала
-            function switchBranch(branch) {
+            function switchBranch(branch, btn) {
                 /* Сохраняем только тронутый филиал. Иначе клик по городам
                    записывал каждому из них лист-заготовку — и в базе
                    появлялись «данные» филиалов, которые никто не заполнял. */
@@ -1025,7 +1012,13 @@
                 document.querySelectorAll(".branch-btn").forEach((btn) => {
                     btn.classList.remove("active");
                 });
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + branch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
 
                 // Обновляем название филиала
                 const branchNames = {
@@ -1033,7 +1026,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
                 document.getElementById("current-branch").textContent =
                     branchNames[branch];
@@ -1435,9 +1428,10 @@
                 var branch =
                     typeof currentBranch !== "undefined" ? currentBranch : "nao";
                 if (branch === "consolidated") {
-                    alert(
+                    window.finkaToast(
                         "Разнести можно из данных конкретного филиала — " +
-                            "выберите филиал вместо сводного вида.",
+                            "выберите филиал вместо консолидации.",
+                        "warning",
                     );
                     return;
                 }
@@ -1450,7 +1444,7 @@
 
                 var res = window.FinkaDerive.toSvod(branch);
                 if (!res.ok) {
-                    alert(res.reason);
+                    window.finkaToast(res.reason, "warning");
                     return;
                 }
                 if (fot.ok) res.moved = res.moved.concat(fot.moved);
@@ -1471,8 +1465,7 @@
                     : "«Свод расходов» уже совпадает со «Сводной общей». Итого " +
                       money(res.total);
 
-                if (window.finkaToast) window.finkaToast(msg, "success");
-                else alert(msg);
+                window.finkaToast(msg, "success");
 
                 if (res.missing.length) {
                     var warn =
