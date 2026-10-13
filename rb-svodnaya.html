@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <script src="derive.js"></script>
-        <title>Сводная общая 2026 - Полная версия (572 строки)</title>
+        <title>Сводная общая 2026 - Полная версия</title>
         <style>
             /* Column width overrides for svodnaya tables */
             .section-container table {
@@ -74,8 +74,7 @@
                 <h1>📊 Сводная общая 2026 - Полная версия</h1>
                 <div class="subtitle">
                     <span data-city="branch-of">филиала НАО «РФМШ» в г. Алматы</span><br />
-                    Бюджетная программа 004 • Подпрограмма 100 • 13 разделов •
-                    572 строки
+                    Бюджетная программа 004 • Подпрограмма 100<span id="sheet-stats"></span>
                 </div>
 
                 <div class="branch-selector">
@@ -183,7 +182,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 var brName = branchNames[currentBranch] || "";
                 SharedExport.exportTableToExcel({
@@ -226,7 +225,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидированный",
+                    consolidated: "Консолидация",
                 };
                 var brName = branchNames[currentBranch] || "";
                 SharedExport.exportMultiTableExcel({
@@ -802,6 +801,33 @@
                     row.dataset.raw = String(total);
                     row.value = cellDisplay(row);
                 }
+                updateSheetStats();
+            }
+
+            /* В подзаголовке было вписано «13 разделов • 572 строки»: 572 —
+               номер последней строки листа в книге, а не число строк на
+               странице (их около пятисот, и строки добавляются), разделов же
+               одиннадцать. Считаем по тому, что реально нарисовано: разделы —
+               по номерам, строки — без строк-шапок таблиц. */
+            function plural(n, one, few, many) {
+                const m10 = n % 10;
+                const m100 = n % 100;
+                if (m10 === 1 && m100 !== 11) return one;
+                if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+                return many;
+            }
+
+            function updateSheetStats() {
+                const box = document.getElementById("sheet-stats");
+                if (!box || !SECTIONS_DATA) return;
+                const nums = new Set(SECTIONS_DATA.map((s) => String(s.num)));
+                const rows = [
+                    ...document.querySelectorAll('#sections-container tr[id^="sec"]'),
+                ].filter((tr) => !tr.querySelector("th")).length;
+                box.textContent =
+                    " • " + nums.size + " " +
+                    plural(nums.size, "раздел", "раздела", "разделов") +
+                    " • " + rows + " " + plural(rows, "строка", "строки", "строк");
             }
 
             // Строку «Итого расходы на 1186 обучающихся» страница считает
@@ -994,7 +1020,7 @@
                     uralsk: "Уральск",
                     astana: "Астана",
                     nao: "НАО «РФМШ»",
-                    consolidated: "Консолидировано",
+                    consolidated: "Консолидация",
                 };
                 document.getElementById("current-branch").textContent =
                     branchNames[branch];

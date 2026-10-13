@@ -112,12 +112,12 @@
                 },
                 {
                     href: "pu-ss-dotacia.html",
-                    title: "СС Дотация",
+                    title: "Собственные средства (Дотация)",
                     key: "pu_ss_dotacia",
                 },
                 {
                     href: "pu-ss-almaty.html",
-                    title: "СС Алматы",
+                    title: "Собственные средства Алматы",
                     key: "pu_ss_almaty",
                 },
                 {
@@ -142,7 +142,7 @@
                 },
                 {
                     href: "pu-grafik-almaty.html",
-                    title: "График Алматы",
+                    title: "График родительской оплаты Алматы",
                     key: "pu_grafik_almaty",
                 },
                 {
