@@ -335,7 +335,7 @@
     function runBarAction(bar, kind) {
         var fnName = bar.getAttribute("data-" + kind);
         if (fnName) {
-            var fn = window[fnName];
+            var fn = /** @type {any} */ (window)[fnName];
             if (typeof fn === "function") {
                 fn();
             } else {

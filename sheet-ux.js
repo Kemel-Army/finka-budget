@@ -427,7 +427,7 @@
     }
 
     document.addEventListener("focusin", function (e) {
-        var el = e.target;
+        var el = /** @type {HTMLInputElement & {_suxStart?: string}} */ (e.target);
         if (isEditField(el)) el._suxStart = el.value;
     });
 
@@ -437,7 +437,7 @@
         "keydown",
         function (e) {
             if (e.key !== "Escape" && e.key !== "Esc") return;
-            var el = e.target;
+            var el = /** @type {HTMLInputElement & {_suxStart?: string}} */ (e.target);
             if (!isEditField(el) || el._suxStart === undefined) return;
             if (el.value !== el._suxStart) setValue(el, el._suxStart);
             el.blur();
@@ -448,7 +448,7 @@
     document.addEventListener(
         "wheel",
         function (e) {
-            var el = e.target;
+            var el = /** @type {HTMLInputElement & {_suxStart?: string}} */ (e.target);
             if (
                 el &&
                 el.tagName === "INPUT" &&
