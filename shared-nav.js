@@ -232,10 +232,14 @@
         "" +
         '<nav class="finka-nav">' +
         '  <div class="finka-nav-inner">' +
-        '    <a href="index.html" class="finka-nav-brand">' +
+        // Единственная ссылка «на главную» на листе. Раньше у каждой
+        // страницы была своя «← Вернуться к списку» в шапке, а логотип вёл
+        // туда же — две ссылки на одно место. Теперь логотип — подпись.
+        '    <span class="finka-nav-brand">' +
         '      <span class="finka-nav-logo">\u20B8</span>' +
         "      <span>РФМШ Бюджет</span>" +
-        "    </a>" +
+        "    </span>" +
+        '    <a href="index.html" class="back-link finka-nav-home">\u2190 На главную</a>' +
         '    <div class="finka-nav-links">';
 
     for (var sKey in SECTIONS) {
@@ -281,6 +285,13 @@
             wrapper.firstChild,
             document.body.firstChild,
         );
+    }
+
+    // Если страница ещё носит свою «← Вернуться…» в разметке — убираем:
+    // ссылка на главную одна, в навигации
+    var strayBack = document.querySelectorAll("a.back-link:not(.finka-nav-home)");
+    for (var sb = 0; sb < strayBack.length; sb++) {
+        strayBack[sb].parentNode.removeChild(strayBack[sb]);
     }
 
     /* ── Dropdown Toggle Handling ──────────────────────────────── */

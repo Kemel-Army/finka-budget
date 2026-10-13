@@ -64,13 +64,13 @@
                 font-variant-numeric: tabular-nums;
             }
         </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="container">
             <div class="header">
+                <div data-export-bar data-excel="exportAllExcel"></div>
                 <h1>📊 Сводная общая 2026 - Полная версия</h1>
                 <div class="subtitle">
                     <span data-city="branch-of">филиала НАО «РФМШ» в г. Алматы</span><br />
@@ -119,45 +119,6 @@
                         align-items: center;
                     "
                 >
-                    <button
-                        onclick="exportAllExcel()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📥 Excel (все)
-                    </button>
-                    <button
-                        onclick="SharedExport.exportToPDF()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onclick="window.print()"
-                        style="
-                            padding: 6px 14px;
-                            border-radius: 6px;
-                            border: 1px solid #cbd5e1;
-                            background: #fff;
-                            cursor: pointer;
-                            font-size: 13px;
-                        "
-                    >
-                        🖨️ Печать
-                    </button>
                     <button
                         onclick="spreadToPages()"
                         title="Заполнить связанные страницы итогами разделов, как в исходной книге"

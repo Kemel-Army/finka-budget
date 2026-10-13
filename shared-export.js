@@ -1,6 +1,23 @@
 /**
  * shared-export.js — Единый модуль экспорта (Excel, PDF, Печать) + год для всех страниц
- * Требует: SheetJS (xlsx.full.min.js) подключённый до этого скрипта
+ * Требует: SheetJS (vendor/xlsx-0.20.3.full.min.js) подключённый до этого скрипта
+ *
+ * Панель «Excel / PDF / Печать» рисуется здесь же, по заглушке в разметке:
+ *
+ *   <div data-export-bar></div>
+ *
+ * Необязательные атрибуты заглушки:
+ *   data-excel="имяФункции"  — своя выгрузка страницы (window[имя]()); без него
+ *                              выгружается таблица целиком через exportTableToExcel
+ *   data-table="#селектор"   — какую таблицу выгружать (по умолчанию первая)
+ *   data-file="Имя.xlsx"     — имя файла (по умолчанию заголовок страницы
+ *                              и выбранный филиал)
+ *   data-title="…"           — заголовок первой строки листа
+ *   data-pdf="имяФункции"    — своя «PDF» (по умолчанию печать в альбомной)
+ *   data-print="имяФункции"  — своя печать (по умолчанию window.print)
+ *
+ * Страница, которая рисует заглушку позже (через innerHTML), может вызвать
+ * SharedExport.mountBars(корень) сама — повторный вызов ничего не ломает.
  */
 (function () {
     "use strict";
@@ -47,6 +64,15 @@
     }
 
     /* ── Helpers ──────────────────────────────────────────── */
+    // Сообщение пользователю: всплывашка, если она есть на странице
+    function notify(msg, type) {
+        if (typeof window.finkaToast === "function") {
+            window.finkaToast(msg, type || "warning");
+        } else if (window.console) {
+            console.warn(msg);
+        }
+    }
+
     function fmt(v) {
         var n = parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
         return isNaN(n) ? v : n;
@@ -135,13 +161,13 @@
     /* ── Excel экспорт ──────────────────────────────────── */
     function exportTableToExcel(opts) {
         if (typeof XLSX === "undefined") {
-            alert("Библиотека XLSX не загружена");
+            notify("Не удалось выгрузить в Excel: модуль выгрузки не загрузился. Обновите страницу.", "error");
             return;
         }
         var table = opts.table || document.querySelector("table");
         if (typeof table === "string") table = document.querySelector(table);
         if (!table) {
-            alert("Таблица не найдена");
+            notify("На странице нет таблицы для выгрузки", "warning");
             return;
         }
 
@@ -178,7 +204,7 @@
     /* ── Excel экспорт нескольких таблиц ────────────────── */
     function exportMultiTableExcel(opts) {
         if (typeof XLSX === "undefined") {
-            alert("Библиотека XLSX не загружена");
+            notify("Не удалось выгрузить в Excel: модуль выгрузки не загрузился. Обновите страницу.", "error");
             return;
         }
         var wb = XLSX.utils.book_new();
@@ -233,6 +259,99 @@
         }, 1500);
     }
 
+    /* ── Панель «Excel / PDF / Печать» ─────────────────── */
+    // Значки те же, что рисует ui-kit.js вместо эмодзи: 16×16, обводкой
+    // в currentColor. Свои — чтобы панель выглядела одинаково и там, где
+    // ui-kit.js не подключён.
+    var BAR_ICONS = {
+        excel:
+            '<path d="M8 2v8M5 7l3 3 3-3M2 12v1a1.5 1.5 0 001.5 1.5h9A1.5 1.5 0 0014 13v-1"/>',
+        pdf:
+            '<path d="M4 1.5h5l3 3v10a1 1 0 01-1 1H4a1 1 0 01-1-1v-12a1 1 0 011-1z"/>' +
+            '<path d="M9 1.5v3h3M5.5 8h5M5.5 11h3"/>',
+        print:
+            '<path d="M4 5.5V2h8v3.5M4 11H2.5v-5h11v5H12M4 11v3h8v-3H4z"/>',
+    };
+
+    // Порядок на всех страницах один: Excel → PDF → Печать
+    var BAR_BUTTONS = [
+        ["excel", "Excel", "Скачать таблицу в Excel"],
+        ["pdf", "PDF", "Сохранить в PDF (печать в альбомной ориентации)"],
+        ["print", "Печать", "Распечатать страницу"],
+    ];
+
+    function barButton(b) {
+        return (
+            '<button type="button" class="btn export-btn export-btn-' + b[0] +
+            '" data-export-action="' + b[0] + '" data-uk="1" title="' + b[2] + '">' +
+            '<svg class="uk-ico" viewBox="0 0 16 16" fill="none" ' +
+            'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+            'stroke-linejoin="round" aria-hidden="true">' +
+            BAR_ICONS[b[0]] +
+            "</svg><span>" + b[1] + "</span></button>"
+        );
+    }
+
+    /** Нарисовать панели по заглушкам [data-export-bar]; повторно не рисует */
+    function mountBars(root) {
+        var bars = (root || document).querySelectorAll("[data-export-bar]");
+        Array.prototype.forEach.call(bars, function (bar) {
+            if (bar.getAttribute("data-export-ready")) return;
+            bar.setAttribute("data-export-ready", "1");
+            bar.classList.add("export-bar");
+            bar.setAttribute("role", "toolbar");
+            bar.setAttribute("aria-label", "Выгрузка и печать");
+            bar.innerHTML = BAR_BUTTONS.map(barButton).join("");
+        });
+    }
+
+    // Подпись выбранного филиала — чтобы выгрузки разных филиалов
+    // не назывались одинаково
+    function activeBranchLabel() {
+        var btn = document.querySelector(".branch-btn.active");
+        if (!btn) return "";
+        return btn.textContent
+            .replace(/^[^0-9A-Za-zА-Яа-яЁё«]+/, "")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function defaultExcel(bar) {
+        var title = bar.getAttribute("data-title") || document.title;
+        var branch = activeBranchLabel();
+        if (branch && title.indexOf(branch) === -1) title += " — " + branch;
+        exportTableToExcel({
+            table: bar.getAttribute("data-table") || null,
+            title: title,
+            fileName: bar.getAttribute("data-file") || null,
+        });
+    }
+
+    function runBarAction(bar, kind) {
+        var fnName = bar.getAttribute("data-" + kind);
+        if (fnName) {
+            var fn = window[fnName];
+            if (typeof fn === "function") {
+                fn();
+            } else {
+                notify("Действие недоступно: страница ещё не загрузилась", "warning");
+            }
+            return;
+        }
+        if (kind === "excel") defaultExcel(bar);
+        else if (kind === "pdf") exportToPDF();
+        else window.print();
+    }
+
+    document.addEventListener("click", function (e) {
+        var t = e.target;
+        var btn = t && t.closest ? t.closest("[data-export-action]") : null;
+        if (!btn) return;
+        var bar = btn.closest("[data-export-bar]");
+        if (!bar) return;
+        runBarAction(bar, btn.getAttribute("data-export-action"));
+    });
+
     /* ── Глобальные функции ─────────────────────────────── */
     window.SharedExport = {
         tableToAOA: tableToAOA,
@@ -245,12 +364,17 @@
         getBudgetYearRange: getBudgetYearRange,
         getBudgetYearLabel: getBudgetYearLabel,
         applyBudgetYear: applyBudgetYear,
+        mountBars: mountBars,
     };
 
-    // Auto-apply year if page has dyn-year elements
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", applyBudgetYear);
-    } else {
+    // Год на странице и панели экспорта — когда разметка готова
+    function onReady() {
         applyBudgetYear();
+        mountBars();
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", onReady);
+    } else {
+        onReady();
     }
 })();

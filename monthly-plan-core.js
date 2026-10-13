@@ -94,6 +94,8 @@
         function render() {
             root.innerHTML =
                 '<div class="header">' +
+                // Панель «Excel / PDF / Печать» рисует shared-export.js
+                '<div data-export-bar data-excel="exportExcel"></div>' +
                 "<h1>" + esc(cfg.icon || "🗓️") + " " + esc(cfg.title) + "</h1>" +
                 (cfg.subtitle ? "<p>" + esc(cfg.subtitle) + "</p>" : "") +
                 '<div class="branch-selector" id="mpBranches">' +
@@ -163,8 +165,6 @@
                 '<div class="buttons">' +
                 '<button class="btn btn-add-row" id="mpAddBtn">➕ Добавить строку</button>' +
                 '<button class="btn btn-primary" id="mpSaveBtn">💾 Сохранить</button>' +
-                '<button class="btn btn-success" id="mpExcelBtn">📥 Excel</button>' +
-                '<button class="btn btn-secondary" id="mpPrintBtn">🖨️ Печать</button>' +
                 '<button class="btn btn-danger" id="mpResetBtn">↺ Вернуть типовые строки</button>' +
                 "</div>";
         }
@@ -545,10 +545,7 @@
         });
 
         document.getElementById("mpSaveBtn").addEventListener("click", save);
-        document.getElementById("mpExcelBtn").addEventListener("click", exportExcel);
-        document.getElementById("mpPrintBtn").addEventListener("click", function () {
-            window.print();
-        });
+        if (global.SharedExport) global.SharedExport.mountBars(root);
 
         docFields.forEach(function (f) {
             var el = document.querySelector('[data-doc="' + f.key + '"]');

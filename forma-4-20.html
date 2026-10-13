@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>Форма 4-20 — сводный отчёт по расходам</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             .num-cell {
@@ -40,8 +40,8 @@
         </style>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>Форма № 4-20 — сводный отчёт по расходам</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 План-факт по бюджетной классификации. План на год берётся из
@@ -182,22 +182,6 @@
         <div class="buttons">
             <button class="btn btn-primary" onclick="saveData()">
                 Сохранить
-            </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
             </button>
         </div>
 

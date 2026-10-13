@@ -7,7 +7,7 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>План-Факт РБ</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
         <style>
             /* Фиксированные ширины колонок отчёта — оформление в shared.css */
@@ -32,8 +32,8 @@
         </style>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportExcel"></div>
             <h1>📊 ОТЧЕТ исполнения ПЛАН-ФАКТ</h1>
             <p>Республиканский бюджет • НАО «РФМШ»</p>
 
@@ -189,19 +189,6 @@
         <div class="buttons">
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить
-            </button>
-            <button class="btn btn-success" onclick="exportExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button class="btn btn-secondary" onclick="window.print()">
-                🖨️ Печать
             </button>
         </div>
 

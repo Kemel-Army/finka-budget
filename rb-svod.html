@@ -8,12 +8,12 @@
         <script src="db-sync.js"></script>
         <script src="derive.js"></script>
         <title>Свод РБ 2026-2028</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-rb">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Бюджет РБ - Свод расходов 2026-2028</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Республиканский бюджет • Лист 1 из 6
@@ -695,25 +695,6 @@
                 title="Строки 10–15 — из «Свода ФЗП» (если он не загружен, из раздела ФОТ «Сводной общей»), строки 16–25 — из итогов разделов «Сводной общей»"
             >
                 🔄 Подтянуть из ФЗП и Сводной общей
-            </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                📥 Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button class="btn btn-secondary" onclick="window.print()">
-                🖨️ Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
             </button>
         </div>
 

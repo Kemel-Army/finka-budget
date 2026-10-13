@@ -7,12 +7,12 @@
         <script src="auth.js"></script>
         <script src="db-sync.js"></script>
         <title>СС Алматы 2026</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="shared-export.js"></script>
     </head>
     <body class="page-pu">
-        <a href="index.html" class="back-link">← Вернуться на главную</a>
         <div class="header">
+            <div data-export-bar data-excel="exportToExcel"></div>
             <h1>📊 Собственные средства <span data-city="city">Алматы</span> 2026</h1>
             <p style="color: #7f8c8d; margin-top: 5px">
                 Бюджет ПУ — лист 1 из 11 — за счет средств от реализации
@@ -636,29 +636,6 @@
         <div class="buttons">
             <button class="btn btn-primary" onclick="saveData()">
                 💾 Сохранить данные
-            </button>
-            <button class="btn btn-success" onclick="exportToExcel()">
-                � Excel
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="SharedExport.exportToPDF()"
-                style="background: #6366f1"
-            >
-                📄 PDF
-            </button>
-            <button
-                class="btn btn-success"
-                onclick="window.print()"
-                style="background: #64748b"
-            >
-                🖨️ Печать
-            </button>
-            <button
-                class="btn btn-secondary"
-                onclick="window.location.href = 'index.html'"
-            >
-                ← Назад к списку
             </button>
         </div>
 
