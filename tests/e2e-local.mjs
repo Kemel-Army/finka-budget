@@ -283,7 +283,11 @@ async function visit(ctx, blocked, url, waitMs, opts = {}) {
     page.on("requestfailed", (req) => {
         const u = req.url();
         if (blocked.has(u) || /favicon\.ico/i.test(u)) return;
-        errors.push("requestfailed: " + u + " " + ((req.failure() && req.failure().errorText) || ""));
+        const why = (req.failure() && req.failure().errorText) || "";
+        // ERR_ABORTED — запрос отменён уходом со страницы (переадресация
+        // на вход без сессии и т. п.), это не ошибка ресурса
+        if (/ERR_ABORTED/.test(why)) return;
+        errors.push("requestfailed: " + u + " " + why);
     });
     page.on("response", (res) => {
         const u = res.url();
