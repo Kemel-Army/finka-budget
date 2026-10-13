@@ -327,21 +327,52 @@
         }
     }
 
+    // Сколько правок так и не доехало до базы
+    function unsent() {
+        try {
+            var st = window.finkaSync && window.finkaSync.status && window.finkaSync.status();
+            return (st && st.pending) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    /* Промис вернёт false, если человек передумал выходить. */
     function signOut() {
         // Сначала дописываем в базу то, что ещё не уехало: после выхода
-        // RLS эту запись уже не пропустит, а кэш будет стёрт
+        // RLS эту запись уже не пропустит, а кэш будет стёрт. flush, а не
+        // push: он не ждёт паузы между повторами и, если при открытии
+        // страницы базы не было, пробует подключиться заново
+        var sync = window.finkaSync;
         var flush = Promise.resolve();
-        if (window.finkaSync && window.finkaSync.push) {
+        if (sync && (sync.flush || sync.push)) {
             flush = flush
                 .then(function () {
-                    return window.finkaSync.push();
+                    return sync.flush ? sync.flush() : sync.push();
                 })
                 .catch(function () {
-                    /* не сохранилось — всё равно выходим */
+                    /* не сохранилось — ниже спросим, выходить ли */
                 });
         }
-        return flush
-            .then(getClient)
+        return flush.then(function () {
+            // Нет сети или база не готова — очередь не ушла, а
+            // clearBudgetCache её сотрёт. Молча терять правки нельзя
+            var n = unsent();
+            if (
+                n > 0 &&
+                !confirm(
+                    "Есть изменения, не отправленные в базу (" + n + "). " +
+                        "Выйти и потерять их?",
+                )
+            ) {
+                return false;
+            }
+            return leave();
+        });
+    }
+
+    function leave() {
+        return getClient()
             .then(function (c) {
                 return c.auth.signOut();
             })
@@ -438,7 +469,15 @@
         out.textContent = "Выйти";
         out.addEventListener("click", function () {
             out.disabled = true;
-            signOut();
+            signOut().then(
+                function (done) {
+                    // Передумал выходить — кнопка снова доступна
+                    if (done === false) out.disabled = false;
+                },
+                function () {
+                    out.disabled = false;
+                },
+            );
         });
 
         box.appendChild(avatar);

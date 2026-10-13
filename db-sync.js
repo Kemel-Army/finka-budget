@@ -26,7 +26,11 @@
  *     запись; при сбое сети — повтор с нарастающей паузой;
  *   • запись существующей строки условная: «обнови, если updated_at всё ещё
  *     тот, что я видел». Если строку успел поменять кто-то другой, его
- *     правки не затираются — пользователь получает предупреждение.
+ *     правки не затираются — пользователь получает предупреждение;
+ *   • ключи, которые RLS этой учётке заведомо не даст записать (чужой
+ *     филиал у привязанной к филиалу, депозит), в очередь не ставятся;
+ *   • очистить данные только в браузере — finkaSync.clearLocal():
+ *     обычный removeItem ушёл бы в базу удалением строки.
  */
 (function () {
     "use strict";
@@ -120,6 +124,12 @@
     // всегда это страница, пересохранившая при открытии устаревший кэш, а
     // не правка человека, — см. pull().
     var early = Object.create(null);
+    // Ключ → отпечатки значений, которые ушли в базу, но ответа на которые
+    // мы не дождались (сбой сети). Запрос мог дойти: тогда повтор с прежней
+    // версией задевает 0 строк, и без этого списка своя же доехавшая запись
+    // выглядела бы как «изменено другим пользователем». Живёт, пока ключ в
+    // очереди, и сохраняется вместе с ней — переживает перезагрузку.
+    var unsure = Object.create(null);
     var known = Object.create(null);
     var inflight = Object.create(null);
     // Ключи, которые страница прочитала: по ним решаем, нужна ли перезагрузка
@@ -141,6 +151,16 @@
     var client = null;
     var profile = null;
     var lastError = "";
+
+    // Номер «поколения» локальных данных. clearLocal() его увеличивает:
+    // ответ на отправку, начатую до очистки, уже не должен ничего менять
+    var epoch = 0;
+
+    /* Трогал ли человек страницу (клавиатура, ввод, мышь) с момента
+       загрузки. Запись до первого чтения из базы без участия человека —
+       это страница пересохранила кэш при открытии; с участием — настоящая
+       правка, и молча выбрасывать её нельзя (см. markDirty и pull). */
+    var userTouched = false;
 
     // Перезагрузка вынесена, чтобы тесты могли её подменить: в jsdom
     // location.reload не реализован
@@ -220,6 +240,7 @@
         });
         pending = Object.create(null);
         early = Object.create(null);
+        unsure = Object.create(null);
         known = Object.create(null);
 
         // Отметки «уже перезагружали» прошлого пользователя тоже не наши:
@@ -261,9 +282,12 @@
             if (!foreign && old !== null && getRaw(m.to) === null) {
                 setRaw(m.to, old);
                 // Перехват записи ещё не стоит — ставим в очередь сами.
-                // «Ранняя» правка: если в базе лист уже есть, победит база.
+                // Ранней правкой (молча уступающей базе) это НЕ считаем:
+                // под старым ключом лежит то, что человек ввёл руками, а
+                // в базе под новым может быть лист от старого импорта.
+                // Разойдутся — обычный конфликт: в браузер версия из базы,
+                // своя — в finka_conflict_<ключ>, и предупреждение.
                 pending[m.to] = ++rev;
-                early[m.to] = 1;
             }
             removeRaw(m.from);
         });
@@ -292,9 +316,16 @@
     function saveQueue() {
         var out = {};
         Object.keys(pending).forEach(function (k) {
-            out[k] = 1;
+            out[k] = unsure[k] && unsure[k].length ? unsure[k] : 1;
         });
         saveJson(QUEUE_KEY, out);
+    }
+
+    // Ключ больше не ждёт отправки: всё, что о нём помнила очередь, — прочь
+    function unqueue(k) {
+        delete pending[k];
+        delete early[k];
+        delete unsure[k];
     }
 
     /* Версии общие для всех вкладок: localStorage один. Сохраняем только
@@ -330,7 +361,9 @@
     function restoreState() {
         var q = loadJson(QUEUE_KEY) || {};
         Object.keys(q).forEach(function (k) {
-            if (OURS.test(k) && !pending[k]) pending[k] = ++rev;
+            if (!OURS.test(k) || pending[k]) return;
+            pending[k] = ++rev;
+            if (Array.isArray(q[k])) unsure[k] = q[k].map(String);
         });
         var kn = loadJson(KNOWN_KEY) || {};
         Object.keys(kn).forEach(function (k) {
@@ -431,6 +464,16 @@
 
     function remember(k, row) {
         setKnown(k, { at: row.updated_at, h: hash(canonValue(row.value)) });
+    }
+
+    /* Строка в базе — одно из значений, которые мы сами отправляли (sent —
+       отпечатки текущей отправки, unsure — прежних, без ответа)? Тогда
+       расхождение версии — след нашей же доехавшей записи, а не конфликт. */
+    function landed(k, row, sent) {
+        if (!row) return false;
+        var h = hash(canonValue(row.value));
+        var mine = (unsure[k] || []).concat(sent || []);
+        return mine.indexOf(h) !== -1;
     }
 
     /* ── Состояние ─────────────────────────────────────────────── */
@@ -613,8 +656,7 @@
             removeRaw(k);
             setKnown(k, null);
         }
-        delete pending[k];
-        delete early[k];
+        unqueue(k);
         if (!silent && conflicts.indexOf(k) === -1) conflicts.push(k);
     }
 
@@ -672,12 +714,20 @@
                     // Совпало по смыслу — отправлять нечего
                     if (canonRaw(getRaw(k)) === canonValue(row.value)) {
                         remember(k, row);
-                        delete pending[k];
-                        delete early[k];
+                        unqueue(k);
+                        return;
+                    }
+                    // В базе — наше же значение, отправленное раньше, ответ
+                    // на которое потерялся. Это не чужая правка: запоминаем
+                    // новую версию, а более поздние правки отправим от неё
+                    if (landed(k, row)) {
+                        remember(k, row);
+                        delete unsure[k];
                         return;
                     }
                     // Пересохранение устаревшего кэша — молча берём базу;
-                    // правка из прошлой сессии поверх чужой — конфликт
+                    // правка человека (из прошлой сессии, перенесённая из
+                    // старого ключа, сделанная до конца чтения) — конфликт
                     var silent = !!early[k];
                     takeServer(k, row, silent);
                     changed.push(k);
@@ -754,7 +804,15 @@
             });
     }
 
-    function insertRow(k, parts, raw) {
+    /* В базе лежит наше же значение — запись на деле прошла (ответ на неё
+       потерялся). Если с тех пор лист правили ещё, ключ остаётся в очереди
+       (stale) и уйдёт следующей отправкой — уже условно от этой версии. */
+    function ours(k, row, raw) {
+        var same = raw !== null && canonValue(row.value) === canonRaw(raw);
+        return { k: k, result: "ok", row: row, stale: !same };
+    }
+
+    function insertRow(k, parts, raw, sent) {
         return table()
             .insert({ branch: parts.branch, key: parts.key, value: encode(raw) })
             .select(COLS)
@@ -764,8 +822,11 @@
                 }
                 var f = fail(k, res.error);
                 if (f.result !== "conflict") return f;
-                // Строку успели создать раньше нас — это тоже конфликт
+                // Строка уже есть. Если в ней наше значение — это наша же
+                // прошлая вставка, ответ на которую не дошёл; иначе её
+                // успел создать кто-то другой — конфликт
                 return fetchRow(parts).then(function (row) {
+                    if (landed(k, row, sent)) return ours(k, row, raw);
                     return { k: k, result: "conflict", row: row };
                 });
             });
@@ -774,16 +835,20 @@
     /* Запись или удаление не задели ни одной строки. Причин три: строку
        поменяли (конфликт), удалили, или RLS не пустила — PostgREST в
        последнем случае ошибки не возвращает, просто 0 строк. Различаем
-       по тому, что сейчас лежит в базе. */
-    function probe(k, parts, raw, base) {
+       по тому, что сейчас лежит в базе.
+       Четвёртая причина — наша же прошлая запись: запрос дошёл, ответ
+       потерялся (Failed to fetch), и повтор с прежним updated_at уже ничего
+       не находит. Её узнаём по значению: в базе лежит то, что мы слали. */
+    function probe(k, parts, raw, base, sent) {
         return fetchRow(parts).then(function (row) {
             if (!row) {
                 if (raw === null) return { k: k, result: "ok", row: null };
                 // Лист удалили, а у нас правки — восстанавливаем его: так
                 // ничего чужого не затирается
-                return insertRow(k, parts, raw);
+                return insertRow(k, parts, raw, sent);
             }
             if (row.updated_at === base) return { k: k, result: "denied" };
+            if (landed(k, row, sent)) return ours(k, row, raw);
             return { k: k, result: "conflict", row: row };
         });
     }
@@ -791,6 +856,9 @@
     function sendOne(k, raw) {
         var parts = split(k);
         var base = known[k] && known[k].at;
+        // Отпечаток того, что отправляем сейчас: по нему probe узнает свою
+        // запись, если ответ на неё не дойдёт и придётся повторять
+        var sent = raw === null ? [] : [hash(canonRaw(raw))];
 
         if (raw === null) {
             // Ключ ни разу не видели в базе — удалять там нечего. Удалять
@@ -807,11 +875,11 @@
                     if (res.data && res.data.length) {
                         return { k: k, result: "ok", row: null };
                     }
-                    return probe(k, parts, raw, base);
+                    return probe(k, parts, raw, base, sent);
                 });
         }
 
-        if (!base) return insertRow(k, parts, raw);
+        if (!base) return insertRow(k, parts, raw, sent);
 
         // updated_at выставляет триггер budget.stamp() при каждой записи,
         // поэтому новую версию берём из ответа (.select), а не из часов
@@ -827,7 +895,7 @@
                 if (res.data && res.data.length) {
                     return { k: k, result: "ok", row: res.data[0] };
                 }
-                return probe(k, parts, raw, base);
+                return probe(k, parts, raw, base, sent);
             });
     }
 
@@ -844,6 +912,7 @@
         if (!keys.length) return Promise.resolve(stats());
         refreshKnown();
 
+        var gen = epoch;
         var sent = {};
         var jobs = keys.map(function (k) {
             var raw = getRaw(k);
@@ -863,6 +932,13 @@
         showState("busy", "Сохранение…");
 
         sending = Promise.all(jobs).then(function (results) {
+            if (gen !== epoch) {
+                // Пока летел ответ, данные в браузере очистили (clearLocal):
+                // версии и очередь, которые он принёс, уже не про них
+                sending = null;
+                if (pendingCount()) schedulePush();
+                return stats();
+            }
             var retry = 0;
             var denied = [];
             var rejected = [];
@@ -879,14 +955,19 @@
 
                 if (r.result === "ok") {
                     if (r.row && r.row.updated_at) {
-                        setKnown(k, { at: r.row.updated_at, h: hash(canonRaw(s.raw)) });
+                        // stale — в базе наше прежнее значение, а не это
+                        var h = r.stale
+                            ? hash(canonValue(r.row.value))
+                            : hash(canonRaw(s.raw));
+                        setKnown(k, { at: r.row.updated_at, h: h });
                     } else {
                         setKnown(k, null);
                     }
-                    if (untouched) {
-                        delete pending[k];
-                        delete early[k];
-                    }
+                    // Что лежит в базе, теперь известно точно
+                    delete unsure[k];
+                    // stale: доехала прежняя версия, а эта — ещё нет; ключ
+                    // остаётся в очереди и уйдёт от новой версии
+                    if (untouched && !r.stale) unqueue(k);
                     return;
                 }
                 if (r.error) lastError = String(r.error.message || r.error);
@@ -897,9 +978,20 @@
                 } else if (r.result === "denied" || r.result === "rejected") {
                     // Повтор не поможет. Из очереди убираем, иначе ключ
                     // навсегда закрылся бы для обновлений из базы
-                    if (untouched) delete pending[k];
+                    if (untouched) unqueue(k);
                     (r.result === "denied" ? denied : rejected).push(k);
                 } else {
+                    // Ответа нет — запрос мог и дойти. Запоминаем отпечаток
+                    // отправленного: если при повторе в базе окажется ровно
+                    // оно, это наша запись, а не чужая (см. probe)
+                    if (s.raw !== null && pending[k]) {
+                        var list = unsure[k] || (unsure[k] = []);
+                        var mine = hash(canonRaw(s.raw));
+                        if (list.indexOf(mine) === -1) list.push(mine);
+                        // Хватит последних: без связи человек может успеть
+                        // сохранить лист много раз
+                        if (list.length > 20) list.shift();
+                    }
                     retry++;
                 }
             });
@@ -974,29 +1066,86 @@
     }
 
     /* ── Перехват записи и чтения ──────────────────────────────── */
+    /* RLS заведомо не даст этой учётке записать ключ (см. budget.
+       can_write_branch и budget.can_touch_key в supabase/migrations
+       0001 и 0003). Такие записи страниц — пересохранение при открытии
+       (год бюджета на главной, лист филиала после switchBranch, который
+       жмёт auth.js) — в очередь не ставим вовсе: иначе каждое открытие
+       страницы давало бы 42501 и красный значок «Нет права записи».
+       Молчим только там, где правка человека невозможна по интерфейсу:
+         • депозит — пишут лишь администратор и «Работа (огранич.)» ЦА;
+         • чужой филиал (и общие настройки — они в строке ЦА) у учётки,
+           привязанной к филиалу: auth.js не даёт ей переключить город.
+       «Работа» из ЦА видит все города, и её правку чужого города RLS тоже
+       не пропустит, — но там это может быть настоящий ввод, и о нём лучше
+       сказать значком, чем молча потерять. Профиль ещё не пришёл — решим в
+       start(), когда он будет. */
+    var DEPOSIT = /^deposit(_|$)/;
+
+    function refused(k) {
+        if (!profile || !profile.role) return false;
+        var role = profile.roleKey;
+        var parts = split(k);
+        if (DEPOSIT.test(parts.key)) {
+            var bookkeeper =
+                role === "admin" || (role === "limited" && profile.branchKey === "nao");
+            if (!bookkeeper) return true;
+        }
+        if (role === "admin") return false;
+        return !!profile.branchLocked && parts.branch !== profile.branchKey;
+    }
+
     // Страницы пишут через localStorage.setItem — подменяем метод, чтобы не
     // трогать код двадцати с лишним страниц. Флаг quiet нужен, чтобы наша
     // же запись при чтении из базы не улетала обратно в базу.
     function markDirty(k) {
         if (disabled) return;
-        if (!inflight[k] && known[k]) {
+        if (refused(k)) {
+            if (pending[k]) {
+                unqueue(k);
+                saveQueue();
+            }
+            return;
+        }
+        // Пока у ключа есть отправка без ответа, база могла уже принять
+        // новое значение — тогда known устарел, и сверять с ним нельзя
+        if (!inflight[k] && known[k] && !unsure[k]) {
             var raw = getRaw(k);
             // Страница пересохранила ровно то, что лежит в базе, — это не
             // правка: в очередь не ставим и обновления из базы не блокируем
             if (raw !== null && hash(canonRaw(raw)) === known[k].h) {
                 if (pending[k]) {
-                    delete pending[k];
-                    delete early[k];
+                    unqueue(k);
                     saveQueue();
                 }
                 return;
             }
         }
-        if (!pending[k] && !ready) early[k] = 1;
-        if (ready) delete early[k];
+        // «Ранняя» запись — до первого чтения из базы и без участия
+        // человека: страница пересохранила при открытии устаревший кэш, и
+        // при расхождении с базой молча уступит ей (см. pull). Если человек
+        // уже что-то вводил, это может быть его правка — тогда обычный
+        // конфликт с запасной копией и предупреждением, а не тихая потеря
+        if (!pending[k] && !ready && !userTouched) early[k] = 1;
+        if (ready || userTouched) delete early[k];
         pending[k] = ++rev;
         saveQueue();
         schedulePush();
+    }
+
+    /* Отметка «человек трогал страницу». Слушаем на document в фазе
+       перехвата — раньше обработчиков страницы, которые сохраняют лист.
+       click не берём: auth.js сам жмёт кнопку филиала (lockBranch), а
+       mousedown программный .click() не вызывает. */
+    function watchUser() {
+        var mark = function () {
+            userTouched = true;
+        };
+        ["keydown", "input", "change", "paste", "cut", "drop", "mousedown", "touchstart"].forEach(
+            function (type) {
+                document.addEventListener(type, mark, true);
+            },
+        );
     }
 
     function hookStorage() {
@@ -1029,8 +1178,57 @@
         disabled = true;
         pending = Object.create(null);
         early = Object.create(null);
+        unsure = Object.create(null);
         saveQueue();
         if (code) showState(code, text);
+    }
+
+    // Записи, сделанные до прихода профиля (перехват стоит с загрузки
+    // модуля), и очередь прошлой сессии: то, что RLS этой учётке заведомо
+    // не пропустит, выбрасываем молча — см. refused()
+    function dropRefused() {
+        var dropped = false;
+        Object.keys(pending).forEach(function (k) {
+            if (refused(k)) {
+                unqueue(k);
+                dropped = true;
+            }
+        });
+        if (dropped) saveQueue();
+    }
+
+    /* Очистить данные бюджета в этом браузере — и только в нём. Обычный
+       localStorage.removeItem перехвачен и каждое удаление отправил бы в
+       базу как DELETE строки (у администратора — всех филиалов), поэтому
+       удаляем в обход перехвата. Вместе с данными забываем версии и
+       очередь: при следующем открытии страницы всё придёт из базы заново.
+       Год бюджета — общая настройка, не данные, его не трогаем; запасные
+       копии конфликтов (finka_conflict_*) тоже — их в базе нет, и это
+       единственный экземпляр проигравших правок.
+       Возвращает число удалённых ключей. */
+    function clearLocal() {
+        var drop = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (OURS.test(k) && !GLOBALS[k]) drop.push(k);
+        }
+        drop.forEach(function (k) {
+            removeRaw(k);
+        });
+        epoch++;
+        clearTimeout(pushTimer);
+        clearTimeout(retryTimer);
+        attempt = 0;
+        pending = Object.create(null);
+        early = Object.create(null);
+        unsure = Object.create(null);
+        inflight = Object.create(null);
+        known = Object.create(null);
+        knownTouched = Object.create(null);
+        removeRaw(QUEUE_KEY);
+        removeRaw(KNOWN_KEY);
+        if (!disabled && client) showState("ok", "Синхронизировано");
+        return drop.length;
     }
 
     function start() {
@@ -1055,6 +1253,7 @@
                     stop("ro", "Только чтение");
                 } else {
                     showState("busy", "Загрузка…");
+                    dropRefused();
                 }
 
                 return pull().then(function (res) {
@@ -1096,7 +1295,10 @@
         // Перехват ставим сразу, ещё до ответа auth: страницы читают и
         // пересохраняют данные на DOMContentLoaded, и это надо видеть. Если
         // роли не окажется, start() очередь очистит.
-        if (window.finkaAuth) hookStorage();
+        if (window.finkaAuth) {
+            hookStorage();
+            watchUser();
+        }
     } catch (e) {
         /* localStorage недоступен — страница работает как работала */
     }
@@ -1121,6 +1323,9 @@
         },
         // Отправить очередь немедленно; промис вернёт status()
         flush: flush,
+        // Удалить данные бюджета только из этого браузера, ничего не
+        // отправляя в базу; вернёт число удалённых ключей
+        clearLocal: clearLocal,
         // Есть ли неотправленное, идёт ли отправка, ошибка, конфликт
         status: stats,
         stats: stats,
