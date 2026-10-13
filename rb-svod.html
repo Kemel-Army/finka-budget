@@ -851,10 +851,14 @@
                 // Не сохраняем в режиме консолидации
                 if (currentBranch === "consolidated") return;
 
-                document.querySelectorAll("input").forEach((input) => {
+                // Только ячейки листа: поля без data-cell (строки sheet-edit.js и
+                // прочие) давали ключ cells["undefined"]
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     tableData.cells[input.dataset.cell] = input.value;
                     input.parentElement.classList.remove("changed");
                 });
+                // мусорный ключ из прежних сохранений
+                delete tableData.cells["undefined"];
 
                 tableData.lastModified = new Date().toISOString();
 
@@ -869,7 +873,7 @@
                 const storageKey = `${tableData.sheet}_${tableData.branch}`;
                 const saved = localStorage.getItem(storageKey);
 
-                document.querySelectorAll("input").forEach((input) => {
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     input.value = "0";
                 });
 
@@ -1023,7 +1027,7 @@
                 // Суммируем данные
                 const consolidatedCells = {};
 
-                document.querySelectorAll("input").forEach((input) => {
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     const cellId = input.dataset.cell;
                     let sum = 0;
 

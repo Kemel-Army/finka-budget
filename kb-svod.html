@@ -413,6 +413,15 @@ function fmt(v) {
     if (!n) return '';
     return n.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
+/* Значение в поле ввода — без округления: fmt() режет копейки, и при
+   перерисовке таблицы (добавили год, перезагрузили страницу) в поле
+   оставалось «1 235» вместо 1234,56 — правка поля сохраняла уже
+   округлённое число. Разряды для читаемости оставляем, дробь — как есть. */
+function fmtInput(v) {
+    var n = +v || 0;
+    if (!n) return '';
+    return n.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:10});
+}
 function pctOf(v, total) {
     var n = +v||0, t = +total||0;
     if (!t || !n) return null;
@@ -638,7 +647,7 @@ function renderBody() {
         FACT_YEARS.forEach(function(y, fi) {
             var cls = 'td-val fact-col' + (fi===FACT_YEARS.length-1?' fact-col-end':'');
             html += '<td class="'+cls.trim()+'">'
-                  + '<input type="text" value="'+fmt(getVal(r,y))+'" placeholder="0"'
+                  + '<input type="text" value="'+fmtInput(getVal(r,y))+'" placeholder="0"'
                   + ' id="inp_'+r.id+'_'+y+'"'
                   + ' oninput="onValInput(\''+r.id+'\','+y+',this)"'
                   + ' onfocus="this.select()">'
@@ -648,7 +657,7 @@ function renderBody() {
         /* plan cols */
         planYears().forEach(function(y) {
             html += '<td class="td-val plan-col">'
-                  + '<input type="text" value="'+fmt(getVal(r,y))+'" placeholder="0"'
+                  + '<input type="text" value="'+fmtInput(getVal(r,y))+'" placeholder="0"'
                   + ' id="inp_'+r.id+'_'+y+'"'
                   + ' oninput="onValInput(\''+r.id+'\','+y+',this)"'
                   + ' onfocus="this.select()">'

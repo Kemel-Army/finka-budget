@@ -31,22 +31,22 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         📈 Консолидация
                     </button>
@@ -65,7 +65,7 @@
                             id="mrp"
                             value="4325"
                             step="1"
-                            oninput="calc()"
+                            oninput="calc(true)"
                         />
                     </div>
                     <div class="param-group">
@@ -75,7 +75,7 @@
                             id="bdo"
                             value="29684"
                             step="1"
-                            oninput="calc()"
+                            oninput="calc(true)"
                         />
                     </div>
                     <div class="param-group">
@@ -261,7 +261,7 @@
                                 r.id +
                                 "-c" +
                                 c +
-                                '" value="0" step="any" oninput="calc()"></td>';
+                                '" value="0" step="any" oninput="calc(true)"></td>';
                         }
                         html +=
                             '<td class="formula-cell" id="' +
@@ -335,7 +335,9 @@
                 tds[COLS + 2].textContent = fmt(fotFromVals(vals));
             }
 
-            function calc() {
+            // edited — пересчёт после ввода или импорта: только тогда и
+            // сохраняем. Загрузка филиала сама по себе ничего не пишет.
+            function calc(edited) {
                 // Per-row FOT
                 DATA_IDS.forEach((id) => {
                     const v = getRowVals(id);
@@ -351,11 +353,15 @@
                     writeSumRow(r.id, sumRowArrays(r.sum));
                 });
 
-                schedSave();
+                if (edited) schedSave();
             }
 
             /* ── Save / Load ── */
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+
             function schedSave() {
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Изменено...";
                 document.getElementById("saveStatus").style.background =
@@ -366,6 +372,8 @@
 
             function save() {
                 if (branch === "consolidated") return;
+                clearTimeout(timeout);
+                dirty = false;
                 const data = {
                     mrp: document.getElementById("mrp").value,
                     bdo: document.getElementById("bdo").value,
@@ -427,15 +435,23 @@
             }
 
             /* ── Branch switching ── */
-            function switchBranch(b) {
-                if (branch !== "consolidated" && branch !== b) save();
+            function switchBranch(b, btn) {
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
+                if (branch !== "consolidated" && branch !== b && dirty) save();
                 branch = b;
                 document.getElementById("branchLabel").textContent =
                     BRANCH_NAMES[b];
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + b + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
                 if (b === "consolidated") loadConsolidated();
                 else load();
             }
@@ -550,7 +566,7 @@
                             imported++;
                         });
 
-                        calc();
+                        calc(true);
                         window.finkaToast(
                             "Импортировано строк: " +
                                 imported +

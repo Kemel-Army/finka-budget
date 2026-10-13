@@ -181,6 +181,29 @@
             let rows = [];
             let saveTimeout;
 
+            /* Филиалы. Кнопки были, а переключения не было: страница всегда
+               читала и писала ключ ЦА (rb_plan_komandir_nao), и учётка
+               филиала видела и правила чужой план (а её запись отбивала
+               RLS). Теперь у каждого города свой ключ, консолидация
+               показывает поездки всех городов списком, только для чтения. */
+            const BRANCHES = ["nao", "almaty", "astana", "uralsk"];
+            const BRANCH_NAMES = {
+                nao: "НАО «РФМШ»",
+                almaty: "Алматы",
+                astana: "Астана",
+                uralsk: "Уральск",
+                consolidated: "Консолидация",
+            };
+            let currentBranch = "nao";
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+            // Данные загружены (load): до этого не сохраняем и не грузим
+            let pageReady = false;
+
+            function readOnly() {
+                return currentBranch === "consolidated";
+            }
+
             function fmt(n) {
                 return n.toLocaleString("ru-RU", {
                     minimumFractionDigits: 2,
@@ -208,6 +231,7 @@
             }
 
             function buildTable() {
+                const dis = readOnly() ? " disabled" : "";
                 let html = "";
                 rows.forEach((row, i) => {
                     const r = i + 1;
@@ -216,17 +240,17 @@
                         "<td>" + r + "</td>" +
                         '<td><input type="text" id="r' + r + '-name" value="' +
                         esc(row.name) +
-                        '" oninput="onEdit()"></td>' +
+                        '" oninput="onEdit()"' + dis + "></td>" +
                         '<td><input type="text" id="r' + r + '-dest" value="' +
                         esc(row.dest) +
-                        '" oninput="onEdit()"></td>';
+                        '" oninput="onEdit()"' + dis + "></td>";
                     FIELDS.forEach((f) => {
                         html += f.calc
                             ? '<td class="formula-cell" id="r' + r + "-" + f.id +
                               '">0,00</td>'
                             : '<td><input type="number" id="r' + r + "-" + f.id +
                               '" value="' + esc(row[f.id] ?? 0) +
-                              '" oninput="onEdit()"></td>';
+                              '" oninput="onEdit()"' + dis + "></td>";
                     });
                     html += "</tr>";
                 });
@@ -286,6 +310,7 @@
 
             /* ── Строки ───────────────────────────────────────────────── */
             function addRow() {
+                if (readOnly()) return;
                 collect();
                 rows.push(emptyRow());
                 buildTable();
@@ -311,6 +336,8 @@
 
             /* ── Сохранение ───────────────────────────────────────────── */
             function scheduleSave() {
+                if (readOnly()) return;
+                dirty = true;
                 const st = document.getElementById("saveStatus");
                 if (st) {
                     st.textContent = "Сохраняю...";
@@ -321,9 +348,12 @@
             }
 
             function saveData() {
+                if (readOnly() || !pageReady) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 collect();
                 localStorage.setItem(
-                    SHEET_KEY + "_nao",
+                    SHEET_KEY + "_" + currentBranch,
                     JSON.stringify({ rows: rows }),
                 );
                 const st = document.getElementById("saveStatus");
@@ -333,29 +363,81 @@
                 }
             }
 
-            function loadData() {
-                const saved = localStorage.getItem(SHEET_KEY + "_nao");
-                if (saved) {
-                    try {
-                        const d = JSON.parse(saved);
-                        rows = Array.isArray(d.rows) && d.rows.length
-                            ? d.rows
-                            : [emptyRow()];
-                    } catch (e) {
-                        rows = [emptyRow()];
-                    }
-                } else {
-                    rows = [emptyRow()];
+            function readRows(branch) {
+                const saved = localStorage.getItem(SHEET_KEY + "_" + branch);
+                if (!saved) return [];
+                try {
+                    const d = JSON.parse(saved);
+                    return Array.isArray(d.rows) ? d.rows : [];
+                } catch (e) {
+                    return [];
                 }
+            }
+
+            function loadData() {
+                if (readOnly()) {
+                    // Консолидация: поездки всех городов, подписанные городом
+                    rows = [];
+                    BRANCHES.forEach((b) => {
+                        readRows(b).forEach((row) => {
+                            // пустую строку-заготовку города не показываем
+                            const empty =
+                                !row.name &&
+                                !row.dest &&
+                                FIELDS.every(
+                                    (f) => f.calc || f.id === "mrp" || !parseFloat(row[f.id]),
+                                );
+                            if (empty) return;
+                            rows.push(
+                                Object.assign({}, row, {
+                                    name: BRANCH_NAMES[b] + ": " + (row.name || ""),
+                                }),
+                            );
+                        });
+                    });
+                } else {
+                    rows = readRows(currentBranch);
+                    if (!rows.length) rows = [emptyRow()];
+                }
+                const label = document.getElementById("currentBranch");
+                if (label) label.textContent = BRANCH_NAMES[currentBranch];
                 buildTable();
                 calc();
+            }
+
+            function switchBranch(branch, btn) {
+                if (!BRANCH_NAMES[branch] || branch === currentBranch) return;
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
+                if (dirty) saveData();
+                currentBranch = branch;
+                document.querySelectorAll(".branch-btn").forEach((b) => {
+                    b.classList.toggle("active", b === btn || b.dataset.branch === branch);
+                });
+                // auth.js жмёт кнопку своего филиала раньше load — тогда
+                // только запоминаем филиал, данные загрузит обработчик load
+                if (!pageReady) return;
+                loadData();
+            }
+
+            // Обработчик ставится сразу (скрипт стоит после кнопок), чтобы
+            // клик auth.js до load не потерялся
+            const branchBar = document.querySelector(".branch-selector");
+            if (branchBar) {
+                branchBar.addEventListener("click", (e) => {
+                    const btn = e.target.closest(".branch-btn");
+                    if (btn) switchBranch(btn.dataset.branch, btn);
+                });
             }
 
             function exportToExcel() {
                 SharedExport.exportTableToExcel({ title: document.title });
             }
 
-            window.addEventListener("load", loadData);
+            window.addEventListener("load", () => {
+                pageReady = true;
+                loadData();
+            });
         </script>
         <script src="sheet-ux.js"></script>
         <script src="shared-nav.js"></script>

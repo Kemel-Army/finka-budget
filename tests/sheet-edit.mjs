@@ -104,7 +104,8 @@ function installStubs(window) {
     };
 }
 
-async function load(file) {
+// seed — данные в localStorage до первого скрипта страницы
+async function load(file, seed = {}) {
     const errors = [];
     const vc = new VirtualConsole();
     vc.on("jsdomError", (e) => errors.push(e.message));
@@ -116,7 +117,10 @@ async function load(file) {
         pretendToBeVisual: true,
         virtualConsole: vc,
         resources: { interceptors: [localFiles] },
-        beforeParse: installStubs,
+        beforeParse(w) {
+            installStubs(w);
+            for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
+        },
     });
 
     const win = dom.window;
@@ -231,6 +235,117 @@ console.log("\n── Правки: переименование, добавле
         doc.querySelectorAll("tr.sx-extra").length === before,
     );
 
+    win.close();
+}
+
+/* ── Итоги самой страницы не попадают в «ИТОГО по таблице» ───────── */
+/* Строки sub-row («Итого по тарификации», «Рентабельность 8%») и grand-row
+   («ВСЕГО») — расчётные итоги страницы. Пока они считались строками данных,
+   «ИТОГО по таблице» складывал их вместе с исходными строками: введённая
+   1000 превращалась в итоге в 2000–3000. */
+console.log("\n── «ИТОГО по таблице» без промежуточных итогов страницы");
+for (const [page, inputId, value, label] of [
+    ["pu-fot-almaty.html", "r1-fzp", 1000, "ФЗП: 1000 в строке 1"],
+    ["pu-income-pu.html", "row-2-m1", 1000, "январь: 1000 в строке 2"],
+]) {
+    const { win, errors } = await load(page);
+    const doc = win.document;
+    const inp = doc.getElementById(inputId);
+    ok(`${page}: поле ${inputId} есть`, !!inp);
+    if (!inp) {
+        win.close();
+        continue;
+    }
+    inp.value = String(value);
+    inp.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 300);
+
+    const table = inp.closest("table");
+    const sx = table.querySelectorAll("tr.sx-total");
+    ok(`${page}: одна строка «ИТОГО по таблице»`, sx.length === 1, `строк: ${sx.length}`);
+
+    // Колонка поля в строке итога — с учётом colspan в первой ячейке
+    const col = (tr, cell) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            if (td === cell) return c;
+            c += parseInt(td.getAttribute("colspan"), 10) || 1;
+        }
+        return -1;
+    };
+    const at = (tr, idx) => {
+        let c = 0;
+        for (const td of tr.cells) {
+            const span = parseInt(td.getAttribute("colspan"), 10) || 1;
+            if (idx >= c && idx < c + span) return td;
+            c += span;
+        }
+        return null;
+    };
+    const idx = col(inp.closest("tr"), inp.closest("td"));
+    const cell = sx.length ? at(sx[0], idx) : null;
+    const got = cell
+        ? parseFloat(cell.textContent.replace(/[\s ]/g, "").replace(",", "."))
+        : NaN;
+    ok(`${page}: ${label} → в итоге ${value}`, got === value, `получили ${cell ? cell.textContent.trim() : "—"}`);
+
+    const hard = errors.filter((e) => !/Not implemented|Could not parse CSS/i.test(e));
+    ok(`${page}: без ошибок`, hard.length === 0, hard.slice(0, 1).join("").slice(0, 120));
+    win.close();
+}
+
+/* ── Ячейки rb-income / rb-svod: только поля с data-cell ─────────── */
+/* Сохранение собирало все <input> страницы, и поля добавленных строк
+   sheet-edit.js (у них нет data-cell) ложились в cells["undefined"]. */
+console.log('\n── Сохранение ячеек без мусорного ключа cells["undefined"]');
+for (const [page, sheet] of [
+    ["rb-income.html", "rb_income"],
+    ["rb-svod.html", "rb_svod"],
+]) {
+    // Филиал, в который страница сохраняет при открытии, — дело ключей
+    // хранения; здесь важны только ячейки, поэтому мусор кладём во все
+    const seed = {};
+    for (const b of ["nao", "almaty", "astana", "uralsk"]) {
+        seed[sheet + "_" + b] = JSON.stringify({ sheet, branch: b, cells: { undefined: "5" } });
+    }
+    const { win } = await load(page, seed);
+    const doc = win.document;
+    doc.querySelector(".sx-bar .sx-add").dispatchEvent(new win.Event("click", { bubbles: true }));
+    await tick(win, 200);
+    const extra = doc.querySelector("tr.sx-extra input");
+    const cellInput = doc.querySelector("input[data-cell]");
+    if (extra) {
+        extra.value = "77";
+        extra.dispatchEvent(new win.Event("input", { bubbles: true }));
+    }
+    cellInput.value = "123";
+    cellInput.dispatchEvent(new win.Event("input", { bubbles: true }));
+    await tick(win, 1300);
+    let cells = null;
+    for (const b of ["nao", "almaty", "astana", "uralsk"]) {
+        const c = JSON.parse(win.localStorage.getItem(sheet + "_" + b) || "{}").cells || {};
+        if (c[cellInput.dataset.cell] === "123") cells = c;
+    }
+    ok(`${page}: ячейка сохранена`, !!cells);
+    ok(`${page}: нет ключа cells["undefined"]`, !!cells && !("undefined" in cells),
+        cells ? Object.keys(cells).slice(0, 5).join(",") : "");
+    win.close();
+}
+
+/* ── КБ: поле ввода не округляется ───────────────────────────────── */
+/* fmt() показывает целые тенге — для итогов это нормально, но им же
+   заполнялись поля ввода: после перерисовки 1234,56 превращалось в «1 235»,
+   и любая правка поля сохраняла уже округлённое число. */
+console.log("\n── КБ: копейки в поле ввода сохраняются");
+{
+    const { win } = await load("kb-svod.html", {
+        kb_svod_v3: JSON.stringify({ extraYears: [], rows: { r1: { vals: { y2026: 1234.56 } } } }),
+    });
+    const inp = win.document.getElementById("inp_r1_2026");
+    const shown = inp ? inp.value.replace(/[\s\u00a0\u202f]/g, "") : "";
+    ok("в поле 1234,56, а не 1235", shown === "1234,56", inp ? inp.value : "нет поля");
+    const total = win.document.getElementById("tv_2026");
+    ok("итог округлён только на экране", total && /1\s?235/.test(total.textContent), total ? total.textContent : "");
     win.close();
 }
 

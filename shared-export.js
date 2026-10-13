@@ -53,7 +53,7 @@
         var year = getBudgetYear();
         var label = getBudgetYearLabel();
         document.querySelectorAll(".dyn-year").forEach(function (el) {
-            el.textContent = year;
+            el.textContent = String(year);
         });
         document.querySelectorAll(".dyn-year-range").forEach(function (el) {
             el.textContent = label;

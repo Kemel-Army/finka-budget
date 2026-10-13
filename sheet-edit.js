@@ -169,6 +169,14 @@
         if (tr.classList.contains("summary-row")) return true;
         if (tr.classList.contains("grand-total-row")) return true;
         if (tr.classList.contains("fot-row")) return true;
+        // Промежуточные итоги и «ВСЕГО» самих страниц (ПУ, Свод ФОТ, КБ,
+        // ФОТ-консолидация): их ячейки — тоже formula-cell, и без этой
+        // проверки «ИТОГО по таблице» складывал итог вместе со строками,
+        // из которых он посчитан, — сумма выходила вдвое-втрое больше
+        if (tr.classList.contains("sub-row")) return true;
+        if (tr.classList.contains("grand-row")) return true;
+        if (tr.classList.contains("row-total")) return true;
+        if (tr.classList.contains("mega-row")) return true;
         if (tr.querySelector(".title-cell")) return true;
         return false;
     }

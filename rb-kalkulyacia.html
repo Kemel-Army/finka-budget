@@ -559,7 +559,7 @@
                 const saved = localStorage.getItem(storageKey);
 
                 // ...
-                document.querySelectorAll("input").forEach((input) => {
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     input.value = "0";
                 });
 
@@ -661,7 +661,9 @@
                     }
                 });
 
-                document.querySelectorAll("input").forEach((input) => {
+                // Только ячейки листа: поля без data-cell (строки sheet-edit.js)
+                // иначе получали сумму по ключу "undefined"
+                document.querySelectorAll("input[data-cell]").forEach((input) => {
                     const cellId = input.dataset.cell;
                     let sum = 0;
                     branches.forEach((b) => {
@@ -673,9 +675,12 @@
                 });
 
                 calculateTotals();
-                document.getElementById(
-                    "Консолидировано из 3 филиалов",
-                ).textContent = "Консолидировано из 3 филиалов";
+                // Было getElementById("Консолидировано из 3 филиалов") —
+                // такого id нет, и консолидация падала с «Cannot set
+                // properties of null». Подпись — в «Последнее изменение»,
+                // как на «Доходной части РБ»
+                document.getElementById("lastUpdate").textContent =
+                    "Консолидация из 3 филиалов";
             }
 
             function exportToExcel() {

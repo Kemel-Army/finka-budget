@@ -21,22 +21,22 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         Консолидация
                     </button>
@@ -139,7 +139,8 @@
 
             function save() {
                 // Не сохранять в режиме консолидации
-                if (branch === "consolidated") return;
+                // До первой загрузки в полях заготовка — не пишем её поверх данных
+                if (branch === "consolidated" || !pageReady) return;
 
                 const data = { trips: [] };
                 const tbody = document.getElementById("tableBody");
@@ -198,7 +199,7 @@
                 }
             }
 
-            function switchBranch(newBranch) {
+            function switchBranch(newBranch, btn) {
                 if (branch !== "consolidated" && branch !== newBranch) {
                     save();
                 }
@@ -206,7 +207,16 @@
                 document
                     .querySelectorAll(".branch-btn")
                     .forEach((btn) => btn.classList.remove("active"));
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
+                // auth.js жмёт кнопку своего филиала раньше load — тогда только
+                // запоминаем филиал, данные загрузит обработчик load
+                if (!pageReady) return;
                 if (branch === "consolidated") {
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = true;
@@ -275,7 +285,12 @@
 
                 document.getElementById("addBtn").disabled = true;
             }
-            window.addEventListener("load", load);
+            // Данные филиала загружены: до этого switchBranch и сохранение ждут
+            let pageReady = false;
+            window.addEventListener("load", () => {
+                pageReady = true;
+                load();
+            });
         </script>
         <script>
             // НЕ инициализируем редактируемые таблицы - структура уже готова

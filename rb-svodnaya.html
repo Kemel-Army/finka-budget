@@ -80,22 +80,22 @@
                 <div class="branch-selector">
                     <button
                         class="branch-btn active"
-                        onclick="switchBranch('nao')"
+                        onclick="switchBranch('nao', this)"
                     >
                         🏛️ НАО «РФМШ»
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('almaty')">
+                    <button class="branch-btn" onclick="switchBranch('almaty', this)">
                         🏛️ Алматы
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('astana')">
+                    <button class="branch-btn" onclick="switchBranch('astana', this)">
                         🏛️ Астана
                     </button>
-                    <button class="branch-btn" onclick="switchBranch('uralsk')">
+                    <button class="branch-btn" onclick="switchBranch('uralsk', this)">
                         🏛️ Уральск
                     </button>
                     <button
                         class="branch-btn"
-                        onclick="switchBranch('consolidated')"
+                        onclick="switchBranch('consolidated', this)"
                     >
                         📈 Консолидация
                     </button>
@@ -989,7 +989,7 @@
             }
 
             // Переключение филиала
-            function switchBranch(branch) {
+            function switchBranch(branch, btn) {
                 /* Сохраняем только тронутый филиал. Иначе клик по городам
                    записывал каждому из них лист-заготовку — и в базе
                    появлялись «данные» филиалов, которые никто не заполнял. */
@@ -1012,7 +1012,13 @@
                 document.querySelectorAll(".branch-btn").forEach((btn) => {
                     btn.classList.remove("active");
                 });
-                event.target.classList.add("active");
+                // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+                const activeBtn =
+                    btn ||
+                    document.querySelector(
+                        ".branch-btn[onclick*=\"'" + branch + "'\"]",
+                    );
+                if (activeBtn) activeBtn.classList.add("active");
 
                 // Обновляем название филиала
                 const branchNames = {

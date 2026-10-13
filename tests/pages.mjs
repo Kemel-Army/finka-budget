@@ -269,6 +269,23 @@ console.log("\n── План финансирования: таблица на
         document.querySelectorAll("#mpBody input").length,
         0,
     );
+
+    // Клик по филиалу без правок ничего не пишет: раньше каждый просмотренный
+    // город получал в хранилище (и в базе) свои типовые строки
+    const tab = (sel, attr, v) =>
+        document
+            .querySelectorAll(sel + " .branch-btn")
+            .filter((b) => b.dataset[attr] === v)[0]
+            .dispatch("click");
+    tab("#mpVariants", "variant", "rb");
+    tab("#mpBranches", "branch", "uralsk");
+    tab("#mpBranches", "branch", "astana");
+    checkEq("просмотр Уральска не записан", storage.getItem("plan_fin_rb_uralsk"), null);
+    put(0, 0, 42);
+    tab("#mpBranches", "branch", "nao");
+    checkEq("правка Астаны сохранена при переключении",
+        (JSON.parse(storage.getItem("plan_fin_rb_astana") || "{}").rows || [{ m: [] }])[0].m[0], 42);
+    checkEq("просмотр ЦА не записан", storage.getItem("plan_fin_rb_nao"), null);
 }
 
 /* ── 4. Штатное расписание: формулы сверены с книгой ─────────────── */

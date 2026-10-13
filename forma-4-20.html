@@ -415,7 +415,7 @@
 
                 SPECS.forEach((s) => {
                     const v = {};
-                    INPUTS.forEach((k) => (v[k] = valueOf(k + "-" + s.code, s.code, k)));
+                    INPUTS.forEach((k) => (v[k] = fieldValue(k + "-" + s.code, s.code, k)));
 
                     const unpaid = v.taken - v.paidYear;        //  9 = 6 − 7
                     const restOblig = v.planOblig - v.taken;    // 11 = 4 − 6
@@ -438,7 +438,9 @@
             }
 
             // В режиме «по организации» полей ввода нет — берём из данных
-            function valueOf(id, code, key) {
+            // Не valueOf: объявление на верхнем уровне скрипта подменяло
+            // window.valueOf
+            function fieldValue(id, code, key) {
                 const el = document.getElementById(id);
                 if (el && el.tagName === "INPUT") return parseNum(el.value);
                 return parseNum(facts[code][key]);
@@ -469,7 +471,11 @@
             }
 
             /* ── Хранение ─────────────────────────────────────────────── */
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+
             function scheduleSave() {
+                dirty = true;
                 const st = document.getElementById("saveStatus");
                 if (st) {
                     st.textContent = "Сохраняю…";
@@ -490,6 +496,8 @@
             function saveData() {
                 if (currentBranch === "consolidated") return;
                 if (readOnly()) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 collect();
 
                 const out = {};
@@ -532,7 +540,10 @@
 
             /* ── Филиалы ──────────────────────────────────────────────── */
             function switchBranch(branch) {
-                if (currentBranch !== "consolidated") saveData();
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
+                if (currentBranch !== "consolidated" && dirty) saveData();
+                dirty = false;
                 currentBranch = branch;
 
                 document.querySelectorAll(".branch-btn").forEach((btn) => {

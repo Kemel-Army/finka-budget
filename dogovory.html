@@ -523,7 +523,11 @@
             }
 
             /* ── Хранение ─────────────────────────────────────────────── */
+            // Есть несохранённые правки текущего филиала
+            let dirty = false;
+
             function scheduleSave() {
+                dirty = true;
                 const st = document.getElementById("saveStatus");
                 if (st) {
                     st.textContent = "Сохраняю…";
@@ -536,6 +540,8 @@
             function saveData() {
                 if (currentBranch === "consolidated") return;
                 if (readOnly()) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
                 collect();
 
                 // Пустые специфики не храним: реестр и так на шестнадцать
@@ -574,7 +580,10 @@
 
             /* ── Филиалы ──────────────────────────────────────────────── */
             function switchBranch(branch) {
-                if (currentBranch !== "consolidated") saveData();
+                // Сохраняем только реальные правки: клик по филиалу без
+                // изменений не должен писать в localStorage и базу
+                if (currentBranch !== "consolidated" && dirty) saveData();
+                dirty = false;
                 currentBranch = branch;
 
                 document.querySelectorAll(".branch-btn").forEach((btn) => {

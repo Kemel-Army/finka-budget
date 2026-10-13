@@ -1,0 +1,37 @@
+{
+    // Проверка типов общих скриптов страниц (JS с JSDoc, без сборки):
+    //     npm run typecheck
+    // Страницы подключают эти файлы обычными <script>, поэтому все они —
+    // скрипты в одном глобальном пространстве; общие глобалы описаны в
+    // types/globals.d.ts.
+    "compilerOptions": {
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true,
+        "target": "ES2017",
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "strict": false,
+        "skipLibCheck": true,
+        "types": []
+    },
+    // auth.js не проверяется: в MutationObserver (enableReadOnly) поля
+    // берутся из rec.target / addedNodes с типом Node, а group() читает
+    // arguments без объявленных параметров — нужны JSDoc-приведения в
+    // самом файле. Его сейчас правит агент безопасности; вернуть в список
+    // после слияния.
+    "files": [
+        "types/globals.d.ts",
+        "formulas.js",
+        "derive.js",
+        "budget-rows.js",
+        "db-sync.js",
+        "shared-nav.js",
+        "shared-export.js",
+        "sheet-edit.js",
+        "sheet-ux.js",
+        "ui-kit.js",
+        "monthly-plan-core.js",
+        "plan-fact-core.js",
+        "deposit-core.js"
+    ]
+}

@@ -54,6 +54,41 @@ export const CASES = [
     },
 
     {
+        // Консолидация: итог строки — сумма итогов строк филиалов. Раньше
+        // для строк «за год» (T = E×S) контингент складывался, а стоимость
+        // бралась от последнего филиала: 15 × 200 вместо 10×100 + 5×200.
+        title: "Доходная часть ПУ — консолидация филиалов",
+        file: "pu-income-pu.html",
+        sheet: "Бюджет ПУ 2026 → ДОХОДНАЯ ЧАСТЬ ПУ (T = E×S по филиалам)",
+        needle: "SHEET_KEY",
+        exports: ["switchBranch"],
+        prepare(api, ensure, document, window) {
+            const row = (cont, py, months) => {
+                const r = { cont, pm: 0, py };
+                for (let m = 1; m <= 12; m++) r["m" + m] = months[m - 1] || 0;
+                return r;
+            };
+            const put = (b, rows) =>
+                window.localStorage.setItem(
+                    "pu_income_pu_" + b,
+                    JSON.stringify({ rows }),
+                );
+            put("almaty", { 1: row(10, 100, []), 2: row(10, 0, [5, 5]) });
+            put("uralsk", { 1: row(5, 200, []), 2: row(4, 0, [1]) });
+            api.switchBranch("consolidated");
+        },
+        checks: [
+            ["T9  вступ. взнос: 10×100 + 5×200", "row-1-total", 2000],
+            ["T10 сумма месяцев филиалов", "row-2-total", 11],
+            ["E17 контингент (только строки с классами)", "total-cont", 14],
+            ["F17 январь", "total-m1", 6],
+            ["T17 всего", "total-total", 2011],
+            ["T18 рентабельность 8%", "profit-total", 160.88],
+            ["T19 всего со скидкой", "net-total", 1850.12],
+        ],
+    },
+
+    {
         title: "Свод ФОТ Алматы",
         file: "pu-fot-almaty.html",
         sheet: "Бюджет ПУ 2026 → Свод ФОТ Алматы",
@@ -172,6 +207,35 @@ export const CASES = [
             ["P33 итого проживание", "tot-staySum", 2],
             ["Q33 итого оргвзнос", "tot-fee", 0],
             ["R33 ВСЕГО", "totalSum", 6],
+        ],
+    },
+
+    {
+        // Раньше страница не различала филиалы: всегда читала и писала
+        // ключ ЦА. Теперь у города свой ключ, консолидация — поездки всех
+        title: "План командировок РБ — филиалы и консолидация",
+        file: "rb-plan-komandir.html",
+        sheet: "Бюджет РБ 2026 → План командир 2026 (по городам)",
+        needle: 'SHEET_KEY = "rb_plan_komandir"',
+        exports: ["switchBranch"],
+        prepare(api, ensure, document, window) {
+            const ls = window.localStorage;
+            ls.setItem("rb_plan_komandir_almaty", JSON.stringify({
+                rows: [{ name: "А", mrp: 10, perNorm: 1, days: 2, people: 1, tripSum: 5 }],
+            }));
+            ls.setItem("rb_plan_komandir_uralsk", JSON.stringify({
+                rows: [{ name: "У", mrp: 10, fee: 7 }, { name: "", dest: "", mrp: 10 }],
+            }));
+            window._onload(); // обработчик load страницы
+            api.switchBranch("consolidated");
+        },
+        checks: [
+            // Алматы: J = 1×10×2×1 = 20, R = 20 + 5 = 25; Уральск: R = 7
+            ["суточные: только Алматы", "tot-perDiem", 20],
+            ["оргвзнос: только Уральск", "tot-fee", 7],
+            ["ВСЕГО по городам 25 + 7", "totalSum", 32],
+            ["строка 1 — Алматы", "r1-total", 25],
+            ["строка 2 — Уральск", "r2-total", 7],
         ],
     },
 ];

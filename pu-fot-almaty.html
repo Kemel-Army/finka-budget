@@ -19,11 +19,11 @@
         </div>
         <div class="controls">
             <div class="branch-selector">
-                <button class="branch-btn active" onclick="switchBranch('nao')">НАО «РФМШ»</button>
-                <button class="branch-btn" onclick="switchBranch('almaty')">Алматы</button>
-                <button class="branch-btn" onclick="switchBranch('astana')">Астана</button>
-                <button class="branch-btn" onclick="switchBranch('uralsk')">Уральск</button>
-                <button class="branch-btn" onclick="switchBranch('consolidated')">Консолидация</button>
+                <button class="branch-btn active" onclick="switchBranch('nao', this)">НАО «РФМШ»</button>
+                <button class="branch-btn" onclick="switchBranch('almaty', this)">Алматы</button>
+                <button class="branch-btn" onclick="switchBranch('astana', this)">Астана</button>
+                <button class="branch-btn" onclick="switchBranch('uralsk', this)">Уральск</button>
+                <button class="branch-btn" onclick="switchBranch('consolidated', this)">Консолидация</button>
             </div>
             <div class="save-status" id="saveStatus">Сохранено</div>
         </div>
@@ -126,7 +126,7 @@
                     html +=
                         r.type === "data"
                             ? '<td><input type="number" id="' + r.id + "-" + c.id +
-                              '" value="0" oninput="calc()"></td>'
+                              '" value="0" oninput="calc(true)"></td>'
                             : '<td class="formula-cell" id="' + r.id + "-" + c.id +
                               '">0,00</td>';
                 });
@@ -165,7 +165,9 @@
             );
         }
 
-        function calc() {
+        // edited — пересчёт после ввода пользователя: только тогда и
+        // сохраняем. Загрузка филиала сама по себе ничего не пишет.
+        function calc(edited) {
             ROWS.forEach((r) => {
                 vals[r.id] = rowValues(r);
             });
@@ -190,11 +192,15 @@
                 document.getElementById(r.id + "-fot").textContent = fmt(fot);
             });
 
-            schedSave();
+            if (edited) schedSave();
         }
 
         /* ── Сохранение ───────────────────────────────────────────── */
+        // Есть несохранённые правки текущего филиала
+        let dirty = false;
+
         function schedSave() {
+            dirty = true;
             const st = document.getElementById("saveStatus");
             st.textContent = "Сохраняю...";
             st.className = "auto-save-status saving";
@@ -203,7 +209,10 @@
         }
 
         function save() {
-            if (branch === "consolidated") return;
+            // До построения таблицы полей нет — сохранили бы нули
+            if (branch === "consolidated" || !tableReady) return;
+            clearTimeout(timeout);
+            dirty = false;
             const data = {};
             ROWS.filter((r) => r.type === "data").forEach((r) => {
                 data[r.id] = {};
@@ -233,14 +242,23 @@
             apply(saved ? JSON.parse(saved) : null, false);
         }
 
-        function switchBranch(newBranch) {
-            if (branch !== "consolidated" && branch !== newBranch) save();
+        function switchBranch(newBranch, btn) {
+            // Сохраняем только реальные правки: клик по филиалу без
+            // изменений не должен писать в localStorage и базу
+            if (branch !== "consolidated" && branch !== newBranch && dirty) save();
             branch = newBranch;
             document
                 .querySelectorAll(".branch-btn")
                 .forEach((b) => b.classList.remove("active"));
-            if (window.event && window.event.target)
-                window.event.target.classList.add("active");
+            // Кнопка приходит из onclick; без неё (вызов из кода) ищем по филиалу
+            const activeBtn =
+                btn ||
+                document.querySelector(
+                    ".branch-btn[onclick*=\"'" + newBranch + "'\"]",
+                );
+            if (activeBtn) activeBtn.classList.add("active");
+            // Таблица ещё не построена — филиал загрузит initPage()
+            if (!tableReady) return;
             if (branch === "consolidated") loadConsolidated();
             else load();
         }
@@ -269,10 +287,23 @@
             apply(acc, true);
         }
 
-        window.addEventListener("load", () => {
+        /* Таблица строится сразу, а не по load: auth.js жмёт кнопку
+           своего филиала, как только проверит сессию, — раньше load,
+           и switchBranch писал в ещё не созданные ячейки
+           («Cannot set properties of null»). Скрипт стоит после
+           разметки таблицы, tbody уже есть. */
+        let tableReady = false;
+
+        function initPage() {
+            if (tableReady) return;
             buildTable();
-            load();
-        });
+            tableReady = true;
+            if (branch === "consolidated") loadConsolidated();
+            else load();
+        }
+
+        if (document.getElementById("tableBody")) initPage();
+        else document.addEventListener("DOMContentLoaded", initPage);
     </script>
     <script>
         // НЕ инициализируем редактируемые таблицы - структура уже готова

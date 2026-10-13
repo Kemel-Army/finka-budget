@@ -15,6 +15,7 @@
  *     pnpm dev
  *     node tests/e2e-qa.mjs
  */
+/* global addNewRow, addDeal, saveData -- функции страниц, зовутся внутри page.evaluate */
 import fs from "node:fs";
 import vm from "node:vm";
 import path from "node:path";
