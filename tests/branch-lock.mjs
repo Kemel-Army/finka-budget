@@ -374,18 +374,20 @@ console.log("\n── Главная: год бюджета пишется то�
     win.close();
 }
 
-/* Свод доходов: calc() при открытии ставил сохранение kb_income_svod_nao */
-console.log("\n── Свод доходов: сохранение только после правки");
-{
-    const KEY = "kb_income_svod_nao";
-    const win = await open("income-consolidation.html", {});
+/* Своды доходов и ФОТ: calc() при открытии сам ставил сохранение листа */
+console.log("\n── Своды доходов и ФОТ: сохранение только после правки");
+for (const [page, KEY] of [
+    ["income-consolidation.html", "kb_income_svod_nao"],
+    ["fot-consolidation.html", "fot_consolidation"],
+]) {
+    const win = await open(page, {});
     await new Promise((r) => win.setTimeout(r, 1800));
-    ok("income-consolidation.html: открытие без записи", win.__writes.length === 0, win.__writes.join(", "));
-    const inp = win.document.querySelector('#sectionsContainer input[type="number"]');
+    ok(`${page}: открытие без записи`, win.__writes.length === 0, win.__writes.join(", "));
+    const inp = win.document.querySelector('tbody input[type="number"]');
     inp.value = "5";
     inp.dispatchEvent(new win.Event("input", { bubbles: true }));
     await new Promise((r) => win.setTimeout(r, 1800));
-    ok("income-consolidation.html: правка сохраняется", win.__writes.includes(KEY), win.__writes.join(", ") || "записей нет");
+    ok(`${page}: правка сохраняется`, win.__writes.includes(KEY), win.__writes.join(", ") || "записей нет");
     win.close();
 }
 
