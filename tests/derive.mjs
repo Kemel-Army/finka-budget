@@ -207,6 +207,35 @@ console.log("\n── «СВОД ФЗП» → «Свод расходов», с�
     );
 }
 
+/* Страница «Свод ФЗП» пересохраняет ключ своим форматом — строками
+   sr1…tr3 с колонками c1…c9, без ячеек листа. Разнесение должно работать
+   и с ним: итог 14-й строки листа = сумма строк страницы. */
+console.log("\n── «СВОД ФЗП» в формате страницы → «Свод расходов»");
+{
+    const row = (c4, c5, c6, c7, c8, c9) => ({ c1: 1, c2: 0, c3: 5, c4, c5, c6, c7, c8, c9 });
+    window.localStorage.setItem(
+        "rb_fzp_astana",
+        JSON.stringify({
+            mrp: "4325",
+            rows: {
+                sr1: row(100, 10, 3.5, 6, 5, 3),
+                sr2: row("200", "20", "7", "12", "10", "6"),
+                sr3: row(0, 0, 0, 0, 0, 0),
+                tr1: row(1000, 100, 35, 60, 50, 30),
+                tr2: row(0, 0, 0, 0, 0, 0),
+                tr3: row("", "", "", "", "", ""),
+            },
+        }),
+    );
+    const res = Derive.fzpToSvod("astana");
+    ok("разнесение из формата страницы", res.ok, res.reason || `строк: ${res.moved.length}`);
+    const svod = JSON.parse(window.localStorage.getItem("rb_svod_astana"));
+    eq("C10 = F14 = Σ c4 (ФЗП)", Number(svod.cells.C10), 1300);
+    eq("C11 = G14 = Σ c5", Number(svod.cells.C11), 130);
+    eq("C12 = H14 = Σ c7", Number(svod.cells.C12), 78);
+    eq("C15 = K14 = Σ c6 (ОПВ, колонка K)", Number(svod.cells.C15), 45.5);
+}
+
 /* ── Вся цепочка разом ───────────────────────────────────────────── */
 console.log("\n── Цепочка: ФЗП → Свод → Сводная общая → Калькуляция");
 {

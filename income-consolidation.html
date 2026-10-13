@@ -108,7 +108,10 @@
                 "Ноябрь",
                 "Декабрь",
             ];
-            const KEY = "income_svod";
+            // Лист центрального аппарата. Раньше ключ был «income_svod» — без
+            // префикса и филиала он не попадал в синхронизацию (db-sync.js) и
+            // жил в одном браузере. Старое значение db-sync переносит сам.
+            const KEY = "kb_income_svod_nao";
             let saveTimer;
             const computed = {};
 

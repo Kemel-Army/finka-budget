@@ -894,9 +894,19 @@
 
                 if (saved) {
                     const data = JSON.parse(saved);
-                    tableData = data;
+                    // Не «tableData = data»: в импортированном листе и в данных
+                    // из базы нет полей sheet/branch, и следующее сохранение
+                    // уходило под ключ «undefined_undefined». Ключ — всегда по
+                    // текущей странице и выбранному филиалу.
+                    tableData = {
+                        ...tableData,
+                        ...data,
+                        sheet: tableData.sheet,
+                        branch: tableData.branch,
+                        cells: data.cells || {},
+                    };
 
-                    Object.keys(data.cells).forEach((cell) => {
+                    Object.keys(tableData.cells).forEach((cell) => {
                         const input = document.querySelector(
                             `input[data-cell="${cell}"]`,
                         );

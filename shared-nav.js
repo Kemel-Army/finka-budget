@@ -371,15 +371,62 @@
     };
 
     /* ── Keyboard Shortcut: Ctrl+S ─────────────────────────────── */
+    /* Раньше здесь безусловно писалось «Данные сохранены», хотя saveData()
+       кладёт данные только в localStorage, а в базу они уходят позже и
+       могут не уйти вовсе (нет сети, нет прав, конфликт). Теперь очередь
+       отправляется сразу (finkaSync.flush), и сообщение — по её итогу. */
+    function syncReport(st) {
+        if (st.readOnly) {
+            return ["Режим просмотра — изменения в базу не сохраняются", "warning"];
+        }
+        if (!st.enabled) return ["Сохранено в браузере (база недоступна)", "warning"];
+        if (st.code === "conflict" && st.conflicts.length) {
+            return [
+                "Лист изменён другим пользователем — ваши правки не записаны " +
+                    "поверх, загружена версия из базы",
+                "warning",
+            ];
+        }
+        if (st.pending) {
+            if (!st.ready) {
+                return ["Сохранено в браузере, уйдёт в базу после загрузки", "info"];
+            }
+            return [
+                "Сохранено только в браузере, в базу не отправлено: " +
+                    st.pending + " (" + st.text + ")",
+                "error",
+            ];
+        }
+        if (st.code === "off") return ["Не сохранено в базе: " + st.text, "error"];
+        return ["Сохранено в базе", "success"];
+    }
+
     document.addEventListener("keydown", function (e) {
         if ((e.ctrlKey || e.metaKey) && e.key === "s") {
             e.preventDefault();
-            if (typeof window.saveData === "function") {
-                window.saveData();
-                window.finkaToast("Данные сохранены", "success");
-            } else {
-                window.finkaToast("На этой странице нечего сохранять", "info");
+            if (e.repeat) return;
+            var hasSave = typeof window.saveData === "function";
+            if (hasSave) window.saveData();
+
+            var sync = window.finkaSync;
+            if (!sync || typeof sync.flush !== "function") {
+                window.finkaToast(
+                    hasSave
+                        ? "Сохранено в браузере"
+                        : "На этой странице нечего сохранять",
+                    "info",
+                );
+                return;
             }
+            sync.flush().then(
+                function (st) {
+                    var r = syncReport(st || sync.status());
+                    window.finkaToast(r[0], r[1]);
+                },
+                function () {
+                    window.finkaToast("Не удалось отправить в базу", "error");
+                },
+            );
         }
     });
 

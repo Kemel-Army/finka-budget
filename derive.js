@@ -295,12 +295,38 @@
         { to: "C15", from: "K14", name: "Обязательное медицинское страхование" },
     ];
 
+    /* Страница «Свод ФЗП» хранит не ячейки листа, а свои строки:
+       {rows: {sr1…sr3, tr1…tr3: {c1…c9}}}. При первом же открытии она
+       пересохраняет ключ в этом формате, и разнесение, читавшее только
+       cells, переставало работать. Итог четырнадцатой строки листа — это
+       сумма всех строк страницы; колонки страницы c4, c5, c7, c8, c9, c6 ↔
+       листа F, G, H, I, J, K (c6 — ОПВ работодателя, в листе колонка K). */
+    var FZP_ROW_COL = { F14: "c4", G14: "c5", H14: "c7", I14: "c8", J14: "c9", K14: "c6" };
+
+    function fzpCells(fzp) {
+        if (!fzp) return null;
+        if (fzp.rows && typeof fzp.rows === "object") {
+            var cells = {};
+            Object.keys(FZP_ROW_COL).forEach(function (addr) {
+                var sum = 0;
+                Object.keys(fzp.rows).forEach(function (id) {
+                    var n = toNumber((fzp.rows[id] || {})[FZP_ROW_COL[addr]]);
+                    if (n !== null) sum += n;
+                });
+                cells[addr] = sum;
+            });
+            return cells;
+        }
+        return fzp.cells || null;
+    }
+
     function fzpToSvod(branch, options) {
         var opts = options || {};
-        var fzp = read("rb_fzp_" + branch);
-        if (!fzp || !fzp.cells) {
+        var source = fzpCells(read("rb_fzp_" + branch));
+        if (!source) {
             return { ok: false, reason: "«Свод ФЗП» по этому филиалу ещё не заполнен" };
         }
+        var fzp = { cells: source };
 
         var key = "rb_svod_" + branch;
         var target = read(key) || { sheet: "rb_svod", branch: branch, cells: {} };
