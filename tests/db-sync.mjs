@@ -542,6 +542,24 @@ console.log("\n── Конфликт: чужая правка не затир�
     eq("без перезагрузки", r.reloads.length, 0);
 }
 
+console.log("\n── Две вкладки одного пользователя — не конфликт");
+{
+    const srv = makeServer();
+    srv.put("almaty", "rb_svod", { cells: { C10: 1 } });
+    const p = boot(srv);
+    await settle(p);
+    // Соседняя вкладка записала лист и обновила общую карту версий
+    srv.put("almaty", "rb_svod", { cells: { C10: 2 } });
+    const kn = JSON.parse(p.ls.getItem("finka_sync_known"));
+    kn.rb_svod_almaty.at = srv.rows.get("almaty|rb_svod").updated_at;
+    p.ls.setItem("finka_sync_known", JSON.stringify(kn));
+    // Эта вкладка правит поверх
+    p.ls.setItem("rb_svod_almaty", '{"cells":{"C10":3}}');
+    const st = await p.sync.flush();
+    eq("записано без конфликта", JSON.stringify(srv.get("almaty", "rb_svod")), '{"cells":{"C10":3}}');
+    eq("конфликтов нет", st.conflicts.length, 0);
+}
+
 console.log("\n── Сбой сети: повтор с паузой и очередь через перезагрузку");
 {
     const srv = makeServer();

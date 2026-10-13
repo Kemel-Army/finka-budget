@@ -297,8 +297,34 @@
         saveJson(QUEUE_KEY, out);
     }
 
+    /* Версии общие для всех вкладок: localStorage один. Сохраняем только
+       то, что поменяли сами, поверх записанного другими вкладками, — иначе
+       вкладка со старой картой затирала бы свежие версии соседней, и та
+       следующей же записью получала «конфликт» сама с собой. */
+    var knownTouched = Object.create(null);
+
+    function setKnown(k, v) {
+        if (v) known[k] = v;
+        else delete known[k];
+        knownTouched[k] = 1;
+    }
+
     function saveKnown() {
-        saveJson(KNOWN_KEY, known);
+        var stored = loadJson(KNOWN_KEY) || {};
+        Object.keys(knownTouched).forEach(function (k) {
+            if (known[k]) stored[k] = known[k];
+            else delete stored[k];
+        });
+        knownTouched = Object.create(null);
+        saveJson(KNOWN_KEY, stored);
+    }
+
+    // Подхватить версии, записанные другими вкладками
+    function refreshKnown() {
+        var stored = loadJson(KNOWN_KEY) || {};
+        Object.keys(stored).forEach(function (k) {
+            if (stored[k] && stored[k].at && !knownTouched[k]) known[k] = stored[k];
+        });
     }
 
     function restoreState() {
@@ -404,7 +430,7 @@
     }
 
     function remember(k, row) {
-        known[k] = { at: row.updated_at, h: hash(canonValue(row.value)) };
+        setKnown(k, { at: row.updated_at, h: hash(canonValue(row.value)) });
     }
 
     /* ── Состояние ─────────────────────────────────────────────── */
@@ -585,7 +611,7 @@
             remember(k, row);
         } else {
             removeRaw(k);
-            delete known[k];
+            setKnown(k, null);
         }
         delete pending[k];
         delete early[k];
@@ -681,7 +707,7 @@
             if (rows.length || !knownKeys.length) {
                 knownKeys.forEach(function (k) {
                     if (seenKey[k] || pending[k]) return;
-                    delete known[k];
+                    setKnown(k, null);
                     if (GLOBALS[k] || !OURS.test(k)) return;
                     if (getRaw(k) !== null) {
                         removeRaw(k);
@@ -816,6 +842,7 @@
 
         var keys = Object.keys(pending);
         if (!keys.length) return Promise.resolve(stats());
+        refreshKnown();
 
         var sent = {};
         var jobs = keys.map(function (k) {
@@ -852,9 +879,9 @@
 
                 if (r.result === "ok") {
                     if (r.row && r.row.updated_at) {
-                        known[k] = { at: r.row.updated_at, h: hash(canonRaw(s.raw)) };
+                        setKnown(k, { at: r.row.updated_at, h: hash(canonRaw(s.raw)) });
                     } else {
-                        delete known[k];
+                        setKnown(k, null);
                     }
                     if (untouched) {
                         delete pending[k];
