@@ -2107,6 +2107,29 @@ table input:not([type]) {
     border-color: var(--c-input-border) !important;
 }
 
+/* Ячейка td.editable: поле растянуто на всю ячейку и без своей рамки
+   (см. ui-kit.js), поверх него лежит подпись с разрядами. Рамку поля
+   рисуем внутри ячейки отдельным слоем — иначе пустая ячейка для ввода
+   ничем не отличалась от пустой ячейки текста. */
+td.editable {
+    position: relative;
+}
+
+td.editable::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--c-input-border);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+}
+
+td.editable.uk-editing::after,
+td.editable:has(input:disabled)::after,
+td.editable:has(input[readonly])::after {
+    border-color: transparent;
+}
+
 input:disabled,
 input:disabled:hover,
 select:disabled,
