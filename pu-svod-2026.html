@@ -640,7 +640,25 @@
                 schedSave();
             }
 
+            // Есть несохранённые правки текущего филиала. Пересчёт при загрузке
+            // листа (quiet) — не правка: auth.js жмёт кнопку своего филиала при
+            // каждом открытии, и сохранение без ввода писало лист в базу — у ЦА
+            // поверх данных, у филиала с отказом RLS
+            let dirty = false;
+            let loading = false;
+
+            function quiet(fn) {
+                loading = true;
+                try {
+                    fn();
+                } finally {
+                    loading = false;
+                }
+            }
+
             function schedSave() {
+                if (loading) return;
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Изменено...";
                 document.getElementById("saveStatus").style.background =
@@ -652,6 +670,8 @@
             function save() {
                 // До первой загрузки в полях заготовка — не пишем её поверх данных
                 if (branch === "consolidated" || !pageReady) return;
+                clearTimeout(timeout);
+                dirty = false;
                 const data = {};
                 for (let i = 1; i <= 16; i++) {
                     data["plan-" + i] = document.getElementById(
@@ -698,7 +718,11 @@
             }
 
             function switchBranch(newBranch, btn) {
-                if (branch !== "consolidated" && branch !== newBranch) {
+                if (
+                    branch !== "consolidated" &&
+                    branch !== newBranch &&
+                    dirty
+                ) {
                     save();
                 }
                 branch = newBranch;
@@ -719,9 +743,9 @@
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = true;
                     });
-                    loadConsolidatedData();
+                    quiet(loadConsolidatedData);
                 } else {
-                    load();
+                    quiet(load);
                 }
             }
 
@@ -763,7 +787,7 @@
             let pageReady = false;
             window.addEventListener("load", () => {
                 pageReady = true;
-                load();
+                quiet(load);
             });
 
             // НЕ инициализируем редактируемые таблицы - структура уже готова

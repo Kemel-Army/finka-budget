@@ -294,6 +294,80 @@ for (const [page, inputId, value, label] of [
     win.close();
 }
 
+/* ── Старые ключи переименований остаются на своих строках ───────── */
+/* Ключ переименования — t{таблица}r{номер строки данных}c{колонка}, и такие
+   ключи уже лежат в базе (sheet_edits_*). Строки итогов страницы (sub-row,
+   grand-row, row-total, mega-row) исключены только из «ИТОГО по таблице»;
+   выкинь их из нумерации — сохранённые наименования съехали бы на чужие
+   строки. Нумерацию здесь считаем по прежнему правилу (как в main). */
+console.log("\n── Старые ключи переименований — на тех же строках");
+{
+    const SUBTOTAL = ["sub-row", "grand-row", "row-total", "mega-row"];
+    // Прежнее правило isServiceRow — без классов итогов
+    const oldService = (tr) =>
+        ["sx-total", "total-row", "summary-row", "grand-total-row", "fot-row"]
+            .some((c) => tr.classList.contains(c)) || !!tr.querySelector(".title-cell");
+    const oldData = (tr) =>
+        !oldService(tr) && !!tr.querySelector("input, .formula-cell, .auto-cell");
+    const sheetTables = (doc) =>
+        [...doc.querySelectorAll("table")].filter(
+            (t) => !t.hasAttribute("data-no-sheet-edit") && !t.closest(".finka-nav") && t.tBodies.length,
+        );
+    const isText = (td) =>
+        !td.querySelector("input") &&
+        !td.classList.contains("formula-cell") &&
+        !td.classList.contains("auto-cell");
+    const MARK = "ПРОВЕРКА старого ключа";
+
+    for (const page of ["pu-fot-almaty.html", "rb-fzp.html", "fot-consolidation.html", "pu-grafik-almaty.html"]) {
+        // Первый проход: находим строку данных ниже строки итога
+        let { win } = await load(page);
+        let doc = win.document;
+        let found = null;
+        sheetTables(doc).forEach((table, tIdx) => {
+            if (found) return;
+            const rows = [...table.tBodies].flatMap((b) => [...b.rows]).filter(oldData);
+            let afterSub = false;
+            rows.forEach((tr, ri) => {
+                if (found) return;
+                if (SUBTOTAL.some((c) => tr.classList.contains(c))) {
+                    afterSub = true;
+                    return;
+                }
+                if (!afterSub) return;
+                const c = [...tr.cells].findIndex((td) => isText(td) && td.textContent.trim());
+                if (c < 0) return;
+                const all = [...table.querySelectorAll("tr")];
+                found = { tIdx, ri, c, rowPos: all.indexOf(tr), orig: tr.cells[c].textContent.trim() };
+            });
+        });
+        const branchBtn = doc.querySelector(".branch-btn.active");
+        const m = branchBtn && /switchBranch\(['"]([^'"]+)/.exec(branchBtn.getAttribute("onclick") || "");
+        const branch = (branchBtn && branchBtn.getAttribute("data-branch")) || (m && m[1]) || "nao";
+        win.close();
+
+        ok(`${page}: есть строка данных ниже строки итога`, !!found);
+        if (!found) continue;
+
+        // Второй проход: правка по старому ключу уже лежит в localStorage
+        const key = `t${found.tIdx}r${found.ri}c${found.c}`;
+        ({ win } = await load(page, {
+            [`sheet_edits_${page}_${branch}`]: JSON.stringify({ names: { [key]: MARK } }),
+        }));
+        doc = win.document;
+        const table = sheetTables(doc)[found.tIdx];
+        const tr = table && [...table.querySelectorAll("tr")][found.rowPos];
+        const got = tr && tr.cells[found.c] ? tr.cells[found.c].textContent.trim() : "—";
+        const where = [...doc.querySelectorAll("td")].filter((td) => td.textContent.trim() === MARK).length;
+        ok(
+            `${page}: ${key} → «${found.orig.slice(0, 20)}»`,
+            got === MARK && where === 1,
+            `в ячейке: «${got.slice(0, 30)}», совпадений: ${where}`,
+        );
+        win.close();
+    }
+}
+
 /* ── Ячейки rb-income / rb-svod: только поля с data-cell ─────────── */
 /* Сохранение собирало все <input> страницы, и поля добавленных строк
    sheet-edit.js (у них нет data-cell) ложились в cells["undefined"]. */

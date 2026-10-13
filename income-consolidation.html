@@ -768,8 +768,6 @@
                 el("cardRB").textContent = fmt(rbYear);
                 el("cardPU").textContent = fmt(puYear);
                 el("cardTotal").textContent = fmt(rbYear + puYear);
-
-                schedSave();
             }
 
             /* ── Save / Load ── */
@@ -873,8 +871,13 @@
             document.getElementById("sectionsContainer").innerHTML = allHtml;
             document.getElementById("tblCons").innerHTML = buildConsolidation();
 
+            /* Сохраняем только после правки пользователя. Раньше calc() сам
+               ставил сохранение, и открытие страницы писало kb_income_svod_nao
+               в базу — у ЦА без изменений, у филиала с отказом RLS. */
             document.addEventListener("input", (e) => {
-                if (e.target.matches('input[type="number"]')) calc();
+                if (!e.target.matches('input[type="number"]')) return;
+                calc();
+                schedSave();
             });
 
             load();

@@ -169,16 +169,24 @@
         if (tr.classList.contains("summary-row")) return true;
         if (tr.classList.contains("grand-total-row")) return true;
         if (tr.classList.contains("fot-row")) return true;
-        // Промежуточные итоги и «ВСЕГО» самих страниц (ПУ, Свод ФОТ, КБ,
-        // ФОТ-консолидация): их ячейки — тоже formula-cell, и без этой
-        // проверки «ИТОГО по таблице» складывал итог вместе со строками,
-        // из которых он посчитан, — сумма выходила вдвое-втрое больше
-        if (tr.classList.contains("sub-row")) return true;
-        if (tr.classList.contains("grand-row")) return true;
-        if (tr.classList.contains("row-total")) return true;
-        if (tr.classList.contains("mega-row")) return true;
         if (tr.querySelector(".title-cell")) return true;
         return false;
+    }
+
+    /* Промежуточные итоги и «ВСЕГО» самих страниц (ПУ, Свод ФОТ, КБ,
+       ФОТ-консолидация): их ячейки — тоже formula-cell, и без этой
+       проверки «ИТОГО по таблице» складывал итог вместе со строками, из
+       которых он посчитан, — сумма выходила вдвое-втрое больше.
+       Исключаем их только из суммы, а не из dataRows(): по номеру строки
+       в dataRows() строится ключ переименования t{таблица}r{строка}c{кол.},
+       и сохранённые в базе правки уехали бы на чужие строки. */
+    function isSubtotalRow(tr) {
+        return (
+            tr.classList.contains("sub-row") ||
+            tr.classList.contains("grand-row") ||
+            tr.classList.contains("row-total") ||
+            tr.classList.contains("mega-row")
+        );
     }
 
     // Строка с данными: есть поле ввода или расчётная ячейка.
@@ -339,8 +347,11 @@
 
     /* ── Строка «ИТОГО по таблице» ─────────────────────────────── */
     function renderTotal(table) {
-        // Считаем и по добавленным строкам тоже — они такие же данные
-        var rows = dataRows(table);
+        // Считаем и по добавленным строкам тоже — они такие же данные;
+        // собственные итоги страницы не складываем
+        var rows = dataRows(table).filter(function (tr) {
+            return !isSubtotalRow(tr);
+        });
         if (!rows.length) return;
 
         /* Раздел «Сводной общей» — это два блока в одной таблице: сводная

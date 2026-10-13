@@ -613,7 +613,12 @@
                         inp.id = rid + "-" + COLS[c];
                         inp.value = "0";
                         inp.step = "any";
-                        inp.addEventListener("input", calc);
+                        // Сохраняем только после ввода: calc() зовёт и
+                        // загрузка, и открытие страницы писало лист в базу
+                        inp.addEventListener("input", () => {
+                            calc();
+                            schedSave();
+                        });
                         td.appendChild(inp);
                     }
                 });
@@ -728,8 +733,6 @@
                 document.getElementById("cardTotal").textContent = fmtCard(
                     fotFromVals(sGrand),
                 );
-
-                schedSave();
             }
 
             /* ── Save / Load ── */

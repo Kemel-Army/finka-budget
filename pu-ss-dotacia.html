@@ -728,7 +728,25 @@
                     });
             }
 
+            // Есть несохранённые правки текущего филиала. Пересчёт при загрузке
+            // листа (quiet) — не правка: auth.js жмёт кнопку своего филиала при
+            // каждом открытии, и сохранение без ввода писало лист в базу — у ЦА
+            // поверх данных, у филиала с отказом RLS
+            let dirty = false;
+            let loading = false;
+
+            function quiet(fn) {
+                loading = true;
+                try {
+                    fn();
+                } finally {
+                    loading = false;
+                }
+            }
+
             function scheduleAutoSave() {
+                if (loading) return;
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Изменено...";
                 document.getElementById("saveStatus").style.background =
@@ -745,6 +763,8 @@
                 // Не сохраняем в режиме консолидации
                 // До первой загрузки в полях заготовка — не пишем её поверх данных
                 if (currentBranch === "consolidated" || !pageReady) return;
+                clearTimeout(saveTimeout);
+                dirty = false;
 
                 const data = {
                     contingent: {
@@ -824,7 +844,8 @@
             function switchBranch(newBranch, btn) {
                 if (
                     currentBranch !== "consolidated" &&
-                    currentBranch !== newBranch
+                    currentBranch !== newBranch &&
+                    dirty
                 ) {
                     saveData();
                 }
@@ -843,12 +864,12 @@
                 // запоминаем филиал, данные загрузит обработчик load
                 if (!pageReady) return;
                 if (currentBranch === "consolidated") {
-                    loadConsolidatedData();
+                    quiet(loadConsolidatedData);
                 } else {
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = false;
                     });
-                    loadData();
+                    quiet(loadData);
                 }
             }
 
@@ -922,7 +943,7 @@
             let pageReady = false;
             window.addEventListener("load", () => {
                 pageReady = true;
-                loadData();
+                quiet(loadData);
             });
         </script>
         <script>

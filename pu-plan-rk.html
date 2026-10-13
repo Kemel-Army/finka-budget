@@ -143,7 +143,25 @@
                 sched();
             }
 
+            // Есть несохранённые правки текущего филиала. Пересчёт при загрузке
+            // листа (quiet) — не правка: auth.js жмёт кнопку своего филиала при
+            // каждом открытии, и сохранение без ввода писало лист в базу — у ЦА
+            // поверх данных, у филиала с отказом RLS
+            let dirty = false;
+            let loading = false;
+
+            function quiet(fn) {
+                loading = true;
+                try {
+                    fn();
+                } finally {
+                    loading = false;
+                }
+            }
+
             function sched() {
+                if (loading) return;
+                dirty = true;
                 document.getElementById("saveStatus").textContent =
                     "Сохраняю...";
                 clearTimeout(timeout);
@@ -154,6 +172,8 @@
                 // Не сохранять в режиме консолидации
                 // До первой загрузки в полях заготовка — не пишем её поверх данных
                 if (branch === "consolidated" || !pageReady) return;
+                clearTimeout(timeout);
+                dirty = false;
 
                 const data = { trips: [] };
                 const tbody = document.getElementById("tableBody");
@@ -192,22 +212,26 @@
                         document.getElementById(`city-${counter}`).value =
                             r.city || "";
                         document.getElementById(`trips-${counter}`).value =
-                            r.trips || 1;
+                            r.trips ?? 1;
                         document.getElementById(`days-${counter}`).value =
-                            r.days || 3;
+                            r.days ?? 3;
                         document.getElementById(`people-${counter}`).value =
-                            r.people || 2;
+                            r.people ?? 2;
                         document.getElementById(`ticket-${counter}`).value =
-                            r.ticket || 0;
+                            r.ticket ?? 0;
                         document.getElementById(`hotel-${counter}`).value =
-                            r.hotel || 0;
+                            r.hotel ?? 0;
                         calc(counter);
                     });
                 }
             }
 
             function switchBranch(newBranch, btn) {
-                if (branch !== "consolidated" && branch !== newBranch) {
+                if (
+                    branch !== "consolidated" &&
+                    branch !== newBranch &&
+                    dirty
+                ) {
                     save();
                 }
                 branch = newBranch;
@@ -228,9 +252,9 @@
                     document.querySelectorAll("input").forEach((input) => {
                         input.disabled = true;
                     });
-                    loadConsolidatedData();
+                    quiet(loadConsolidatedData);
                 } else {
-                    load();
+                    quiet(load);
                 }
             }
 
@@ -274,11 +298,11 @@
                     const vals = {
                         purpose: r.purpose || "",
                         city: r.city || "",
-                        trips: r.trips || 1,
-                        days: r.days || 3,
-                        people: r.people || 2,
-                        ticket: r.ticket || 0,
-                        hotel: r.hotel || 0,
+                        trips: r.trips ?? 1,
+                        days: r.days ?? 3,
+                        people: r.people ?? 2,
+                        ticket: r.ticket ?? 0,
+                        hotel: r.hotel ?? 0,
                     };
                     Object.keys(vals).forEach((f) => {
                         document.getElementById(`${f}-${counter}`).value =
@@ -295,7 +319,7 @@
                 pageReady = true;
                 var disp = document.getElementById("mrpDisplay");
                 if (disp) disp.textContent = MRP.toLocaleString("ru-RU");
-                load();
+                quiet(load);
             });
         </script>
         <script>
