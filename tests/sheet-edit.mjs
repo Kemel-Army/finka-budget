@@ -196,7 +196,15 @@ console.log("\n── Правки: переименование, добавле
     const nameCell = doc.querySelector('td.sx-name[data-sx-name]');
     ok("наименования сделаны редактируемыми", !!nameCell);
     if (nameCell) {
+        // Щелчок без ввода — не правка
+        nameCell.dispatchEvent(new win.Event("blur", { bubbles: true }));
+        await tick(win, 50);
+        ok(
+            "щелчок по названию без ввода ничего не сохраняет",
+            !Object.keys(JSON.parse(store.getItem("sheet_edits_rb-svod.html_nao") || "{}").names || {}).length,
+        );
         nameCell.textContent = "Оплата труда (изменено)";
+        nameCell.dispatchEvent(new win.Event("input", { bubbles: true }));
         nameCell.dispatchEvent(new win.Event("blur", { bubbles: true }));
         await tick(win, 100);
         const saved = JSON.parse(store.getItem("sheet_edits_rb-svod.html_nao") || "{}");

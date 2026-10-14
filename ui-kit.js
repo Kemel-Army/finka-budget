@@ -376,6 +376,8 @@
         var tables = document.querySelectorAll("table");
         Array.prototype.forEach.call(tables, function (t) {
             if (t.closest(".finka-nav")) return;
+            // Таблица с живой вёрсткой (строки добавляются и удаляются)
+            if (t.hasAttribute("data-uk-free")) return;
             // Состав колонок изменился (сменили филиал, дорисовали месяц) —
             // замеряем заново
             if (t.dataset.ukFrozen) {

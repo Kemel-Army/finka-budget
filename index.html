@@ -318,6 +318,24 @@
             }
 
             /* ── Карточки страниц ─────────────────────────────── */
+            .cards-subtitle {
+                grid-column: 1 / -1;
+                margin: 6px 0 -2px;
+                padding-top: 8px;
+                border-top: 1px dashed #e2e8f0;
+                color: #b45309;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+            }
+
+            .cards-subtitle:first-child {
+                margin-top: 0;
+                padding-top: 0;
+                border-top: 0;
+            }
+
             .cards-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -496,8 +514,8 @@
                             Бюджетная система НАО «РФМШ»
                         </div>
                         <div class="hero-subtitle">
-                            Республиканский бюджет и Подушевое финансирование
-                            2026–2028
+                            Республиканский бюджет и бюджет за счёт
+                            реализации образовательных услуг 2026–2028
                         </div>
                     </div>
                 </div>
@@ -550,7 +568,8 @@
                         Все
                     </button>
                     <button class="filter-btn" data-filter="rb">РБ</button>
-                    <button class="filter-btn" data-filter="pu">ПУ</button>
+                    <button class="filter-btn" data-filter="pu">Обр. услуги</button>
+                    <button class="filter-btn" data-filter="zayavki">Заявки</button>
                     <button class="filter-btn" data-filter="util">
                         Импорт
                     </button>
@@ -936,12 +955,12 @@
                     </div>
                 </section>
 
-                <!-- Подушевое финансирование -->
+                <!-- Бюджет за счёт реализации образовательных услуг -->
                 <section class="section" data-section="pu" id="sectionPu">
                     <div class="section-header">
                         <div class="section-badge pu">👥</div>
                         <div class="section-title">
-                            Подушевое финансирование
+                            Бюджет за счёт реализации образовательных услуг
                         </div>
                         <div class="section-count">14 таблиц</div>
                     </div>
@@ -958,8 +977,47 @@
                                     Свод ПУ <span class="dyn-year">2026</span>
                                 </div>
                                 <div class="card-desc">
-                                    Консолидированный свод подушевого
-                                    финансирования
+                                    Свод по всем источникам образовательных услуг
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
+                            href="plan-fact-pu-dt.html"
+                            class="page-card pu"
+                            data-key=""
+                            data-search="сводная план факт пу дт сумма консолидация автоматически"
+                        >
+                            <div class="card-icon">📈</div>
+                            <div class="card-body">
+                                <div class="card-title">
+                                    План-Факт ПУ + ДТ (свод)
+                                </div>
+                                <div class="card-desc">
+                                    Сумма двух отчётов подставляется
+                                    автоматически — вводить ничего не нужно
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Только чтение"
+                            ></div>
+                        </a>
+                        <div class="cards-subtitle">1. Подушевое финансирование (Республиканский бюджет)</div>
+                        <a
+                            href="pu-income-dt.html"
+                            class="page-card pu"
+                            data-key="pu_income_dt"
+                            data-search="доходы дт дополнительный тариф"
+                        >
+                            <div class="card-icon">💵</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы ДТ</div>
+                                <div class="card-desc">
+                                    Подушевое финансирование из республиканского бюджета (доля подушевой тарификации)
                                 </div>
                             </div>
                             <div
@@ -989,6 +1047,44 @@
                             ></div>
                         </a>
                         <a
+                            href="plan-fact-dt.html"
+                            class="page-card pu"
+                            data-key="plan_fact_dt_almaty"
+                            data-search="план факт дт дотация государственный образовательный заказ исполнение"
+                        >
+                            <div class="card-icon">📊</div>
+                            <div class="card-body">
+                                <div class="card-title">План-Факт ДТ</div>
+                                <div class="card-desc">
+                                    Исполнение дотации — государственный
+                                    образовательный заказ
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <div class="cards-subtitle">2. За счёт средств от реализации образовательных услуг на возмездной основе</div>
+                        <a
+                            href="pu-income-pu.html"
+                            class="page-card pu"
+                            data-key="pu_income_pu"
+                            data-search="доходы пу поступления подушевое"
+                        >
+                            <div class="card-icon">💰</div>
+                            <div class="card-body">
+                                <div class="card-title">Доходы ПУ</div>
+                                <div class="card-desc">
+                                    Поступления от платного обучения (родительская оплата)
+                                </div>
+                            </div>
+                            <div
+                                class="card-status no-data"
+                                title="Нет данных"
+                            ></div>
+                        </a>
+                        <a
                             href="pu-ss-almaty.html"
                             class="page-card pu"
                             data-key="pu_ss_almaty"
@@ -1001,61 +1097,6 @@
                                 </div>
                                 <div class="card-desc">
                                     Собственные средства филиалов
-                                </div>
-                            </div>
-                            <div
-                                class="card-status no-data"
-                                title="Нет данных"
-                            ></div>
-                        </a>
-                        <a
-                            href="pu-income-pu.html"
-                            class="page-card pu"
-                            data-key="pu_income_pu"
-                            data-search="доходы пу поступления подушевое"
-                        >
-                            <div class="card-icon">💰</div>
-                            <div class="card-body">
-                                <div class="card-title">Доходы ПУ</div>
-                                <div class="card-desc">
-                                    Поступления средств по подушевому
-                                    финансированию
-                                </div>
-                            </div>
-                            <div
-                                class="card-status no-data"
-                                title="Нет данных"
-                            ></div>
-                        </a>
-                        <a
-                            href="pu-income-dt.html"
-                            class="page-card pu"
-                            data-key="pu_income_dt"
-                            data-search="доходы дт дополнительный тариф"
-                        >
-                            <div class="card-icon">💵</div>
-                            <div class="card-body">
-                                <div class="card-title">Доходы ДТ</div>
-                                <div class="card-desc">
-                                    Доходы от дополнительного тарифа
-                                </div>
-                            </div>
-                            <div
-                                class="card-status no-data"
-                                title="Нет данных"
-                            ></div>
-                        </a>
-                        <a
-                            href="pu-income-dop.html"
-                            class="page-card pu"
-                            data-key="pu_income_dop"
-                            data-search="доходы доп дополнительные"
-                        >
-                            <div class="card-icon">💵</div>
-                            <div class="card-body">
-                                <div class="card-title">Доходы ДОП</div>
-                                <div class="card-desc">
-                                    Дополнительные доходы
                                 </div>
                             </div>
                             <div
@@ -1176,18 +1217,18 @@
                                 title="Нет данных"
                             ></div>
                         </a>
+                        <div class="cards-subtitle">3. Иные доходы</div>
                         <a
-                            href="plan-fact-dt.html"
+                            href="pu-income-dop.html"
                             class="page-card pu"
-                            data-key="plan_fact_dt_almaty"
-                            data-search="план факт дт дотация государственный образовательный заказ исполнение"
+                            data-key="pu_income_dop"
+                            data-search="доходы доп дополнительные иные"
                         >
-                            <div class="card-icon">📊</div>
+                            <div class="card-icon">💵</div>
                             <div class="card-body">
-                                <div class="card-title">План-Факт ДТ</div>
+                                <div class="card-title">Иные доходы</div>
                                 <div class="card-desc">
-                                    Исполнение дотации — государственный
-                                    образовательный заказ
+                                    Дополнительные доходы
                                 </div>
                             </div>
                             <div
@@ -1195,26 +1236,32 @@
                                 title="Нет данных"
                             ></div>
                         </a>
+                    </div>
+                </section>
+
+                <!-- Заявки-потребности -->
+                <section class="section" data-section="zayavki" id="sectionZayavki">
+                    <div class="section-header">
+                        <div class="section-badge pu">📝</div>
+                        <div class="section-title">Заявки-потребности</div>
+                        <div class="section-count">приложение № 2</div>
+                    </div>
+                    <div class="cards-grid">
                         <a
-                            href="plan-fact-pu-dt.html"
+                            href="zayavki.html"
                             class="page-card pu"
-                            data-key=""
-                            data-search="сводная план факт пу дт сумма консолидация автоматически"
+                            data-search="заявка потребность инициатор закуп товары работы услуги эцп подпись"
                         >
-                            <div class="card-icon">📈</div>
+                            <div class="card-icon">📝</div>
                             <div class="card-body">
                                 <div class="card-title">
-                                    План-Факт ПУ + ДТ (свод)
+                                    Заявки на товары, работы, услуги
                                 </div>
                                 <div class="card-desc">
-                                    Сумма двух отчётов подставляется
-                                    автоматически — вводить ничего не нужно
+                                    Подача инициаторами, согласование и
+                                    подпись ЭЦП
                                 </div>
                             </div>
-                            <div
-                                class="card-status no-data"
-                                title="Только чтение"
-                            ></div>
                         </a>
                     </div>
                 </section>
@@ -1295,7 +1342,7 @@
                     var suffix = y === y2 ? " " + y : " " + y + "–" + y2;
                     if (sub)
                         sub.textContent =
-                            "Республиканский бюджет и Подушевое финансирование" +
+                            "Республиканский бюджет и бюджет за счёт реализации образовательных услуг" +
                             suffix;
 
                     document

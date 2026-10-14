@@ -4,6 +4,15 @@
  *   node scripts/create-users.mjs            # создать/обновить всех
  *   node scripts/create-users.mjs --dry-run  # только показать план
  *   node scripts/create-users.mjs --list     # показать существующих
+ *   node scripts/create-users.mjs --only view   # только одна роль матрицы
+ *
+ * Личные учётки (инициаторы заявок и подписанты) — списком из файла:
+ *   node scripts/create-users.mjs --file scripts/initiators-astana.local.json \
+ *        --out scripts/passwords-astana.local.csv
+ * Файл — массив {email, name, title, role, branch, signer}. signer — графа
+ * подписи заявки-потребности: ahr, zakup, economist, director (миграция
+ * 0004). С --out пароли пишутся в CSV, а не на экран. Файлы *.local.* в git
+ * не попадают: там ФИО сотрудников и пароли, а репозиторий публичный.
  *
  * SUPABASE_URL и SUPABASE_SECRET_KEY читаются из .env (в git не попадает).
  * Пароли генерируются случайно и печатаются ОДИН РАЗ — сохраните их сразу,
@@ -53,6 +62,8 @@ const ROLE_DEFS = [
     {
         role: "view",
         local: "view",
+        // Директор утверждает заявки-потребности («Утверждаю»)
+        signer: "director",
         zone: "Зона просмотра / полный доступ для контроля",
         titles: {
             nao: "Председатель правления, первый заместитель, заместитель, финансовый директор",
@@ -98,6 +109,7 @@ for (const def of ROLE_DEFS) {
             branch: br.key,
             branchName: br.name,
             zone: def.zone,
+            signer: def.signer || "",
             title: br.key === "nao" ? def.titles.nao : def.titles.branch,
         });
     }
@@ -113,6 +125,49 @@ PLAN.push({
     zone: "Администрирование системы",
     title: "Администратор системы",
 });
+
+/* ── Аргументы ─────────────────────────────────────────────────── */
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const listOnly = args.includes("--list");
+function argValue(name) {
+    const i = args.indexOf(name);
+    return i !== -1 ? args[i + 1] : null;
+}
+const fromFile = argValue("--file");
+const onlyRole = argValue("--only");
+const outCsv = argValue("--out");
+
+const ROLE_KEYS = ["admin", "view", "edit", "limited", "initiator"];
+const BRANCH_KEYS = BRANCHES.map((b) => b.key);
+const SIGNERS = ["", "ahr", "zakup", "economist", "director"];
+const ZONES = Object.fromEntries(ROLE_DEFS.map((d) => [d.role, d.zone]));
+
+if (fromFile) {
+    const list = JSON.parse(fs.readFileSync(path.resolve(ROOT, fromFile), "utf8"));
+    PLAN.length = 0;
+    for (const u of list) {
+        if (!/^[a-z0-9._-]+@[a-z0-9.-]+$/i.test(u.email || "")) throw new Error("email: " + u.email);
+        if (!ROLE_KEYS.includes(u.role)) throw new Error(`${u.email}: роль ${u.role}`);
+        if (!BRANCH_KEYS.includes(u.branch)) throw new Error(`${u.email}: филиал ${u.branch}`);
+        if (!SIGNERS.includes(u.signer || "")) throw new Error(`${u.email}: signer ${u.signer}`);
+        PLAN.push({
+            email: u.email.toLowerCase(),
+            role: u.role,
+            branch: u.branch,
+            branchName: BRANCHES.find((b) => b.key === u.branch).name,
+            zone: ZONES[u.role] || "",
+            title: u.title || "",
+            name: u.name || "",
+            signer: u.signer || "",
+        });
+    }
+}
+if (onlyRole) {
+    const keep = PLAN.filter((p) => p.role === onlyRole);
+    PLAN.length = 0;
+    PLAN.push(...keep);
+}
 
 /* ── Admin API ─────────────────────────────────────────────────── */
 async function api(pathname, options = {}) {
@@ -162,9 +217,6 @@ function makePassword(len = 14) {
 }
 
 /* ── Запуск ────────────────────────────────────────────────────── */
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const listOnly = args.includes("--list");
 
 const existing = await listUsers();
 const byEmail = new Map(
@@ -196,7 +248,10 @@ for (const item of PLAN) {
         branch: item.branch,
         title: item.title,
         zone: item.zone,
+        // Пустая строка, а не отсутствие: при обновлении снимает прежнее
+        signer: item.signer || "",
     };
+    if (item.name) appMeta.name = item.name;
 
     if (dryRun) {
         results.push({ ...item, action: found ? "update" : "create", password: "—" });
@@ -245,9 +300,25 @@ const widths = header.map((h, i) =>
 const line = (cells) =>
     cells.map((c, i) => String(c).padEnd(widths[i])).join("  ");
 
-console.log(line(header));
-console.log(widths.map((w) => "-".repeat(w)).join("  "));
-for (const row of rows) console.log(line(row));
+if (outCsv) {
+    // Пароли — в файл, на экран только сводка
+    const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    const csv = ["email;пароль;ФИО;должность;роль;филиал;подпись;действие"]
+        .concat(results.map((r) =>
+            [r.email, r.password, r.name, r.title, r.role, r.branch, r.signer, r.action].map(q).join(";"),
+        ))
+        .join("\r\n");
+    // BOM — чтобы Excel открыл кириллицу без вопросов
+    fs.writeFileSync(path.resolve(ROOT, outCsv), "﻿" + csv, "utf8");
+    for (const r of results) {
+        console.log(`${r.email.padEnd(32)} ${r.role.padEnd(10)} ${r.action}${r.action === "ERROR" ? " " + r.password : ""}`);
+    }
+    console.log("\nПароли записаны в " + outCsv);
+} else {
+    console.log(line(header));
+    console.log(widths.map((w) => "-".repeat(w)).join("  "));
+    for (const row of rows) console.log(line(row));
+}
 
 const created = results.filter((r) => r.action === "created").length;
 const updated = results.filter((r) => r.action === "updated").length;

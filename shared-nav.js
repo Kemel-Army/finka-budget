@@ -100,14 +100,29 @@
                 },
             ],
         },
+        /* Раздел целиком — «Бюджет за счёт реализации образовательных
+           услуг» (бывший «Подушевое финансирование»), внутри три подраздела
+           по источнику дохода. Листы и ключи прежние, поменялись только
+           подписи и порядок. */
         pu: {
-            label: "Подушевое финансирование",
-            short: "ПУ",
+            label: "Бюджет за счёт реализации образовательных услуг",
+            short: "Обр. услуги",
             items: [
                 {
                     href: "pu-svod-2026.html",
-                    title: "Свод ПУ 2026",
+                    title: "Свод 2026 (все источники)",
                     key: "pu_svod_2026",
+                },
+                {
+                    href: "plan-fact-pu-dt.html",
+                    title: "План-Факт ПУ + ДТ (свод)",
+                    key: "plan_fact_pu_dt",
+                },
+                {
+                    group: "1. Подушевое финансирование (Республиканский бюджет)",
+                    href: "pu-income-dt.html",
+                    title: "Доходы ДТ (подушевое финансирование)",
+                    key: "pu_income_dt",
                 },
                 {
                     href: "pu-ss-dotacia.html",
@@ -115,24 +130,20 @@
                     key: "pu_ss_dotacia",
                 },
                 {
-                    href: "pu-ss-almaty.html",
-                    title: "Собственные средства Алматы",
-                    key: "pu_ss_almaty",
+                    href: "plan-fact-dt.html",
+                    title: "План-Факт ДТ",
+                    key: "plan_fact_dt",
                 },
                 {
+                    group: "2. За счёт средств от реализации образовательных услуг на возмездной основе",
                     href: "pu-income-pu.html",
-                    title: "Доходы ПУ",
+                    title: "Доходы ПУ (платное обучение)",
                     key: "pu_income_pu",
                 },
                 {
-                    href: "pu-income-dt.html",
-                    title: "Доходы ДТ",
-                    key: "pu_income_dt",
-                },
-                {
-                    href: "pu-income-dop.html",
-                    title: "Доходы ДОП",
-                    key: "pu_income_dop",
+                    href: "pu-ss-almaty.html",
+                    title: "Собственные средства Алматы",
+                    key: "pu_ss_almaty",
                 },
                 {
                     href: "pu-fot-almaty.html",
@@ -165,14 +176,21 @@
                     key: "plan_fact_pu",
                 },
                 {
-                    href: "plan-fact-dt.html",
-                    title: "План-Факт ДТ",
-                    key: "plan_fact_dt",
+                    group: "3. Иные доходы",
+                    href: "pu-income-dop.html",
+                    title: "Иные доходы (ДОП)",
+                    key: "pu_income_dop",
                 },
+            ],
+        },
+        zayavki: {
+            label: "Заявки-потребности",
+            short: "Заявки",
+            items: [
                 {
-                    href: "plan-fact-pu-dt.html",
-                    title: "План-Факт ПУ + ДТ (свод)",
-                    key: "plan_fact_pu_dt",
+                    href: "zayavki.html",
+                    title: "Заявки-потребности на товары, работы, услуги",
+                    key: "zayavki",
                 },
             ],
         },
@@ -213,6 +231,10 @@
         var html = "";
         for (var i = 0; i < section.items.length; i++) {
             var item = section.items[i];
+            // Подраздел — подпись над группой листов
+            if (item.group) {
+                html += '<div class="finka-dd-group">' + item.group + "</div>";
+            }
             var cls = item.href === currentPage ? ' class="current"' : "";
             html +=
                 '<a href="' + item.href + '"' + cls + ">" +
@@ -415,4 +437,13 @@
     // db-sync.js стартует раньше навигации и успевает нарисовать
     // состояние в углу экрана — просим перерисовать его сюда, в шапку
     if (window.finkaSync && window.finkaSync.paint) window.finkaSync.paint();
+
+    /* ── Примечания ────────────────────────────────────────────── */
+    // Блок «Примечания» внизу листа — notes.js. Подключаем отсюда, чтобы не
+    // править три десятка страниц; страница может подключить его и сама
+    if (!window.finkaNotes && !document.querySelector('script[src="notes.js"]')) {
+        var notesJs = document.createElement("script");
+        notesJs.src = "notes.js";
+        document.body.appendChild(notesJs);
+    }
 })();

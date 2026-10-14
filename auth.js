@@ -83,6 +83,7 @@
             "shtatnoe.html",
             "osnovaniya.html",
             "deposit.html",
+            "zayavki.html",
         ],
         tools: ["import-excel.html"],
     };
@@ -135,7 +136,7 @@
             canEdit: false,
             canImport: false,
             canExport: false,
-            pages: ["index.html", "dashboard.html"].concat(PAGES.pu),
+            pages: ["index.html", "dashboard.html", "zayavki.html"].concat(PAGES.pu),
         },
     };
 
@@ -143,6 +144,11 @@
     // (в нём тысячи посторонних учётных записей), поэтому пользователь без
     // явно проставленной роли в app_metadata доступа к бюджету не получает.
     var DEFAULT_ROLE = null;
+
+    /* Страницы со своими правами: canEdit роли к ним не относится. Заявку
+       подаёт и «Инициатор», и «Просмотр» (директор её утверждает), а что
+       кому можно — решают политики своей таблицы (миграция 0004). */
+    var OWN_RIGHTS = ["zayavki.html"];
 
     /* ── Филиалы ───────────────────────────────────────────────── */
     var BRANCHES = {
@@ -227,6 +233,10 @@
         return {
             email: (user && user.email) || "",
             title: meta.title || "",
+            // ФИО — в заявки и подписи; signer — графа подписи заявки
+            // (ahr, zakup, economist, director), см. миграцию 0004
+            name: meta.name || "",
+            signer: meta.signer || "",
             roleKey: roleKey,
             role: roleKey ? ROLES[roleKey] : null,
             branchKey: branchKey,
@@ -504,6 +514,8 @@
 
     function lockNode(node) {
         if (!node || node.nodeType !== 1) return;
+        // Примечания — не правка бюджета, их можно и в режиме просмотра
+        if (node.closest && node.closest("[data-finka-free]")) return;
 
         var inputs = node.matches && node.matches("input,select,textarea")
             ? [node]
@@ -518,6 +530,7 @@
 
         inputs.forEach(function (el) {
             if (el.type === "hidden") return;
+            if (el.closest && el.closest("[data-finka-free]")) return;
             el.dataset.finkaRo = "1";
             // Не «уже помечали — пропускаем»: страницы включают поля обратно
             // своими расчётами, и пометка при этом остаётся. Проверять надо
@@ -543,6 +556,7 @@
 
         buttons.forEach(function (btn) {
             if (btn.dataset.finkaRo) return;
+            if (btn.closest && btn.closest("[data-finka-free]")) return;
             // Навигация, вкладки филиалов и кнопка выхода остаются рабочими
             if (
                 btn.classList.contains("finka-user-logout") ||
@@ -628,6 +642,37 @@
             var el = links[i].closest(".section") || links[i];
             el.style.display = "none";
         }
+    }
+
+    /* ── Ссылки, которые роль всё равно не откроет ─────────────── */
+    /* «Инициатору» открыты заявки и несколько листов. Остальные пункты меню
+       и карточки главной вели на экран «Страница недоступна» — убираем их,
+       а заодно и опустевшие разделы. */
+    function hideClosedLinks(profile) {
+        function pass() {
+            var links = document.querySelectorAll(
+                ".finka-dropdown a[href], a.page-card[href], a.util-card[href]",
+            );
+            for (var i = 0; i < links.length; i++) {
+                var href = (links[i].getAttribute("href") || "").split(/[?#]/)[0];
+                if (!canOpen(profile, href)) links[i].style.display = "none";
+            }
+            var groups = document.querySelectorAll(".finka-nav-item, .section");
+            for (var j = 0; j < groups.length; j++) {
+                var all = groups[j].querySelectorAll(
+                    ".finka-dropdown a, a.page-card, a.util-card",
+                );
+                if (!all.length) continue;
+                var shown = 0;
+                for (var k = 0; k < all.length; k++) {
+                    if (all[k].style.display !== "none") shown++;
+                }
+                if (!shown) groups[j].style.display = "none";
+            }
+        }
+        pass();
+        // Навигация дорисовывается позже
+        findHost(pass);
     }
 
     /* ── Привязка к своему филиалу ─────────────────────────────── */
@@ -716,6 +761,21 @@
             astana: "филиала НАО «РФМШ» в г. Астана",
             uralsk: "филиала НАО «РФМШ» в г. Уральск",
             consolidated: "НАО «РФМШ» и филиалов (консолидация)",
+        },
+        // Наименование организации в строках таблиц доходов
+        org: {
+            nao: "НАО «РФМШ»",
+            almaty: "Филиал НАО «РФМШ» в г. Алматы",
+            astana: "Филиал НАО «РФМШ» в г. Астана",
+            uralsk: "Филиал НАО «РФМШ» в г. Уральск",
+            consolidated: "НАО «РФМШ» и филиалы",
+        },
+        "city-in": {
+            nao: "НАО «РФМШ»",
+            almaty: "в г. Алматы",
+            astana: "в г. Астана",
+            uralsk: "в г. Уральск",
+            consolidated: "(консолидация)",
         },
         school: {
             nao: "Школа",
@@ -857,8 +917,11 @@
         renderBadge(profile);
         greetIfJustSignedIn(profile);
 
-        if (!profile.role.canEdit) enableReadOnly(profile);
+        if (!profile.role.canEdit && OWN_RIGHTS.indexOf(currentPage) === -1) {
+            enableReadOnly(profile);
+        }
         if (!profile.role.canImport) hideImportLinks();
+        if (profile.role.pages) hideClosedLinks(profile);
         if (profile.branchLocked) lockBranch(profile);
         trackCity(profile);
     }

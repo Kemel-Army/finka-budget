@@ -306,6 +306,27 @@ button {
     transform: translateY(0);
 }
 
+/* Длинный раздел (образовательные услуги) не должен уходить за экран */
+.finka-dropdown {
+    max-height: calc(100vh - var(--nav-h) - 16px);
+    overflow-y: auto;
+}
+
+/* Подпись подраздела в выпадающем меню */
+.finka-dd-group {
+    max-width: 330px;
+    margin-top: 4px;
+    padding: 8px 11px 3px;
+    border-top: 1px solid var(--c-gray-100);
+    color: var(--c-pu);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1.35;
+    text-transform: uppercase;
+    white-space: normal;
+}
+
 .finka-dropdown a {
     display: block;
     padding: 7px 11px;
@@ -1665,8 +1686,13 @@ input[type="text"]:focus,
         transition: max-height 200ms ease, padding 200ms ease;
     }
 
+    .finka-dd-group {
+        color: #fcd34d;
+        border-top-color: rgba(255, 255, 255, 0.08);
+    }
+
     .finka-nav-item.open .finka-dropdown {
-        max-height: 600px;
+        max-height: 900px;
         padding: 4px;
         transform: none;
     }

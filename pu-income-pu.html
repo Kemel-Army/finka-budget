@@ -14,7 +14,7 @@
         <div class="container">
             <div class="header">
                 <div data-export-bar></div>
-                <h1>Доходная часть ПУ (подушевое обучение)</h1>
+                <h1>Доходная часть ПУ (образовательные услуги на возмездной основе)</h1>
                 <p>
                     План поступлений по доходам на 2026 год -
                     <span data-city="branch">филиал г. Алматы</span>
@@ -99,16 +99,19 @@
             const PROFIT_RATE = 0.08; // рентабельность 8%
             const MONTHS = 12;
 
-            // Порядок и признаки строк — как в Excel (строки 9..16)
+            // Порядок и признаки строк — как в Excel (строки 9..16).
+            // Наименование организации — по выбранному филиалу, подставляет
+            // auth.js (см. «Город в заголовках»)
+            const ORG = '<span data-city="org">Филиал НАО «РФМШ» в г. Алматы</span>';
             const ROW_DEFS = [
-                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "Вступ взнос 7 кл", mode: "annual", inCont: false },
-                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "7 классы", mode: "months", inCont: true },
-                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 8 по 11 кл", mode: "months", inCont: true },
-                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — обучение', cls: "с 8 по 11 кл", mode: "months", inCont: true },
-                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — проживание', cls: "с 8 по 11 кл", mode: "months", inCont: false },
-                { name: 'Филиал НАО "РФМШ" в г Алматы, Жанаозен — питание', cls: "с 8 по 11 кл", mode: "months", inCont: false },
-                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 10 по 11 кл АР", mode: "annual", inCont: false },
-                { name: 'Филиал НАО "РФМШ" в г Алматы', cls: "с 10 по 11 кл АР, предмет по выбору", mode: "months", inCont: false },
+                { name: ORG, cls: "Вступ взнос 7 кл", mode: "annual", inCont: false },
+                { name: ORG, cls: "7 классы", mode: "months", inCont: true },
+                { name: ORG, cls: "с 8 по 11 кл", mode: "months", inCont: true },
+                { name: ORG + ", Жанаозен — обучение", cls: "с 8 по 11 кл", mode: "months", inCont: true },
+                { name: ORG + ", Жанаозен — проживание", cls: "с 8 по 11 кл", mode: "months", inCont: false },
+                { name: ORG + ", Жанаозен — питание", cls: "с 8 по 11 кл", mode: "months", inCont: false },
+                { name: ORG, cls: "с 10 по 11 кл АР", mode: "annual", inCont: false },
+                { name: ORG, cls: "с 10 по 11 кл АР, предмет по выбору", mode: "months", inCont: false },
             ];
             const ROWS = ROW_DEFS.length;
 

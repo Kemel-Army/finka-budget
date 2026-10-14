@@ -36,6 +36,9 @@ const PROJECT_GLOBALS = {
     MonthlyPlan: "readonly",
     PlanFact: "readonly",
     DepositCore: "readonly",
+    ZayavkaCore: "readonly",
+    finkaNotes: "readonly",
+    finkaNcaLayer: "readonly",
     // внешние библиотеки (CDN / vendor/)
     XLSX: "readonly",
     supabase: "readonly",

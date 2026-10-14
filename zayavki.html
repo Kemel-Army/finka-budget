@@ -1,0 +1,1307 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="shared.css" />
+        <script src="auth.js"></script>
+        <title>Заявки-потребности</title>
+        <script src="zayavka-core.js"></script>
+        <script src="ncalayer.js"></script>
+        <script src="notes.js"></script>
+        <style>
+            .z-bar {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+            .z-bar .z-spacer {
+                flex: 1;
+            }
+            .z-tab {
+                padding: 7px 14px;
+                border: 1px solid #d3dbe6;
+                border-radius: 999px;
+                background: #fff;
+                color: #334155;
+                font: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .z-tab.active {
+                background: #0f172a;
+                border-color: #0f172a;
+                color: #fff;
+            }
+            .z-tab .z-badge {
+                display: inline-block;
+                min-width: 18px;
+                margin-left: 4px;
+                padding: 0 6px;
+                border-radius: 999px;
+                background: #f59e0b;
+                color: #fff;
+                font-size: 11px;
+                text-align: center;
+            }
+            /* Общие стили кнопок задают display — без этого hidden не прячет */
+            [hidden] {
+                display: none !important;
+            }
+            .z-bar select,
+            .z-bar input[type="search"] {
+                padding: 7px 10px;
+                border: 1px solid #d3dbe6;
+                border-radius: 6px;
+                font: inherit;
+                font-size: 13px;
+                background: #fff;
+            }
+            .z-primary {
+                padding: 8px 16px;
+                border: 0;
+                border-radius: 6px;
+                background: #2563eb;
+                color: #fff;
+                font: inherit;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .z-primary:hover {
+                background: #1d4ed8;
+            }
+            .z-btn {
+                padding: 7px 13px;
+                border: 1px solid #d3dbe6;
+                border-radius: 6px;
+                background: #fff;
+                color: #1e293b;
+                font: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .z-btn:hover {
+                background: #f1f5f9;
+            }
+            .z-btn.danger {
+                color: #b91c1c;
+                border-color: #fecaca;
+            }
+            .z-btn.ok {
+                color: #047857;
+                border-color: #a7f3d0;
+            }
+            .z-btn:disabled,
+            .z-primary:disabled {
+                opacity: 0.5;
+                cursor: default;
+            }
+
+            table.z-list {
+                width: 100%;
+                border-collapse: collapse;
+                background: #fff;
+                font-size: 13px;
+            }
+            table.z-list th,
+            table.z-list td {
+                padding: 8px 10px;
+                border-bottom: 1px solid #e2e8f0;
+                text-align: left;
+                vertical-align: top;
+            }
+            table.z-list th {
+                background: #f8fafc;
+                color: #475569;
+                font-size: 11.5px;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            table.z-list tbody tr {
+                cursor: pointer;
+            }
+            table.z-list tbody tr:hover td {
+                background: #f8fafc;
+            }
+            table.z-list td.sum {
+                text-align: right;
+                white-space: nowrap;
+                font-variant-numeric: tabular-nums;
+            }
+            .z-sub {
+                color: #64748b;
+                font-size: 12px;
+            }
+            .z-empty {
+                padding: 26px;
+                text-align: center;
+                color: #94a3b8;
+            }
+            .z-status {
+                display: inline-block;
+                padding: 2px 9px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .z-status.gray { background: #f1f5f9; color: #475569; }
+            .z-status.blue { background: #dbeafe; color: #1d4ed8; }
+            .z-status.amber { background: #fef3c7; color: #92400e; }
+            .z-status.green { background: #d1fae5; color: #047857; }
+            .z-status.red { background: #fee2e2; color: #b91c1c; }
+            .z-chips {
+                display: flex;
+                gap: 3px;
+            }
+            .z-chip {
+                width: 22px;
+                height: 22px;
+                border-radius: 5px;
+                background: #f1f5f9;
+                color: #94a3b8;
+                font-size: 11px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .z-chip.on {
+                background: #10b981;
+                color: #fff;
+            }
+            .z-chip.me {
+                outline: 2px solid #f59e0b;
+            }
+            .z-msg {
+                margin: 10px 0;
+                padding: 10px 14px;
+                border-radius: 8px;
+                background: #fef2f2;
+                color: #991b1b;
+                font-size: 13px;
+            }
+            .z-msg.info {
+                background: #eff6ff;
+                color: #1e40af;
+            }
+
+            /* ── Бланк ─────────────────────────────────────────── */
+            .z-paper {
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 34px 40px;
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+                font-family: "Times New Roman", Times, serif;
+                font-size: 15px;
+                color: #000;
+            }
+            .z-appx {
+                text-align: right;
+                font-style: italic;
+                font-weight: 700;
+                text-decoration: underline;
+                line-height: 1.35;
+            }
+            .z-title {
+                margin: 22px 0 14px;
+                text-align: center;
+                font-size: 16px;
+                font-weight: 700;
+                line-height: 1.35;
+            }
+            .z-title input {
+                width: 70px;
+                text-align: center;
+                font-weight: 700;
+            }
+            .z-sysno {
+                text-align: center;
+                font-size: 13px;
+                color: #475569;
+                margin: -8px 0 12px;
+                font-family: var(--font);
+            }
+            .z-line {
+                display: flex;
+                align-items: baseline;
+                gap: 8px;
+                margin: 5px 0;
+            }
+            .z-line b {
+                white-space: nowrap;
+            }
+            /* Общие стили полей и таблиц (shared.css) рассчитаны на листы
+               бюджета и почти все с !important: моноширинный шрифт, числа
+               вправо, шапка капсом. Бланк должен выглядеть как документ
+               Word, поэтому внутри него — свои. */
+            .z-paper input[type="text"],
+            .z-paper input[type="date"],
+            .z-paper input[type="number"],
+            .z-paper select,
+            .z-paper textarea {
+                height: auto;
+                padding: 3px 6px !important;
+                border: 0 !important;
+                border-bottom: 1px solid #94a3b8 !important;
+                border-radius: 0 !important;
+                background: #f8fafc;
+                font-family: inherit !important;
+                font-size: 14px !important;
+                color: #000;
+                text-align: left;
+            }
+            .z-paper input[type="number"] {
+                text-align: right;
+            }
+            .z-paper input:focus,
+            .z-paper select:focus,
+            .z-paper textarea:focus {
+                background: #fff;
+                border-bottom-color: #2563eb !important;
+                box-shadow: none !important;
+            }
+            .z-line input[type="text"],
+            .z-line select {
+                flex: 1;
+                min-width: 0;
+            }
+            .z-paper .z-val {
+                flex: 1;
+                border-bottom: 1px solid #000;
+                min-height: 1.2em;
+            }
+            .z-sys {
+                font-family: var(--font);
+                font-size: 13px;
+                color: #334155;
+                background: #f8fafc;
+                padding: 6px 8px;
+                border-radius: 6px;
+                margin: 10px 0;
+            }
+            .z-paper .z-sys input[type="text"],
+            .z-paper .z-sys select {
+                font-family: var(--font) !important;
+                font-size: 13px !important;
+                background: #fff;
+            }
+            .z-paper .z-sys input[type="text"] {
+                flex: 0 0 120px;
+            }
+            .z-paper table.z-grid {
+                width: 100%;
+                margin-top: 12px;
+                table-layout: fixed;
+                border-collapse: collapse;
+                border-spacing: 0;
+                font-size: 14px;
+            }
+            .z-paper table.z-grid th,
+            .z-paper table.z-grid td {
+                position: static;
+                padding: 4px 5px !important;
+                border: 1px solid #000 !important;
+                background: #fff !important;
+                color: #000 !important;
+                font-size: 13px !important;
+                font-weight: 400 !important;
+                letter-spacing: 0;
+                text-transform: none;
+                text-align: left;
+                white-space: normal;
+                vertical-align: top;
+                word-break: break-word;
+            }
+            .z-paper table.z-grid th {
+                text-align: center;
+                vertical-align: middle;
+                line-height: 1.2;
+            }
+            .z-paper table.z-grid tr.z-nums td {
+                text-align: center;
+                font-size: 11px !important;
+                padding: 1px !important;
+            }
+            .z-paper table.z-grid td.c {
+                text-align: center;
+            }
+            .z-paper table.z-grid td.r {
+                text-align: right;
+                white-space: nowrap;
+            }
+            .z-paper table.z-grid td.itogo {
+                color: #c00000 !important;
+                font-weight: 700 !important;
+            }
+            .z-paper table.z-grid textarea {
+                width: 100%;
+                min-height: 52px;
+                resize: vertical;
+                box-sizing: border-box;
+            }
+            .z-paper table.z-grid input {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .z-paper table.z-grid th.x,
+            .z-paper table.z-grid td.x {
+                width: 28px;
+                border: 0 !important;
+                vertical-align: middle;
+            }
+            .z-del-row {
+                border: 0;
+                background: none;
+                color: #94a3b8;
+                cursor: pointer;
+                font-size: 15px;
+            }
+            .z-del-row:hover {
+                color: #b91c1c;
+            }
+            .z-addrow {
+                margin-top: 8px;
+                font-family: var(--font);
+            }
+            .z-signs {
+                margin-top: 28px;
+                line-height: 1.45;
+            }
+            .z-signs h4 {
+                margin: 16px 0 4px;
+                font-size: 17px;
+                font-weight: 700;
+            }
+            .z-slot {
+                display: grid;
+                grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.3fr);
+                gap: 12px;
+                align-items: center;
+                padding: 6px 0;
+                border-bottom: 1px dashed #cbd5e1;
+            }
+            .z-slot .who {
+                font-size: 14px;
+            }
+            .z-slot .who small {
+                display: block;
+                color: #475569;
+                font-size: 12.5px;
+            }
+            .z-stamp {
+                display: inline-block;
+                padding: 5px 10px;
+                border: 2px solid #1d4ed8;
+                border-radius: 6px;
+                color: #1d4ed8;
+                font-family: var(--font);
+                font-size: 12px;
+                line-height: 1.35;
+            }
+            .z-stamp.simple {
+                border-color: #64748b;
+                color: #334155;
+            }
+            .z-stamp b {
+                display: block;
+                font-size: 12.5px;
+            }
+            .z-slot-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                align-items: center;
+                font-family: var(--font);
+            }
+            .z-link {
+                border: 0;
+                background: none;
+                color: #475569;
+                text-decoration: underline;
+                cursor: pointer;
+                font: inherit;
+                font-size: 12px;
+            }
+            .z-wait {
+                color: #94a3b8;
+                font-family: var(--font);
+                font-size: 12.5px;
+            }
+            .z-docbar {
+                position: sticky;
+                top: calc(var(--nav-h) + 4px);
+                z-index: 20;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
+                margin-bottom: 12px;
+                padding: 8px 10px;
+                background: rgba(255, 255, 255, 0.96);
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+            }
+            .z-notes {
+                max-width: 1100px;
+                margin: 0 auto;
+            }
+            .z-help {
+                max-width: 1100px;
+                margin: 10px auto 0;
+                font-size: 12.5px;
+                color: #64748b;
+            }
+
+            @media (max-width: 760px) {
+                .z-paper {
+                    padding: 18px 12px;
+                }
+                .z-slot {
+                    grid-template-columns: 1fr;
+                }
+                table.z-grid {
+                    font-size: 12px;
+                }
+            }
+
+            @media print {
+                @page {
+                    size: A4 landscape;
+                    margin: 12mm;
+                }
+                body * {
+                    visibility: hidden;
+                }
+                #zPaper,
+                #zPaper * {
+                    visibility: visible;
+                }
+                #zPaper {
+                    position: absolute;
+                    inset: 0 auto auto 0;
+                    width: 100%;
+                    max-width: none;
+                    border: 0;
+                    box-shadow: none;
+                    padding: 0;
+                }
+                .z-addrow,
+                .z-del-row,
+                .z-slot-actions,
+                .z-wait,
+                .z-sys,
+                .z-sysno,
+                td.x {
+                    display: none !important;
+                }
+                .z-paper input,
+                .z-paper textarea,
+                .z-paper select {
+                    border: 0 !important;
+                    background: none !important;
+                    resize: none;
+                    appearance: none;
+                }
+                .z-slot {
+                    border: 0;
+                }
+            }
+        </style>
+    </head>
+    <body class="page-pu">
+        <div class="container">
+            <div class="header">
+                <h1>📝 Заявки-потребности</h1>
+                <p>
+                    На приобретение товаров, работ и услуг (приложение № 2) ·
+                    <span id="zWho">…</span>
+                </p>
+            </div>
+
+            <!-- Список -->
+            <div id="zListView">
+                <div class="z-bar">
+                    <button type="button" class="z-tab active" data-tab="mine">
+                        Мои заявки
+                    </button>
+                    <button type="button" class="z-tab" data-tab="inbox" hidden>
+                        На согласование<span class="z-badge" id="zInboxBadge" hidden></span>
+                    </button>
+                    <select id="zStatus" aria-label="Статус">
+                        <option value="">Все статусы</option>
+                    </select>
+                    <input type="search" id="zSearch" placeholder="Поиск: ФИО, предмет…" />
+                    <span class="z-spacer"></span>
+                    <button type="button" class="z-primary" id="zNew">
+                        + Новая заявка
+                    </button>
+                </div>
+                <div id="zListMsg"></div>
+                <table class="z-list" data-uk-free>
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Дата</th>
+                            <th>Инициатор</th>
+                            <th>Что закупаем</th>
+                            <th style="text-align: right">Сумма, ₸</th>
+                            <th>Статус</th>
+                            <th title="И — инициатор, А — зам. по АХР, З — закупки, Э — экономист, Д — директор">
+                                Подписи
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="zRows"></tbody>
+                </table>
+                <div class="z-empty" id="zEmpty" hidden>Заявок нет</div>
+            </div>
+
+            <!-- Заявка -->
+            <div id="zDocView" hidden>
+                <div class="z-docbar" id="zDocBar"></div>
+                <div id="zDocMsg"></div>
+                <div class="z-paper" id="zPaper"></div>
+                <p class="z-help">
+                    Подпись ЭЦП ставится через NCALayer (pki.gov.kz): он должен
+                    быть запущен на этом компьютере. Подписанная заявка не
+                    меняется; чтобы исправить, согласующий возвращает её на
+                    доработку — подписи при этом снимаются.
+                </p>
+                <div class="z-notes" id="zNotes"></div>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+
+                var Z = window.ZayavkaCore;
+
+                var profile = null;
+                var me = null; // uid
+                var all = []; // заявки, видимые учётке
+                var tab = "mine";
+                var cur = null; // открытая заявка (строка базы или черновик без id)
+                var dirty = false;
+                var notes = null;
+                var busy = false;
+
+                var $ = function (id) {
+                    return document.getElementById(id);
+                };
+
+                function esc(s) {
+                    return String(s == null ? "" : s)
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;");
+                }
+
+                function toast(text, type) {
+                    if (window.finkaToast) window.finkaToast(text, type);
+                    else alert(text);
+                }
+
+                function day(iso) {
+                    if (!iso) return "";
+                    var p = String(iso).slice(0, 10).split("-");
+                    return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : iso;
+                }
+
+                function stamp(iso) {
+                    var d = new Date(iso);
+                    return isNaN(d)
+                        ? ""
+                        : d.toLocaleString("ru-RU", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                          });
+                }
+
+                function table() {
+                    return window.finkaAuth.getClient().then(function (c) {
+                        return c.schema("budget").from("requests");
+                    });
+                }
+
+                function explain(err) {
+                    var m = String((err && (err.message || err.details)) || err || "");
+                    var code = String((err && err.code) || "");
+                    if (/42P01|PGRST20[05]/.test(code) || /does not exist|schema cache/i.test(m)) {
+                        return "Заявки заработают после обновления базы: администратору нужно применить миграцию 0004.";
+                    }
+                    if (/42501/.test(code) || /row-level security|permission/i.test(m)) {
+                        return "Нет права на это действие.";
+                    }
+                    return m || "Ошибка";
+                }
+
+                function showMsg(el, text, info) {
+                    $(el).innerHTML = text
+                        ? '<div class="z-msg' + (info ? " info" : "") + '">' + esc(text) + "</div>"
+                        : "";
+                }
+
+                /* ── Загрузка ───────────────────────────────────── */
+                function fetchAll() {
+                    return table()
+                        .then(function (t) {
+                            return t
+                                .select("*")
+                                .order("created_at", { ascending: false })
+                                .limit(1000);
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            all = res.data || [];
+                            showMsg("zListMsg", "");
+                        })
+                        .catch(function (err) {
+                            all = [];
+                            showMsg("zListMsg", explain(err));
+                        });
+                }
+
+                function fetchOne(id) {
+                    return table()
+                        .then(function (t) {
+                            return t.select("*").eq("id", id).maybeSingle();
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            return res.data;
+                        });
+                }
+
+                /* ── Список ─────────────────────────────────────── */
+                var CHIP = { initiator: "И", ahr: "А", zakup: "З", economist: "Э", director: "Д" };
+                var CHIP_ORDER = ["initiator", "ahr", "zakup", "economist", "director"];
+
+                function inbox() {
+                    return all.filter(function (r) {
+                        return r.author !== me;
+                    });
+                }
+
+                function waitingCount() {
+                    return inbox().filter(function (r) {
+                        return Z.waitingFor(profile, r, me).length > 0;
+                    }).length;
+                }
+
+                function renderList() {
+                    var rows = tab === "mine"
+                        ? all.filter(function (r) { return r.author === me; })
+                        : inbox();
+                    var st = $("zStatus").value;
+                    var q = $("zSearch").value.trim().toLowerCase();
+                    if (st) rows = rows.filter(function (r) { return r.status === st; });
+                    if (q) {
+                        rows = rows.filter(function (r) {
+                            return JSON.stringify(r.doc || {}).toLowerCase().indexOf(q) !== -1 ||
+                                String(r.author_email).toLowerCase().indexOf(q) !== -1 ||
+                                String(r.no) === q;
+                        });
+                    }
+                    // Сначала те, что ждут моей подписи
+                    if (tab === "inbox") {
+                        rows = rows.slice().sort(function (a, b) {
+                            return Z.waitingFor(profile, b, me).length - Z.waitingFor(profile, a, me).length;
+                        });
+                    }
+
+                    var n = waitingCount();
+                    $("zInboxBadge").hidden = !n;
+                    $("zInboxBadge").textContent = n;
+
+                    $("zEmpty").hidden = rows.length > 0;
+                    $("zEmpty").textContent = tab === "mine"
+                        ? "Своих заявок нет — нажмите «Новая заявка»"
+                        : "Поданных заявок нет";
+
+                    $("zRows").innerHTML = rows.map(function (r) {
+                        var d = r.doc || {};
+                        var items = d.rows || [];
+                        var what = items.length
+                            ? esc(items[0].name) + (items.length > 1 ? ' <span class="z-sub">и ещё ' + (items.length - 1) + "</span>" : "")
+                            : '<span class="z-sub">—</span>';
+                        var s = Z.STATUS[r.status] || { label: r.status, tone: "gray" };
+                        var wait = Z.waitingFor(profile, r, me);
+                        var chips = CHIP_ORDER.map(function (k) {
+                            var on = !!Z.signedSlot(r, k);
+                            return '<span class="z-chip' + (on ? " on" : "") +
+                                (wait.indexOf(k) !== -1 ? " me" : "") + '">' + CHIP[k] + "</span>";
+                        }).join("");
+                        var city = r.branch === "nao" ? "ЦА" : Z.BRANCH_CITY[r.branch] || r.branch;
+                        return (
+                            '<tr data-id="' + esc(r.id) + '">' +
+                            "<td>" + esc(r.no) + "</td>" +
+                            "<td>" + esc(day(d.date || r.created_at)) + "</td>" +
+                            "<td>" + esc(d.fio || r.author_name || r.author_email) +
+                            '<div class="z-sub">' + esc(d.position || "") +
+                            (profile.branchKey === "nao" || profile.roleKey === "admin" ? " · " + esc(city) : "") +
+                            "</div></td>" +
+                            "<td>" + what + "</td>" +
+                            '<td class="sum">' + Z.money(Z.docTotal(d)) + "</td>" +
+                            '<td><span class="z-status ' + s.tone + '">' + esc(s.label) + "</span>" +
+                            (wait.length ? '<div class="z-sub">ждёт вашей подписи</div>' : "") + "</td>" +
+                            '<td><div class="z-chips">' + chips + "</div></td>" +
+                            "</tr>"
+                        );
+                    }).join("");
+                }
+
+                function setTab(t) {
+                    tab = t;
+                    document.querySelectorAll(".z-tab").forEach(function (b) {
+                        b.classList.toggle("active", b.getAttribute("data-tab") === t);
+                    });
+                    renderList();
+                }
+
+                /* ── Открыть / закрыть ──────────────────────────── */
+                function openDoc(req) {
+                    // Копия: правки без сохранения не должны попасть в список
+                    cur = JSON.parse(JSON.stringify(req));
+                    cur.doc = cur.doc || {};
+                    cur.doc.rows = cur.doc.rows || [];
+                    if (editable() && !cur.doc.rows.length) {
+                        cur.doc.rows.push({ name: "", unit: "", qty: "", price: "", period: "", purpose: "" });
+                    }
+                    dirty = false;
+                    $("zListView").hidden = true;
+                    $("zDocView").hidden = false;
+                    showMsg("zDocMsg", "");
+                    renderDoc();
+                    if (req.id && location.hash !== "#" + req.id) {
+                        history.replaceState(null, "", "#" + req.id);
+                    }
+                    window.scrollTo(0, 0);
+                }
+
+                function closeDoc() {
+                    if (dirty && !confirm("Есть несохранённые изменения. Закрыть без сохранения?")) return;
+                    cur = null;
+                    dirty = false;
+                    history.replaceState(null, "", location.pathname);
+                    $("zDocView").hidden = true;
+                    $("zListView").hidden = false;
+                    fetchAll().then(renderList);
+                }
+
+                function blank() {
+                    var today = new Date();
+                    var iso = today.getFullYear() + "-" +
+                        String(today.getMonth() + 1).padStart(2, "0") + "-" +
+                        String(today.getDate()).padStart(2, "0");
+                    return {
+                        id: null,
+                        branch: profile.branchKey,
+                        status: "draft",
+                        author: me,
+                        signatures: [],
+                        doc: {
+                            year: today.getFullYear() + 1,
+                            date: iso,
+                            initiator: "",
+                            // У личной учётки должность и ФИО — из профиля
+                            position: profile.name ? profile.title : "",
+                            fio: profile.name || "",
+                            source: "",
+                            spec: "",
+                            rows: [{ name: "", unit: "", qty: "", price: "", period: "", purpose: "" }],
+                        },
+                    };
+                }
+
+                /* ── Бланк ──────────────────────────────────────── */
+                function editable() {
+                    return !cur.id || Z.canEdit(profile, cur, me);
+                }
+
+                function field(key, ph) {
+                    var v = cur.doc[key] == null ? "" : cur.doc[key];
+                    return editable()
+                        ? '<input type="text" data-f="' + key + '" value="' + esc(v) + '" placeholder="' + esc(ph || "") + '" />'
+                        : '<span class="z-val">' + esc(v) + "</span>";
+                }
+
+                function rowHtml(r, i, ed) {
+                    var t = Z.money(Z.rowTotal(r));
+                    if (!ed) {
+                        return (
+                            "<tr><td class=\"c\">" + (i + 1) + "</td><td>" + esc(r.name) + "</td>" +
+                            '<td class="c">' + esc(r.unit) + '</td><td class="r">' + esc(Z.num(r.qty).toLocaleString("ru-RU")) + "</td>" +
+                            '<td class="r">' + Z.money(r.price) + '</td><td class="r">' + t + "</td>" +
+                            "<td>" + esc(r.period) + "</td><td>" + esc(r.purpose) + "</td></tr>"
+                        );
+                    }
+                    var inp = function (k, type) {
+                        return '<input type="' + (type || "text") + '" data-r="' + i + '" data-k="' + k + '" value="' +
+                            esc(r[k] == null ? "" : r[k]) + '"' + (type === "number" ? ' step="any" min="0"' : "") + " />";
+                    };
+                    var area = function (k) {
+                        return '<textarea data-r="' + i + '" data-k="' + k + '">' + esc(r[k] || "") + "</textarea>";
+                    };
+                    return (
+                        "<tr><td class=\"c\">" + (i + 1) + "</td><td>" + area("name") + "</td>" +
+                        "<td>" + inp("unit") + "</td><td>" + inp("qty", "number") + "</td>" +
+                        "<td>" + inp("price", "number") + '</td><td class="r" data-total="' + i + '">' + t + "</td>" +
+                        "<td>" + inp("period") + "</td><td>" + area("purpose") + "</td>" +
+                        '<td class="x"><button type="button" class="z-del-row" data-del="' + i + '" title="Удалить строку">✕</button></td></tr>'
+                    );
+                }
+
+                function slotHtml(slot) {
+                    var sig = Z.signedSlot(cur, slot.key);
+                    var label = slot.key === "director" && cur.branch === "nao" ? slot.labelNao : slot.label;
+                    var right;
+                    if (sig) {
+                        var c = sig.cert || {};
+                        right = sig.kind === "ecp"
+                            ? '<span class="z-stamp"><b>✔ Подписано ЭЦП</b>' +
+                              esc(c.fio || sig.name || sig.email) +
+                              (c.iin ? ", ИИН " + esc(c.iin) : "") + "<br>" +
+                              esc(stamp(sig.at)) + " · " + esc(sig.email) + "</span>"
+                            : '<span class="z-stamp simple"><b>✔ Отметка в системе (без ЭЦП)</b>' +
+                              esc(sig.name || sig.email) + "<br>" + esc(stamp(sig.at)) + "</span>";
+                    } else if (cur.id && Z.canSign(slot.key, profile, cur, me) || (!cur.id && slot.key === "initiator")) {
+                        right = '<span class="z-slot-actions">' +
+                            '<button type="button" class="z-primary" data-sign="' + slot.key + '" data-kind="ecp">🔏 ' +
+                            (slot.key === "initiator" ? "Подписать ЭЦП и подать" : "Подписать ЭЦП") + "</button>" +
+                            '<button type="button" class="z-link" data-sign="' + slot.key + '" data-kind="simple">без ЭЦП</button></span>';
+                    } else {
+                        right = '<span class="z-wait">' +
+                            (cur.status === "draft" || cur.status === "returned" ? "после подачи заявки" : "ожидает подписи") +
+                            "</span>";
+                    }
+                    var who = sig && (sig.name || (sig.cert && sig.cert.fio));
+                    return (
+                        '<div class="z-slot"><div class="who">' + esc(label) +
+                        (who ? "<small>" + esc(who) + (sig.title ? " · " + esc(sig.title) : "") + "</small>" : "<small>ФИО / роспись ____________________</small>") +
+                        "</div><div>" + right + "</div></div>"
+                    );
+                }
+
+                function renderDoc() {
+                    var ed = editable();
+                    var d = cur.doc;
+                    var city = Z.BRANCH_CITY[cur.branch];
+                    var rows = d.rows && d.rows.length ? d.rows : [];
+
+                    var sources = '<option value="">— не выбран —</option>' + Z.SOURCES.map(function (s) {
+                        return "<option" + (s === d.source ? " selected" : "") + ">" + esc(s) + "</option>";
+                    }).join("");
+
+                    var html =
+                        '<div class="z-appx">Приложение № 2<br>Некоммерческое акционерное общество<br>' +
+                        "«Республиканская физико-математическая школа»</div>" +
+                        '<div class="z-title">ЗАЯВКА-ПОТРЕБНОСТЬ<br>на приобретение товаров, работ и услуг<br>на финансовый ' +
+                        (ed ? '<input type="number" data-f="year" value="' + esc(d.year) + '" />' : esc(d.year)) + " год</div>" +
+                        (cur.id ? '<div class="z-sysno">№ ' + esc(cur.no) + " · " +
+                            esc((Z.STATUS[cur.status] || {}).label || cur.status) + " · автор: " +
+                            esc(cur.author_name || cur.author_email || "") + "</div>" : "") +
+                        '<div class="z-line"><b>на</b> ' +
+                        (ed ? '<input type="date" data-f="date" value="' + esc(d.date) + '" />' : '<span class="z-val">' + esc(day(d.date)) + "</span>") +
+                        " <b>года</b></div>" +
+                        '<div class="z-line"><b>Инициатор заявки:</b> ' + field("initiator", "подразделение / отдел") + "</div>" +
+                        '<div class="z-line"><b>Должность:</b> ' + field("position") + "</div>" +
+                        '<div class="z-line"><b>ФИО:</b> ' + field("fio") + "</div>" +
+                        '<div class="z-line z-sys"><b>Источник финансирования:</b> ' +
+                        (ed ? '<select data-f="source">' + sources + "</select>" : '<span class="z-val">' + esc(d.source || "—") + "</span>") +
+                        " <b>Специфика:</b> " + field("spec", "напр. 149") + "</div>" +
+                        '<table class="z-grid" data-uk-free><thead><tr>' +
+                        "<th style=\"width:38px\">№ п/п</th>" +
+                        "<th style=\"width:24%\">Наименование товаров, работ и услуг (изложить краткое описание, согласно представленных подтверждающих документов (ЦП/КП))</th>" +
+                        "<th style=\"width:62px\">Ед. изм.</th><th style=\"width:80px\">Объём / кол-во</th>" +
+                        "<th style=\"width:100px\">Цена за единицу</th><th style=\"width:110px\">Общая стоимость</th>" +
+                        "<th>Период (конкретизировать дату проведения мероприятия), поставки товаров, работ и услуг</th>" +
+                        "<th style=\"width:20%\">Целесообразность закупа (краткое описание цели, причины закупа)</th>" +
+                        (ed ? '<th class="x"></th>' : "") + "</tr>" +
+                        '<tr class="z-nums"><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td>' +
+                        (ed ? '<td class="x"></td>' : "") + "</tr></thead><tbody>" +
+                        rows.map(function (r, i) { return rowHtml(r, i, ed); }).join("") +
+                        "</tbody><tfoot><tr><td></td><td class=\"itogo\">ИТОГО</td><td></td><td></td><td></td>" +
+                        '<td class="r itogo" id="zTotal">' + Z.money(Z.docTotal(d)) + "</td><td></td><td></td>" +
+                        (ed ? '<td class="x"></td>' : "") + "</tr></tfoot></table>" +
+                        (ed ? '<button type="button" class="z-btn z-addrow" id="zAddRow">+ Добавить строку</button>' : "") +
+                        '<div class="z-signs">' +
+                        "<h4>Утверждаю:</h4>" + slotHtml(Z.SLOTS[0]) +
+                        (city ? '<div class="z-sub" style="font-family:inherit;font-size:14px;color:#000">НАО «Республиканская физико-математическая школа» в г. ' + esc(city) + "</div>" : "") +
+                        "<h4>Согласовано:</h4>" + slotHtml(Z.SLOTS[1]) + slotHtml(Z.SLOTS[2]) + slotHtml(Z.SLOTS[3]) +
+                        "<h4>&nbsp;</h4>" + slotHtml(Z.SLOTS[4]) +
+                        "</div>";
+
+                    $("zPaper").innerHTML = html;
+                    renderBar();
+                    mountNotes();
+                }
+
+                function renderBar() {
+                    var ed = editable();
+                    var b = '<button type="button" class="z-btn" id="zBack">← К списку</button>';
+                    var s = Z.STATUS[cur.status] || { label: cur.status, tone: "gray" };
+                    if (cur.id) b += '<span class="z-status ' + s.tone + '">№ ' + esc(cur.no) + " · " + esc(s.label) + "</span>";
+                    else b += '<span class="z-status gray">Новая, не сохранена</span>';
+                    b += '<span class="z-spacer" style="flex:1"></span>';
+                    if (ed) b += '<button type="button" class="z-btn" id="zSave">💾 Сохранить черновик</button>';
+                    if (cur.id && Z.canWithdraw(profile, cur, me)) {
+                        b += '<button type="button" class="z-btn" id="zWithdraw">↩ Отозвать в черновик</button>';
+                    }
+                    if (cur.id && Z.canReturn(profile, cur) && cur.author !== me) {
+                        b += '<button type="button" class="z-btn" id="zReturn">↩ Вернуть на доработку</button>';
+                        b += '<button type="button" class="z-btn danger" id="zReject">✖ Отклонить</button>';
+                    }
+                    if (cur.id && Z.canDelete(profile, cur, me)) {
+                        b += '<button type="button" class="z-btn danger" id="zDelete">Удалить</button>';
+                    }
+                    b += '<button type="button" class="z-btn" id="zPrint">🖨️ Печать</button>';
+                    $("zDocBar").innerHTML = b;
+                }
+
+                function mountNotes() {
+                    var host = $("zNotes");
+                    if (!cur.id) {
+                        host.innerHTML = "";
+                        notes = null;
+                        return;
+                    }
+                    var page = "zayavka:" + cur.id;
+                    if (!notes || !host.firstChild) {
+                        host.innerHTML = "";
+                        notes = window.finkaNotes.mount(host, {
+                            title: "Примечания и переписка по заявке",
+                            branch: cur.branch,
+                            page: page,
+                            open: true,
+                        });
+                    } else {
+                        notes.set(cur.branch, page);
+                    }
+                }
+
+                /* ── Ввод ───────────────────────────────────────── */
+                $("zPaper").addEventListener("input", function (e) {
+                    var el = e.target;
+                    var f = el.getAttribute("data-f");
+                    var r = el.getAttribute("data-r");
+                    if (f) {
+                        cur.doc[f] = el.value;
+                    } else if (r != null) {
+                        var k = el.getAttribute("data-k");
+                        cur.doc.rows[+r][k] = el.value;
+                        if (k === "qty" || k === "price") {
+                            var cell = document.querySelector('[data-total="' + r + '"]');
+                            if (cell) cell.textContent = Z.money(Z.rowTotal(cur.doc.rows[+r]));
+                            $("zTotal").textContent = Z.money(Z.docTotal(cur.doc));
+                        }
+                    } else {
+                        return;
+                    }
+                    dirty = true;
+                });
+                $("zPaper").addEventListener("change", function (e) {
+                    if (e.target.tagName === "SELECT" && e.target.getAttribute("data-f")) {
+                        cur.doc[e.target.getAttribute("data-f")] = e.target.value;
+                        dirty = true;
+                    }
+                });
+
+                $("zPaper").addEventListener("click", function (e) {
+                    var t = e.target.closest("button");
+                    if (!t) return;
+                    if (t.id === "zAddRow") {
+                        cur.doc.rows.push({ name: "", unit: "", qty: "", price: "", period: "", purpose: "" });
+                        dirty = true;
+                        renderDoc();
+                        var areas = document.querySelectorAll('#zPaper textarea[data-k="name"]');
+                        if (areas.length) areas[areas.length - 1].focus();
+                    } else if (t.hasAttribute("data-del")) {
+                        cur.doc.rows.splice(+t.getAttribute("data-del"), 1);
+                        if (!cur.doc.rows.length) cur.doc.rows.push({ name: "", unit: "", qty: "", price: "", period: "", purpose: "" });
+                        dirty = true;
+                        renderDoc();
+                    } else if (t.hasAttribute("data-sign")) {
+                        sign(t.getAttribute("data-sign"), t.getAttribute("data-kind"));
+                    }
+                });
+
+                $("zDocBar").addEventListener("click", function (e) {
+                    var t = e.target.closest("button");
+                    if (!t || busy) return;
+                    if (t.id === "zBack") closeDoc();
+                    else if (t.id === "zSave") save().then(function (okd) { if (okd) toast("Черновик сохранён", "success"); });
+                    else if (t.id === "zPrint") window.print();
+                    else if (t.id === "zWithdraw") setStatus("draft", null);
+                    else if (t.id === "zReturn") {
+                        var why = prompt("Что исправить? Комментарий увидит инициатор:");
+                        if (why !== null) setStatus("returned", "Возвращено на доработку: " + (why.trim() || "без комментария"));
+                    } else if (t.id === "zReject") {
+                        var why2 = prompt("Причина отклонения:");
+                        if (why2 !== null) setStatus("rejected", "Отклонено: " + (why2.trim() || "без комментария"));
+                    } else if (t.id === "zDelete") remove();
+                });
+
+                /* ── Действия ───────────────────────────────────── */
+                function lock(on) {
+                    busy = on;
+                    document.querySelectorAll("#zDocBar button, #zPaper button").forEach(function (b) {
+                        b.disabled = on;
+                    });
+                }
+
+                // Сохранить содержимое (создать, если новая). true — сохранено
+                function save() {
+                    if (!editable()) return Promise.resolve(true);
+                    var doc = Z.normalizeDoc(cur.doc);
+                    lock(true);
+                    return table()
+                        .then(function (t) {
+                            return cur.id
+                                ? t.update({ doc: doc }).eq("id", cur.id).select("*").single()
+                                : t.insert({ branch: cur.branch, doc: doc }).select("*").single();
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            cur = res.data;
+                            if (!cur.doc.rows.length) {
+                                cur.doc.rows.push({ name: "", unit: "", qty: "", price: "", period: "", purpose: "" });
+                            }
+                            dirty = false;
+                            history.replaceState(null, "", "#" + cur.id);
+                            lock(false);
+                            renderDoc();
+                            return true;
+                        })
+                        .catch(function (err) {
+                            lock(false);
+                            showMsg("zDocMsg", explain(err));
+                            return false;
+                        });
+                }
+
+                function sha256hex(text) {
+                    if (!window.crypto || !crypto.subtle) return Promise.resolve("");
+                    return crypto.subtle
+                        .digest("SHA-256", new TextEncoder().encode(text))
+                        .then(function (buf) {
+                            return Array.prototype.map.call(new Uint8Array(buf), function (x) {
+                                return ("0" + x.toString(16)).slice(-2);
+                            }).join("");
+                        });
+                }
+
+                function sign(slot, kind) {
+                    if (busy) return;
+                    if (slot === "initiator") {
+                        var errs = Z.validate(cur.doc);
+                        if (errs.length) {
+                            showMsg("zDocMsg", "Заявку нельзя подать: " + errs.join("; "));
+                            return;
+                        }
+                    }
+                    // «Утверждаю» ставят после «Согласовано» — предупреждаем
+                    if (slot === "director") {
+                        var missing = Z.SLOTS.filter(function (x) {
+                            return x.group === "Согласовано" && !Z.signedSlot(cur, x.key);
+                        }).map(function (x) { return x.label; });
+                        if (missing.length && !confirm(
+                            "Ещё не согласовали:\n• " + missing.join("\n• ") +
+                            "\n\nУтвердить заявку всё равно?")) {
+                            return;
+                        }
+                    }
+                    if (kind === "simple" && !confirm(
+                        "Поставить отметку без ЭЦП?\n\nОтметка фиксирует вашу учётную запись и время, " +
+                        "но юридической силы электронной подписи не имеет.")) {
+                        return;
+                    }
+                    // Подписывается сохранённое: сначала записываем правки
+                    var start = slot === "initiator" ? save() : Promise.resolve(true);
+                    var text, hash;
+                    start
+                        .then(function (okd) {
+                            if (!okd) throw null;
+                            lock(true);
+                            showMsg("zDocMsg", kind === "ecp" ? "Ожидаем NCALayer: выберите ключ и введите пароль…" : "", true);
+                            return fetchOne(cur.id);
+                        })
+                        .then(function (fresh) {
+                            if (!fresh) throw new Error("Заявка не найдена");
+                            cur = fresh;
+                            text = Z.signedText(cur);
+                            return sha256hex(text);
+                        })
+                        .then(function (h) {
+                            hash = h;
+                            if (kind !== "ecp") return null;
+                            return window.finkaNcaLayer.signBase64(Z.utf8ToBase64(text));
+                        })
+                        .then(function (cms) {
+                            var entry = { slot: slot, kind: kind, hash: hash };
+                            if (cms) {
+                                var c = Z.parseCms(cms);
+                                entry.cms = cms;
+                                if (c) {
+                                    entry.cert = {
+                                        fio: c.fio, iin: c.iin, bin: c.bin, org: c.org,
+                                        serial: c.serial, issuer: c.issuer, notAfter: c.notAfter,
+                                    };
+                                    if (c.notAfter && new Date(c.notAfter) < new Date()) {
+                                        throw new Error("Срок действия сертификата ЭЦП истёк " + day(c.notAfter));
+                                    }
+                                }
+                            }
+                            return table().then(function (t) {
+                                return t.update({ signatures: (cur.signatures || []).concat([entry]) })
+                                    .eq("id", cur.id).select("*").single();
+                            });
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            cur = res.data;
+                            lock(false);
+                            showMsg("zDocMsg", "");
+                            renderDoc();
+                            toast(
+                                slot === "initiator" ? "Заявка подписана и подана на согласование"
+                                    : cur.status === "approved" ? "Заявка утверждена" : "Подписано",
+                                "success",
+                            );
+                        })
+                        .catch(function (err) {
+                            lock(false);
+                            if (err === null) return; // не сохранилось — сообщение уже есть
+                            if (err && err.code === "cancel") {
+                                showMsg("zDocMsg", "");
+                                return;
+                            }
+                            showMsg("zDocMsg", (err && err.code === "offline") ? err.message : explain(err));
+                            renderDoc();
+                        });
+                }
+
+                function setStatus(status, note) {
+                    lock(true);
+                    table()
+                        .then(function (t) {
+                            return t.update({ status: status }).eq("id", cur.id).select("*").single();
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            cur = res.data;
+                            if (!note) return;
+                            return window.finkaAuth.getClient().then(function (c) {
+                                return c.schema("budget").from("notes")
+                                    .insert({ branch: cur.branch, page: "zayavka:" + cur.id, body: note });
+                            });
+                        })
+                        .then(function () {
+                            lock(false);
+                            renderDoc();
+                            toast((Z.STATUS[cur.status] || {}).label || "Готово", "success");
+                        })
+                        .catch(function (err) {
+                            lock(false);
+                            showMsg("zDocMsg", explain(err));
+                        });
+                }
+
+                function remove() {
+                    if (!confirm("Удалить черновик заявки № " + cur.no + "?")) return;
+                    lock(true);
+                    table()
+                        .then(function (t) {
+                            return t.delete().eq("id", cur.id);
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            lock(false);
+                            dirty = false;
+                            closeDoc();
+                            toast("Черновик удалён", "success");
+                        })
+                        .catch(function (err) {
+                            lock(false);
+                            showMsg("zDocMsg", explain(err));
+                        });
+                }
+
+                /* ── Запуск ─────────────────────────────────────── */
+                Object.keys(Z.STATUS).forEach(function (k) {
+                    var o = document.createElement("option");
+                    o.value = k;
+                    o.textContent = Z.STATUS[k].label;
+                    $("zStatus").appendChild(o);
+                });
+
+                document.querySelectorAll(".z-tab").forEach(function (b) {
+                    b.addEventListener("click", function () {
+                        setTab(b.getAttribute("data-tab"));
+                    });
+                });
+                $("zStatus").addEventListener("change", renderList);
+                $("zSearch").addEventListener("input", renderList);
+                $("zNew").addEventListener("click", function () {
+                    openDoc(blank());
+                });
+                $("zRows").addEventListener("click", function (e) {
+                    var tr = e.target.closest("tr[data-id]");
+                    if (!tr) return;
+                    var id = tr.getAttribute("data-id");
+                    for (var i = 0; i < all.length; i++) if (all[i].id === id) return openDoc(all[i]);
+                });
+                window.addEventListener("beforeunload", function (e) {
+                    if (dirty) {
+                        e.preventDefault();
+                        e.returnValue = "";
+                    }
+                });
+
+                Promise.all([
+                    window.finkaAuth.getProfile(),
+                    window.finkaAuth.getClient().then(function (c) { return c.auth.getSession(); }),
+                ]).then(function (res) {
+                    profile = res[0];
+                    var s = res[1] && res[1].data && res[1].data.session;
+                    if (!profile || !profile.role || !s) return;
+                    me = s.user.id;
+                    $("zWho").textContent = (profile.name || profile.email) + " · " + profile.branch +
+                        (profile.signer ? " · подпись в графе «" + ({
+                            ahr: "Зам. по АХР", zakup: "Специалист по закупкам",
+                            economist: "Экономист", director: "Директор",
+                        }[profile.signer] || profile.signer) + "»" : "");
+                    var reviewer = Z.isReviewer(profile);
+                    document.querySelector('.z-tab[data-tab="inbox"]').hidden = !reviewer;
+                    // Директору не подавать заявки, а утверждать
+                    if (profile.signer === "director") $("zNew").hidden = true;
+
+                    return fetchAll().then(function () {
+                        if (reviewer && waitingCount() > 0) setTab("inbox");
+                        else renderList();
+                        var id = location.hash.slice(1);
+                        if (id) {
+                            for (var i = 0; i < all.length; i++) if (all[i].id === id) return openDoc(all[i]);
+                        }
+                    });
+                }).catch(function (err) {
+                    showMsg("zListMsg", explain(err));
+                });
+            })();
+        </script>
+        <script src="shared-nav.js"></script>
+        <script src="ui-kit.js"></script>
+    </body>
+</html>

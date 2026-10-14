@@ -300,7 +300,16 @@
                 cell.textContent = names[key];
             }
             if (names[key] !== undefined) cell.classList.add("sx-changed");
+            // Сохраняем только то, что человек правда набрал. Без этой
+            // отметки простой щелчок по названию записывал его как правку:
+            // auth.js меняет город в названиях (data-city) уже после
+            // разметки, и текст расходился с запомненным sxOrig
+            cell.addEventListener("input", function () {
+                cell.dataset.sxTyped = "1";
+            });
             cell.addEventListener("blur", function () {
+                if (!cell.dataset.sxTyped) return;
+                delete cell.dataset.sxTyped;
                 var data = readEdits();
                 data.names = data.names || {};
                 var text = cell.textContent.replace(/\s+/g, " ").trim();

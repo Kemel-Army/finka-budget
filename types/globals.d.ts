@@ -79,6 +79,10 @@ declare global {
         PlanFact: { init(cfg: any): void; MONTHS: string[] };
         /* deposit-core.js */
         DepositCore: any;
+        /* zayavka-core.js, notes.js, ncalayer.js */
+        ZayavkaCore: any;
+        finkaNotes: any;
+        finkaNcaLayer: { signBase64(b64: string): Promise<string> };
         /* Кнопки «Сохранить» / «Excel» страниц зовут эти функции из onclick */
         saveData(): void;
         exportExcel(): void;
