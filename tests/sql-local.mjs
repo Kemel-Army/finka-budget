@@ -85,7 +85,9 @@ async function as(u, sql, params = []) {
     }
 }
 
-const sig = (slot, kind = "ecp") =>
+// Подписи через PostgREST — «простые»: ЭЦП из браузера база не принимает
+// (миграция 0005), её пишет только budget.add_ecp_signature
+const sig = (slot, kind = "simple") =>
     JSON.stringify([{ slot, kind, cms: kind === "ecp" ? "MIIB" : undefined }]);
 // Дописать подпись к тому, что уже лежит в строке
 const SIGN = `update budget.requests
@@ -145,8 +147,8 @@ r = await as(U.ahr, SIGN, [id, sig("ahr")]);
 ok("повторно ту же графу — нельзя", !!r.error);
 r = await as(U.zak, SIGN, [id, sig("zakup", "simple")]);
 ok("закупщик — простая отметка", !r.error, r.error);
-r = await as(U.eco, SIGN, [id, JSON.stringify([{ slot: "economist", kind: "ecp", cms: "" }])]);
-ok("пустая ЭЦП не принимается", !!r.error);
+r = await as(U.eco, SIGN, [id, JSON.stringify([{ slot: "economist", kind: "ecp", cms: "MIIB", cert: { iin: "123456789012" } }])]);
+ok("ЭЦП в обход сервера проверки не принимается", /после проверки на сервере/.test(r.error || ""), r.error);
 r = await as(U.eco, `update budget.requests set signatures = '[]' where id = $1`, [id]);
 ok("стереть подписи нельзя", !!r.error);
 r = await as(U.alaDir, SIGN, [id, sig("director")]);
@@ -218,6 +220,35 @@ r = await as(U.ini2, `select id from budget.notes where page = $1`, ["zayavka:" 
 ok("другой инициатор переписку не видит", r.rows.length === 0);
 r = await as(U.ini, `select id from budget.notes where page = $1`, ["zayavka:" + id3]);
 ok("автор видит ответ", r.rows.length === 2);
+
+console.log("\n── ЭЦП через сервер проверки (0005) ──");
+const SECRET = "s".repeat(48);
+await db.query("insert into budget.ecp_config (id, secret_hash) values (1, sha256(convert_to($1, 'UTF8')))", [SECRET]);
+const RPC = "select * from budget.add_ecp_signature($1, $2::jsonb, $3)";
+const ecp = (slot, iin = "123456789012") =>
+    JSON.stringify({ slot, kind: "ecp", cms: "MIIB", cert: { iin, fio: "ТЕСТОВ ТЕСТ" }, verified: { by: "NCANode" } });
+
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [doc]);
+const id4 = r.rows[0].id;
+r = await as(U.ini, RPC, [id4, ecp("initiator"), "не тот секрет"]);
+ok("RPC с чужим секретом — отказ", !!r.error);
+r = await as(U.ini, RPC, [id4, ecp("initiator"), SECRET]);
+ok("RPC с секретом сервера — подпись ЭЦП принята, заявка подана",
+    r.rows[0] && r.rows[0].status === "submitted" && r.rows[0].signatures[0].kind === "ecp", r.error);
+r = await as(U.ini, RPC, [id4, ecp("ahr"), SECRET]);
+ok("и через RPC права на графу проверяет триггер", !!r.error);
+r = await as(U.ahr, SIGN, [id4, JSON.stringify([{ slot: "ahr", kind: "simple", cms: "MIIB", cert: { iin: "1" } }])]);
+ok("отметка без ЭЦП не тащит за собой «сертификат»",
+    r.rows[0] && !("cert" in r.rows[0].signatures[1]) && !("cms" in r.rows[0].signatures[1]), r.error);
+const bound = user("bound@x", { role: "edit", branch: "astana", iin: "999999999999" });
+r = await as(bound, RPC, [id4, ecp("economist", "123456789012"), SECRET]);
+ok("ИИН учётки и сертификата не совпали — отказ", /ИИН/.test(r.error || ""), r.error);
+r = await as(bound, RPC, [id4, ecp("economist", "999999999999"), SECRET]);
+ok("свой ключ — принят", !r.error, r.error);
+r = await as(U.eco, `select * from budget.ecp_config`);
+ok("хеш секрета пользователям не виден", !!r.error);
+r = await as(U.eco, `select budget.ecp_secret_ok($1) ok`, ["x".repeat(48)]);
+ok("перебор секрета ничего не даёт", r.rows[0] && r.rows[0].ok === false, r.error);
 
 r = await as(U.stranger, `select count(*)::int c from budget.requests`);
 ok("посторонняя учётка ничего не видит", r.rows[0] && r.rows[0].c === 0, r.error);

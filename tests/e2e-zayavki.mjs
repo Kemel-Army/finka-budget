@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { PGlite } from "@electric-sql/pglite";
@@ -111,12 +112,104 @@ async function runAs(user, q) {
     }
 }
 
+/* ── ЭЦП: настоящий обработчик api/ecp-sign.js ───────────────────── */
+/* Снаружи подменены только NCALayer (в браузере) и NCANode (ответ «подпись
+   верна, ключ SIGN, владелец — тот, кто вошёл»). Supabase для обработчика —
+   тот же PGlite с настоящими RLS, триггером и RPC add_ecp_signature. */
+const require = createRequire(import.meta.url);
+const { handle: ecpHandle } = require(path.join(ROOT, "api", "_lib", "ecp.js"));
+const ECP_ENV = { NCANODE_URL: "http://ncanode.test", ECP_SECRET: "e".repeat(48) };
+await db.query("insert into budget.ecp_config (id, secret_hash) values (1, sha256(convert_to($1, 'UTF8')))", [ECP_ENV.ECP_SECRET]);
+
+function userOfToken(auth) {
+    const m = /^Bearer e2e\.(.+)$/.exec(auth || "");
+    return m ? JSON.parse(Buffer.from(m[1], "base64").toString("utf8")) : null;
+}
+
+async function sqlAs(user, sql, params) {
+    try {
+        const rows = await db.transaction(async (tx) => {
+            await tx.exec("set local role authenticated");
+            await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(user)]);
+            return (await tx.query(sql, params)).rows;
+        });
+        return { ok: true, rows };
+    } catch (e) {
+        return { ok: false, message: e.message };
+    }
+}
+
+let ncaVerified = null; // что пришло в «NCANode» последним
+function ecpFetch(token) {
+    const user = userOfToken("Bearer " + token);
+    const reply = (status, body) => ({ ok: status < 400, status, json: async () => body });
+    return async (url, opt = {}) => {
+        if (url.endsWith("/auth/v1/user")) {
+            return user ? reply(200, { id: user.sub, app_metadata: user.app_metadata }) : reply(401, {});
+        }
+        if (url.includes("/rest/v1/requests")) {
+            const id = decodeURIComponent(url.split("id=eq.")[1] || "");
+            const r = await sqlAs(user, "select * from budget.requests where id::text = $1", [id]);
+            return r.ok ? reply(200, r.rows) : reply(400, { message: r.message });
+        }
+        if (url.endsWith("/actuator/health")) return reply(200, { status: "UP" });
+        if (url.endsWith("/cms/verify")) {
+            ncaVerified = JSON.parse(opt.body);
+            const w = String(user.app_metadata.name || "").toUpperCase().split(" ");
+            return reply(200, {
+                status: 200,
+                valid: true,
+                signers: [{
+                    certificates: [{
+                        valid: true,
+                        revocations: [{ revoked: false, by: "OCSP" }],
+                        keyUsage: "SIGN",
+                        serialNumber: "e2e",
+                        notBefore: "2026-01-01T00:00:00Z",
+                        notAfter: "2027-01-01T00:00:00Z",
+                        subject: { commonName: w.slice(0, 2).join(" "), surName: w[2], iin: "880101400123", organization: "НАО «РФМШ»" },
+                        issuer: { commonName: "НУЦ РК (тест)" },
+                    }],
+                    tsp: { genTime: "2026-10-14T10:00:00Z" },
+                }],
+            });
+        }
+        if (url.endsWith("/rpc/add_ecp_signature")) {
+            const b = JSON.parse(opt.body);
+            const r = await sqlAs(user, "select * from budget.add_ecp_signature($1, $2::jsonb, $3)", [b.p_id, JSON.stringify(b.p_entry), b.p_secret]);
+            return r.ok ? reply(200, r.rows[0]) : reply(400, { message: r.message });
+        }
+        return reply(404, {});
+    };
+}
+
+// NCALayer в браузере: пока window.__NCA_ONLINE не включён — «не запущен»
+const NCALAYER_STUB = `
+window.NCALayerClient = class {
+    static get basicsStorageAll() { return null; }
+    static get basicsCMSParamsDetached() { return { encapsulate: false }; }
+    static get basicsSignerSignAny() { return { extKeyUsageOids: ["1.3.6.1.5.5.7.3.4"] }; }
+    connect() {
+        return window.__NCA_ONLINE ? Promise.resolve("1.4") : Promise.reject(new Error("ws closed"));
+    }
+    basicsSignCMS(storages, data) {
+        window.__NCA_DATA = data;
+        return Promise.resolve("-----BEGIN CMS-----\\nMIIBZTJlZmFrZQ==\\n-----END CMS-----");
+    }
+};
+`;
+
 /* ── Заглушка Supabase ───────────────────────────────────────────── */
 const SUPABASE_STUB = `
 (function () {
     function createClient() {
         var cfg = window.__FINKA_E2E__ || {};
-        var session = { access_token: "e2e", token_type: "bearer", user: cfg.user };
+        // Токен несёт учётку — по нему /api/ecp-sign узнаёт, кто подписывает
+        var session = {
+            access_token: "e2e." + btoa(unescape(encodeURIComponent(JSON.stringify(cfg.user)))),
+            token_type: "bearer",
+            user: cfg.user,
+        };
         function query(table) {
             var q = { table: table, op: "select", cols: "*", filters: [] };
             var api = {};
@@ -245,6 +338,15 @@ async function open(account, page) {
         if (/supabase-js|\/vendor\/supabase[^/]*\.js/i.test(url.pathname)) {
             return route.fulfill({ contentType: "application/javascript", body: SUPABASE_STUB });
         }
+        if (/\/vendor\/ncalayer-client[^/]*\.js$/.test(url.pathname)) {
+            return route.fulfill({ contentType: "application/javascript", body: NCALAYER_STUB });
+        }
+        if (url.pathname === "/api/ecp-sign") {
+            const token = String(req.headers().authorization || "").replace(/^Bearer\s+/, "");
+            const body = req.postData() ? JSON.parse(req.postData()) : null;
+            const out = await ecpHandle({ method: req.method(), token, body }, ECP_ENV, ecpFetch(token));
+            return route.fulfill({ status: out.status, contentType: "application/json", body: JSON.stringify(out.json) });
+        }
         if (url.pathname === "/__db") {
             const body = JSON.parse(req.postData() || "{}");
             const res = await runAs(body.user, body.q);
@@ -296,15 +398,24 @@ try {
     ok("итог считается", (await s.p.textContent("#zTotal")).replace(/\s/g, "") === "177000,00");
 
     await s.p.click('[data-sign="initiator"][data-kind="ecp"]');
-    await s.p.waitForTimeout(4800);
+    await s.p.waitForTimeout(1200);
     const msg = (await s.p.textContent("#zDocMsg")) || "";
     ok("без NCALayer — понятная ошибка", /NCALayer/.test(msg), msg);
     await shot(s.p, "1-initiator-form");
 
-    await s.p.click('[data-sign="initiator"][data-kind="simple"]');
-    await s.p.waitForTimeout(800);
-    ok("подана — «На согласовании»", /На согласовании/.test(await s.p.textContent("#zDocBar")));
-    ok("штамп подписи инициатора", /Отметка в системе/.test(await s.p.textContent("#zPaper")));
+    // NCALayer «запущен»: подпись → /api/ecp-sign → NCANode → RPC в базе
+    await s.p.evaluate(() => {
+        window.__NCA_ONLINE = true;
+    });
+    await s.p.click('[data-sign="initiator"][data-kind="ecp"]');
+    await s.p.waitForTimeout(1500);
+    ok("подана — «На согласовании»", /На согласовании/.test(await s.p.textContent("#zDocBar")), await s.p.textContent("#zDocMsg"));
+    const paper = await s.p.textContent("#zPaper");
+    ok("штамп ЭЦП, проверено, ФИО и ИИН из сертификата",
+        /Подписано ЭЦП · проверено НУЦ/.test(paper) && /АКИМЖАНОВА ДИНАРА СЕМБАЕВНА/.test(paper) && /880101400123/.test(paper));
+    const signedB64 = await s.p.evaluate(() => window.__NCA_DATA);
+    ok("NCALayer и NCANode получили один и тот же текст заявки", !!ncaVerified && ncaVerified.data === signedB64);
+    ok("NCALayer подписывал JSON заявки", /Заявка-потребность/.test(Buffer.from(signedB64 || "", "base64").toString("utf8")));
     ok("форма больше не редактируется", (await s.p.locator('#zPaper textarea[data-k="name"]').count()) === 0);
     await shot(s.p, "2-initiator-submitted");
     ok("ошибок в консоли нет", !s.errors.length, s.errors.join(" | "));

@@ -1,24 +1,23 @@
 /**
- * Подпись ЭЦП через NCALayer (НУЦ РК).
+ * Подпись ЭЦП через NCALayer (НУЦ РК) — браузерная половина.
  *
- * NCALayer — программа на компьютере пользователя, она держит веб-сокет
- * wss://127.0.0.1:13579 и сама показывает окно выбора ключа и ввода
- * пароля. Ключ и пароль в браузер не попадают, наружу отдаётся только
- * готовая подпись CMS (base64). Установка: https://pki.gov.kz/ncalayer/
+ * Клиент — ncalayer-js-client от SIGEX (vendor/ncalayer-client-1.5.10.js,
+ * npm-пакет без изменений, MIT; тот же, что в qoltanba/tamga). NCALayer —
+ * программа на компьютере пользователя: она сама показывает окно выбора
+ * ключа и пароля, наружу отдаёт только готовую подпись CMS. Ключ и пароль в
+ * браузер не попадают. Установка: https://pki.gov.kz/ncalayer/
  *
- * Пробуем модуль kz.gov.pki.knca.basics (NCALayer 1.4+), если его нет —
- * старый kz.gov.pki.knca.commonUtils.
+ * Подписывается ключом SIGN (не AUTH), подпись без вложенных данных
+ * (detached) с меткой времени TSP НУЦ. Сами данные сервер восстанавливает
+ * из базы и проверяет подпись именно на них — см. api/ecp-sign.js.
  *
  *     finkaNcaLayer.signBase64(base64).then(cms => …)
  *
- * Разрешение wss://127.0.0.1:13579 в Content-Security-Policy — vercel.json
- * и docker/security-headers.conf.
+ * Ошибки: err.code = "offline" (NCALayer не запущен), "cancel" (человек
+ * закрыл окно), "fail" — остальное.
  */
 (function () {
     "use strict";
-
-    var URL = "wss://127.0.0.1:13579/";
-    var CONNECT_MS = 4000;
 
     function NcaError(code, message) {
         var e = new Error(message);
@@ -26,115 +25,47 @@
         return e;
     }
 
-    // Один запрос — одно соединение: NCALayer держит окно подписи модальным,
-    // параллельных запросов всё равно не бывает
-    function call(payload) {
-        return new Promise(function (resolve, reject) {
-            var ws;
-            var done = false;
-            try {
-                ws = new WebSocket(URL);
-            } catch (e) {
-                reject(NcaError("offline", "NCALayer недоступен"));
-                return;
-            }
-            var timer = setTimeout(function () {
-                finish(null, NcaError("offline", "NCALayer не отвечает. Запустите NCALayer и повторите."));
-            }, CONNECT_MS);
-
-            function finish(value, err) {
-                if (done) return;
-                done = true;
-                clearTimeout(timer);
-                try {
-                    ws.close();
-                } catch (e) {
-                    /* уже закрыт */
-                }
-                if (err) reject(err);
-                else resolve(value);
-            }
-
-            ws.onopen = function () {
-                // Дальше ждём человека: он выбирает ключ и вводит пароль
-                clearTimeout(timer);
-                ws.send(JSON.stringify(payload));
-            };
-            ws.onerror = function () {
-                finish(null, NcaError(
-                    "offline",
-                    "Нет связи с NCALayer. Установите NCALayer (pki.gov.kz), запустите его и повторите.",
-                ));
-            };
-            ws.onclose = function () {
-                finish(null, NcaError("offline", "NCALayer закрыл соединение"));
-            };
-            ws.onmessage = function (ev) {
-                var msg;
-                try {
-                    msg = JSON.parse(ev.data);
-                } catch (e) {
-                    return;
-                }
-                // Первым сообщением NCALayer присылает свою версию
-                if (msg && msg.result && msg.result.version && !("status" in msg)) return;
-                finish(msg, null);
-            };
-        });
-    }
-
-    function pick(result) {
-        if (Array.isArray(result)) return result[0];
-        return result;
-    }
-
-    function viaBasics(b64) {
-        return call({
-            module: "kz.gov.pki.knca.basics",
-            method: "sign",
-            args: {
-                allowedStorages: null,
-                format: "cms",
-                data: b64,
-                signingParams: { decode: true, encapsulate: true, digested: false },
-                // Ключ для подписи (не для входа): EKU «защита эл. почты»
-                signerParams: { extKeyUsageOids: ["1.3.6.1.5.5.7.3.4"] },
-                locale: "ru",
-            },
-        }).then(function (msg) {
-            if (msg.status === true) {
-                var cms = msg.body && pick(msg.body.result);
-                if (!cms) throw NcaError("cancel", "Подписание отменено");
-                return cms;
-            }
-            var details = String(msg.details || msg.message || msg.code || "");
-            if (/cancel/i.test(details)) throw NcaError("cancel", "Подписание отменено");
-            if (/module|not found|не найден/i.test(details)) {
-                throw NcaError("nomodule", details);
-            }
-            throw NcaError("fail", "NCALayer: " + (details || "ошибка подписи"));
-        });
-    }
-
-    function viaCommonUtils(b64) {
-        return call({
-            module: "kz.gov.pki.knca.commonUtils",
-            method: "createCAdESFromBase64",
-            args: ["PKCS12", "SIGNATURE", b64, true],
-        }).then(function (msg) {
-            if (String(msg.code) === "200" && msg.responseObject) return msg.responseObject;
-            if (String(msg.code) === "500" && /action\.canceled/i.test(msg.message || "")) {
-                throw NcaError("cancel", "Подписание отменено");
-            }
-            throw NcaError("fail", "NCALayer: " + (msg.message || msg.code || "ошибка подписи"));
-        });
+    // NCALayer отдаёт CMS то голым base64, то в PEM-обёртке
+    function stripPem(s) {
+        return String(s || "")
+            .replace(/-----BEGIN [A-Z\s]+-----/g, "")
+            .replace(/-----END [A-Z\s]+-----/g, "")
+            .replace(/\s+/g, "");
     }
 
     function signBase64(b64) {
-        return viaBasics(b64).catch(function (err) {
-            if (err.code === "nomodule") return viaCommonUtils(b64);
-            throw err;
-        });
+        var Client = window.NCALayerClient;
+        if (!Client) {
+            return Promise.reject(NcaError("fail", "Не загружен клиент NCALayer"));
+        }
+        // Один клиент — одно подключение: повторный connect() библиотека
+        // запрещает
+        var client = new Client();
+        return client
+            .connect()
+            .catch(function () {
+                throw NcaError(
+                    "offline",
+                    "Нет связи с NCALayer. Установите NCALayer (pki.gov.kz), запустите его и повторите.",
+                );
+            })
+            .then(function () {
+                return client.basicsSignCMS(
+                    Client.basicsStorageAll,
+                    b64,
+                    Client.basicsCMSParamsDetached,
+                    Client.basicsSignerSignAny,
+                );
+            })
+            .then(function (cms) {
+                var out = stripPem(Array.isArray(cms) ? cms[0] : cms);
+                if (!out) throw NcaError("cancel", "Подписание отменено");
+                return out;
+            }, function (err) {
+                if (err && err.code) throw err;
+                if (err && err.canceledByUser) throw NcaError("cancel", "Подписание отменено");
+                throw NcaError("fail", "NCALayer: " + ((err && err.message) || "ошибка подписи"));
+            });
     }
 
     window.finkaNcaLayer = { signBase64: signBase64 };

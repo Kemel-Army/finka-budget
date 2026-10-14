@@ -7,6 +7,7 @@
         <script src="auth.js"></script>
         <title>Заявки-потребности</title>
         <script src="zayavka-core.js"></script>
+        <script src="vendor/ncalayer-client-1.5.10.js"></script>
         <script src="ncalayer.js"></script>
         <script src="notes.js"></script>
         <style>
@@ -570,7 +571,7 @@
                 <div id="zDocMsg"></div>
                 <div class="z-paper" id="zPaper"></div>
                 <p class="z-help">
-                    Подпись ЭЦП ставится через NCALayer (pki.gov.kz): он должен
+                    Подпись ЭЦП ставится через NCALayer (pki.gov.kz) ключом для подписи (не AUTH); сервер проверяет её по цепочке и списку отзыва НУЦ. NCALayer должен
                     быть запущен на этом компьютере. Подписанная заявка не
                     меняется; чтобы исправить, согласующий возвращает её на
                     доработку — подписи при этом снимаются.
@@ -871,10 +872,15 @@
                     if (sig) {
                         var c = sig.cert || {};
                         right = sig.kind === "ecp"
-                            ? '<span class="z-stamp"><b>✔ Подписано ЭЦП</b>' +
+                            ? '<span class="z-stamp" title="Сертификат № ' + esc(c.serial || "") +
+                              (c.issuer ? ", выдан: " + esc(c.issuer) : "") +
+                              (c.notAfter ? ", действует до " + esc(day(c.notAfter)) : "") + '">' +
+                              "<b>✔ Подписано ЭЦП" + (sig.verified ? " · проверено НУЦ" : "") + "</b>" +
                               esc(c.fio || sig.name || sig.email) +
-                              (c.iin ? ", ИИН " + esc(c.iin) : "") + "<br>" +
-                              esc(stamp(sig.at)) + " · " + esc(sig.email) + "</span>"
+                              (c.iin ? ", ИИН " + esc(c.iin) : "") +
+                              (c.org ? "<br>" + esc(c.org) + (c.bin ? ", БИН " + esc(c.bin) : "") : "") + "<br>" +
+                              esc(stamp(c.tsp || sig.at)) + (c.tsp ? " (метка времени НУЦ)" : "") +
+                              " · " + esc(sig.email) + "</span>"
                             : '<span class="z-stamp simple"><b>✔ Отметка в системе (без ЭЦП)</b>' +
                               esc(sig.name || sig.email) + "<br>" + esc(stamp(sig.at)) + "</span>";
                     } else if (cur.id && Z.canSign(slot.key, profile, cur, me) || (!cur.id && slot.key === "initiator")) {
@@ -1103,6 +1109,59 @@
                         });
                 }
 
+                /* ── Сервер проверки ЭЦП (api/ecp-sign.js) ──────── */
+                function ecpError(text) {
+                    var e = new Error(text);
+                    e.code = "ecp";
+                    return e;
+                }
+
+                function ecpReady() {
+                    return fetch("api/ecp-sign", { cache: "no-store" })
+                        .then(function (r) {
+                            return r.json();
+                        })
+                        .catch(function () {
+                            return null;
+                        })
+                        .then(function (st) {
+                            if (!st || !st.ready) {
+                                throw ecpError("Проверка ЭЦП на сервере ещё не настроена. Пока можно поставить отметку «без ЭЦП».");
+                            }
+                            if (!st.ncanode) {
+                                throw ecpError("Сервис проверки ЭЦП (НУЦ) сейчас недоступен. Повторите позже или поставьте отметку «без ЭЦП».");
+                            }
+                        });
+                }
+
+                function postEcp(body) {
+                    return window.finkaAuth.getClient()
+                        .then(function (c) {
+                            return c.auth.getSession();
+                        })
+                        .then(function (res) {
+                            var s = res && res.data && res.data.session;
+                            if (!s) throw ecpError("Сессия истекла — войдите заново");
+                            return fetch("api/ecp-sign", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: "Bearer " + s.access_token,
+                                },
+                                body: JSON.stringify(body),
+                            });
+                        })
+                        .then(function (r) {
+                            return r.json().catch(function () {
+                                return { error: "Сервер проверки ответил " + r.status };
+                            });
+                        })
+                        .then(function (out) {
+                            if (out.error || !out.request) throw ecpError(out.error || "Подпись не записана");
+                            return { data: out.request, error: null };
+                        });
+                }
+
                 function sign(slot, kind) {
                     if (busy) return;
                     if (slot === "initiator") {
@@ -1128,10 +1187,15 @@
                         "но юридической силы электронной подписи не имеет.")) {
                         return;
                     }
-                    // Подписывается сохранённое: сначала записываем правки
-                    var start = slot === "initiator" ? save() : Promise.resolve(true);
-                    var text, hash;
+                    // ЭЦП: сначала убеждаемся, что сервер проверки работает, —
+                    // иначе человек введёт пароль ключа впустую
+                    var start = kind === "ecp" ? ecpReady() : Promise.resolve();
+                    var text;
                     start
+                        // Подписывается сохранённое: сначала записываем правки
+                        .then(function () {
+                            return slot === "initiator" ? save() : true;
+                        })
                         .then(function (okd) {
                             if (!okd) throw null;
                             lock(true);
@@ -1142,31 +1206,22 @@
                             if (!fresh) throw new Error("Заявка не найдена");
                             cur = fresh;
                             text = Z.signedText(cur);
-                            return sha256hex(text);
-                        })
-                        .then(function (h) {
-                            hash = h;
                             if (kind !== "ecp") return null;
                             return window.finkaNcaLayer.signBase64(Z.utf8ToBase64(text));
                         })
                         .then(function (cms) {
-                            var entry = { slot: slot, kind: kind, hash: hash };
-                            if (cms) {
-                                var c = Z.parseCms(cms);
-                                entry.cms = cms;
-                                if (c) {
-                                    entry.cert = {
-                                        fio: c.fio, iin: c.iin, bin: c.bin, org: c.org,
-                                        serial: c.serial, issuer: c.issuer, notAfter: c.notAfter,
-                                    };
-                                    if (c.notAfter && new Date(c.notAfter) < new Date()) {
-                                        throw new Error("Срок действия сертификата ЭЦП истёк " + day(c.notAfter));
-                                    }
-                                }
+                            if (kind === "ecp") {
+                                // Подпись проверяет и записывает сервер (NCANode):
+                                // из браузера база подпись ЭЦП не примет
+                                showMsg("zDocMsg", "Проверяем подпись в НУЦ…", true);
+                                return postEcp({ id: cur.id, slot: slot, cms: cms });
                             }
-                            return table().then(function (t) {
-                                return t.update({ signatures: (cur.signatures || []).concat([entry]) })
-                                    .eq("id", cur.id).select("*").single();
+                            return sha256hex(text).then(function (hash) {
+                                var entry = { slot: slot, kind: "simple", hash: hash };
+                                return table().then(function (t) {
+                                    return t.update({ signatures: (cur.signatures || []).concat([entry]) })
+                                        .eq("id", cur.id).select("*").single();
+                                });
                             });
                         })
                         .then(function (res) {
@@ -1188,7 +1243,8 @@
                                 showMsg("zDocMsg", "");
                                 return;
                             }
-                            showMsg("zDocMsg", (err && err.code === "offline") ? err.message : explain(err));
+                            showMsg("zDocMsg", (err && (err.code === "offline" || err.code === "ecp" || err.code === "fail"))
+                                ? err.message : explain(err));
                             renderDoc();
                         });
                 }

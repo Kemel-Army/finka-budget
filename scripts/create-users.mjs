@@ -9,7 +9,7 @@
  * Личные учётки (инициаторы заявок и подписанты) — списком из файла:
  *   node scripts/create-users.mjs --file scripts/initiators-astana.local.json \
  *        --out scripts/passwords-astana.local.csv
- * Файл — массив {email, name, title, role, branch, signer}. signer — графа
+ * Файл — массив {email, name, title, role, branch, signer, iin}. signer — графа
  * подписи заявки-потребности: ahr, zakup, economist, director (миграция
  * 0004). С --out пароли пишутся в CSV, а не на экран. Файлы *.local.* в git
  * не попадают: там ФИО сотрудников и пароли, а репозиторий публичный.
@@ -151,6 +151,7 @@ if (fromFile) {
         if (!ROLE_KEYS.includes(u.role)) throw new Error(`${u.email}: роль ${u.role}`);
         if (!BRANCH_KEYS.includes(u.branch)) throw new Error(`${u.email}: филиал ${u.branch}`);
         if (!SIGNERS.includes(u.signer || "")) throw new Error(`${u.email}: signer ${u.signer}`);
+        if (u.iin && !/^\d{12}$/.test(u.iin)) throw new Error(`${u.email}: ИИН ${u.iin}`);
         PLAN.push({
             email: u.email.toLowerCase(),
             role: u.role,
@@ -160,6 +161,7 @@ if (fromFile) {
             title: u.title || "",
             name: u.name || "",
             signer: u.signer || "",
+            iin: u.iin || "",
         });
     }
 }
@@ -252,6 +254,8 @@ for (const item of PLAN) {
         signer: item.signer || "",
     };
     if (item.name) appMeta.name = item.name;
+    // ИИН привязывает учётку к ключу ЭЦП: подпись чужим ключом не примут
+    if (item.iin) appMeta.iin = item.iin;
 
     if (dryRun) {
         results.push({ ...item, action: found ? "update" : "create", password: "—" });

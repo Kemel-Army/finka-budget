@@ -23,3 +23,25 @@ backup/
 eslint.config.mjs
 tsconfig.json
 types/
+
+# ── Не публиковать на сайте ─────────────────────────────────────
+# Vercel CLI при наличии .vercelignore НЕ читает .gitignore — поэтому всё
+# локальное и служебное перечислено здесь отдельно (сборка раздаёт любые
+# *.json, а в scripts/ лежат списки сотрудников)
+scripts/
+tests/
+supabase/
+docker/
+*.local.*
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.doc
+*.docx
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.crt

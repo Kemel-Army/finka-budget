@@ -158,6 +158,16 @@ export default [
         rules: { ...SOFT, ...HARD, ...WHITESPACE },
     },
     {
+        // Серверные функции Vercel (api/): node, CommonJS
+        files: ["api/**/*.js"],
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: "commonjs",
+            globals: { ...globals.node },
+        },
+        rules: { ...SOFT, ...HARD, ...WHITESPACE },
+    },
+    {
         // Тесты: node, ES-модули; внутри page.evaluate код выполняется в
         // браузере, поэтому глобалы браузера тоже разрешены
         files: ["tests/**/*.mjs", "scripts/**/*.mjs", "scripts/**/*.js"],

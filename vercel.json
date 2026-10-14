@@ -7,7 +7,11 @@
       "use": "@vercel/static"
     },
     {
-      "src": "**/*.js",
+      "src": "*.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "vendor/*.js",
       "use": "@vercel/static"
     },
     {
@@ -15,21 +19,29 @@
       "use": "@vercel/static"
     },
     {
-      "src": "**/*.json",
+      "src": "*.json",
       "use": "@vercel/static"
+    },
+    {
+      "src": "api/ecp-sign.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
       "headers": {
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://fdzwvwapcxoxllfqaoxw.supabase.co wss://fdzwvwapcxoxllfqaoxw.supabase.co wss://127.0.0.1:13579; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://fdzwvwapcxoxllfqaoxw.supabase.co wss://fdzwvwapcxoxllfqaoxw.supabase.co wss://127.0.0.1:13579 https://127.0.0.1:24680; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "X-Frame-Options": "DENY",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
       },
       "continue": true
+    },
+    {
+      "src": "/api/ecp-sign",
+      "dest": "/api/ecp-sign.js"
     },
     {
       "src": "/(.*)",
