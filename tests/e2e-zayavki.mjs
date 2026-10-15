@@ -21,7 +21,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
-import { PGlite } from "@electric-sql/pglite";
+import { supabaseDb } from "./pg-supabase.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -36,20 +36,8 @@ function ok(label, cond, extra = "") {
 }
 
 /* ── База ────────────────────────────────────────────────────────── */
-const db = new PGlite();
-await db.exec(`
-    create role anon nologin;
-    create role authenticated nologin;
-    create schema auth;
-    create function auth.uid() returns uuid language sql stable as $$
-        select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
-    $$;
-    grant usage on schema auth to authenticated, anon;
-    grant execute on function auth.uid() to authenticated, anon;
-`);
-for (const f of fs.readdirSync(path.join(ROOT, "supabase", "migrations")).sort()) {
-    if (f.endsWith(".sql")) await db.exec(fs.readFileSync(path.join(ROOT, "supabase", "migrations", f), "utf8"));
-}
+// Роли, auth.uid(), схема storage и все миграции — tests/pg-supabase.mjs
+const db = await supabaseDb();
 
 const IDENT = /^[a-z_]+$/;
 const TABLES = { requests: 1, notes: 1 };
@@ -279,6 +267,29 @@ const SUPABASE_STUB = `
                 return query(t);
             },
             rpc: function () { return Promise.resolve({ data: null, error: null }); },
+            // Storage: объект кладётся в storage.objects от имени учётки — права
+            // проверяют настоящие политики миграции 0006; содержимое не хранится
+            storage: {
+                from: function (bucket) {
+                    function call(op, extra) {
+                        return fetch("/__db", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ user: cfg.user, storage: Object.assign({ op: op, bucket: bucket }, extra) }),
+                        }).then(function (r) { return r.json(); });
+                    }
+                    return {
+                        upload: function (path) { return call("insert", { names: [path] }); },
+                        remove: function (paths) { return call("delete", { names: paths }); },
+                        createSignedUrl: function (path) {
+                            return call("select", { names: [path] }).then(function (r) {
+                                if (r.error || !r.data.length) return { data: null, error: r.error || { message: "Object not found" } };
+                                return { data: { signedUrl: "about:blank#" + path }, error: null };
+                            });
+                        },
+                    };
+                },
+            },
             schema: function () { return client; },
         };
         return client;
@@ -349,6 +360,17 @@ async function open(account, page) {
         }
         if (url.pathname === "/__db") {
             const body = JSON.parse(req.postData() || "{}");
+            if (body.storage) {
+                const st = body.storage;
+                const sql = {
+                    insert: "insert into storage.objects (bucket_id, name) select $1, unnest($2::text[]) returning name",
+                    delete: "delete from storage.objects where bucket_id = $1 and name = any($2::text[]) returning name",
+                    select: "select name from storage.objects where bucket_id = $1 and name = any($2::text[])",
+                }[st.op];
+                const r = await sqlAs(body.user, sql, [st.bucket, st.names]);
+                const res = r.ok ? { data: r.rows, error: null } : { data: null, error: { message: r.message } };
+                return route.fulfill({ contentType: "application/json", body: JSON.stringify(res) });
+            }
             const res = await runAs(body.user, body.q);
             return route.fulfill({ contentType: "application/json", body: JSON.stringify(res) });
         }
@@ -397,6 +419,20 @@ try {
     await s.p.locator('textarea[data-k="purpose"]').nth(1).fill("Замена в учебной части");
     ok("итог считается", (await s.p.textContent("#zTotal")).replace(/\s/g, "") === "177000,00");
 
+    // Маршрут: этой заявке АХР и закупки не нужны — снимаем
+    ok("маршрут по умолчанию — АХР, закупки, экономист", (await s.p.locator("[data-route]:checked").count()) === 2);
+    await s.p.uncheck('[data-route="ahr"]');
+    await s.p.uncheck('[data-route="zakup"]');
+    ok("АХР и закупки сняты", (await s.p.locator(".z-step.off").count()) === 2);
+
+    // Вложение: заявка сохраняется сама, файл ложится в её папку
+    await s.p.setInputFiles("#zFileInput", { name: "КП_картриджи.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") });
+    await s.p.waitForTimeout(1200);
+    ok("файл приложен", /КП_картриджи\.pdf/.test(await s.p.textContent(".z-files")), await s.p.textContent("#zDocMsg"));
+    await s.p.setInputFiles("#zFileInput", { name: "virus.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") });
+    await s.p.waitForTimeout(300);
+    ok("exe не принимается", /Не подходит/.test(await s.p.textContent("#zDocMsg")));
+
     await s.p.click('[data-sign="initiator"][data-kind="ecp"]');
     await s.p.waitForTimeout(1200);
     const msg = (await s.p.textContent("#zDocMsg")) || "";
@@ -432,6 +468,8 @@ try {
     await s.p.waitForTimeout(500);
     ok("примечание к заявке сохранено", /коммерческое предложение/.test(await s.p.textContent("#zNotes")));
     ok("графу АХР экономист подписать не может", (await s.p.locator('[data-sign="ahr"]').count()) === 0);
+    ok("исключённые графы помечены", (await s.p.locator("text=исключено из маршрута").count()) === 2);
+    ok("экономист видит приложенный файл", /КП_картриджи\.pdf/.test(await s.p.textContent(".z-files")));
     await s.p.click('[data-sign="economist"][data-kind="simple"]');
     await s.p.waitForTimeout(700);
     ok("экономист подписал", (await s.p.locator(".z-stamp").count()) === 2);
@@ -450,10 +488,42 @@ try {
     ok("ошибок в консоли нет", !s.errors.length, s.errors.join(" | "));
     await s.ctx.close();
 
+    console.log("\n── Папка экономиста ──");
+    s = await open(ECO, "zayavki.html");
+    await s.p.click('.z-tab[data-tab="approved"]');
+    ok("в «Утверждённых» — заявка", (await s.p.locator("#zRows tr").count()) === 1);
+    const [dl] = await Promise.all([s.p.waitForEvent("download", { timeout: 5000 }), s.p.click("#zExport")]);
+    ok("реестр выгружается в Excel", /Заявки_утверждённые_.*\.xlsx$/.test(dl.suggestedFilename()));
+    ok("ошибок в консоли нет", !s.errors.length, s.errors.join(" | "));
+    await s.ctx.close();
+
+    console.log("\n── Полный маршрут: строго по порядку ──");
+    s = await open(INI, "zayavki.html");
+    await s.p.click("#zNew");
+    await s.p.fill('textarea[data-k="name"]', "Стулья ученические");
+    await s.p.fill('input[data-k="unit"]', "шт");
+    await s.p.fill('input[data-k="qty"]', "30");
+    await s.p.fill('input[data-k="price"]', "18000");
+    await s.p.fill('textarea[data-k="purpose"]', "Замена в кабинете физики");
+    await s.p.selectOption('[data-f="kind"]', "correction");
+    await s.p.selectOption('[data-f="spec"]', "414");
+    await s.p.click('[data-sign="initiator"][data-kind="simple"]');
+    await s.p.waitForTimeout(900);
+    ok("подана без вложений (после предупреждения)", /На согласовании/.test(await s.p.textContent("#zDocBar")), await s.p.textContent("#zDocMsg"));
+    ok("вид и специфика на бланке", /Корректировка бюджета/.test(await s.p.textContent("#zPaper")) && /414 — Приобретение машин/.test(await s.p.textContent("#zPaper")));
+    await s.ctx.close();
+    s = await open(ECO, "zayavki.html");
+    await s.p.click('.z-tab[data-tab="inbox"]');
+    await s.p.locator("#zRows tr", { hasText: "Стулья" }).click();
+    await s.p.waitForTimeout(500);
+    ok("экономисту рано: кнопки подписи нет", (await s.p.locator('[data-sign="economist"]').count()) === 0);
+    ok("видно, кто подписывает первым", /сначала подписывает зам\. директора по ахр/.test(await s.p.textContent("#zPaper")));
+    await s.ctx.close();
+
     console.log("\n── Инициатор видит итог ──");
     s = await open(INI, "zayavki.html");
     ok("в списке — утверждена", /Утверждена/.test(await s.p.textContent("#zRows")));
-    await s.p.click("#zRows tr");
+    await s.p.locator("#zRows tr", { hasText: "Бумага" }).click();
     await s.p.waitForTimeout(600);
     ok("видит ответ экономиста", /коммерческое предложение/.test(await s.p.textContent("#zNotes")));
     await s.ctx.close();

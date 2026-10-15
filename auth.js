@@ -161,6 +161,22 @@
     var currentPage = location.pathname.split("/").pop() || "index.html";
     var isLoginPage = currentPage === LOGIN_PAGE;
 
+    /* Иконка вкладки. Без неё браузер сам просит /favicon.ico, получает
+       404, и в консоли каждой страницы висит ошибка загрузки. */
+    if (!document.querySelector('link[rel~="icon"]')) {
+        var icon = document.createElement("link");
+        icon.rel = "icon";
+        icon.href =
+            "data:image/svg+xml," +
+            encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+                    '<rect width="32" height="32" rx="7" fill="#2563eb"/>' +
+                    '<text x="16" y="23" font-size="20" text-anchor="middle" ' +
+                    'font-family="Arial" font-weight="700" fill="#fff">₸</text></svg>',
+            );
+        (document.head || document.documentElement).appendChild(icon);
+    }
+
     /* ── Скрываем страницу до проверки сессии ──────────────────── */
     var GATE_CLASS = "finka-auth-pending";
     if (!isLoginPage) {

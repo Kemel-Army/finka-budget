@@ -7,6 +7,7 @@
         <script src="auth.js"></script>
         <title>Заявки-потребности</title>
         <script src="zayavka-core.js"></script>
+        <script src="vendor/xlsx-0.20.3.full.min.js"></script>
         <script src="vendor/ncalayer-client-1.5.10.js"></script>
         <script src="ncalayer.js"></script>
         <script src="notes.js"></script>
@@ -189,6 +190,81 @@
             .z-msg.info {
                 background: #eff6ff;
                 color: #1e40af;
+            }
+
+            /* ── Маршрут и вложения ────────────────────────────── */
+            .z-route,
+            .z-files {
+                margin: 14px 0 0;
+                padding: 10px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background: #f8fafc;
+                font-family: var(--font);
+                font-size: 13px;
+                color: #1e293b;
+            }
+            .z-route b,
+            .z-files b {
+                display: block;
+                margin-bottom: 6px;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+                color: #475569;
+            }
+            .z-steps {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 6px;
+            }
+            .z-step {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                border: 1px solid #cbd5e1;
+                border-radius: 999px;
+                background: #fff;
+            }
+            .z-step.off {
+                color: #94a3b8;
+                text-decoration: line-through;
+                background: #f1f5f9;
+            }
+            .z-step.done {
+                border-color: #10b981;
+                background: #ecfdf5;
+                color: #047857;
+            }
+            .z-step.next {
+                border-color: #f59e0b;
+                background: #fffbeb;
+            }
+            .z-step input {
+                margin: 0;
+            }
+            .z-arrow {
+                color: #94a3b8;
+            }
+            .z-filelist {
+                list-style: none;
+                margin: 0 0 6px;
+                padding: 0;
+            }
+            .z-filelist li {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 3px 0;
+            }
+            .z-filelist .z-sub {
+                margin-left: 4px;
+            }
+            .z-chip.off {
+                background: transparent;
+                color: #cbd5e1;
             }
 
             /* ── Бланк ─────────────────────────────────────────── */
@@ -500,6 +576,8 @@
                 .z-wait,
                 .z-sys,
                 .z-sysno,
+                .z-files input,
+                .z-route input,
                 td.x {
                     display: none !important;
                 }
@@ -536,11 +614,17 @@
                     <button type="button" class="z-tab" data-tab="inbox" hidden>
                         На согласование<span class="z-badge" id="zInboxBadge" hidden></span>
                     </button>
+                    <button type="button" class="z-tab" data-tab="approved" hidden>
+                        Утверждённые (папка экономиста)
+                    </button>
                     <select id="zStatus" aria-label="Статус">
                         <option value="">Все статусы</option>
                     </select>
                     <input type="search" id="zSearch" placeholder="Поиск: ФИО, предмет…" />
                     <span class="z-spacer"></span>
+                    <button type="button" class="z-btn" id="zExport" hidden>
+                        📥 Реестр в Excel
+                    </button>
                     <button type="button" class="z-primary" id="zNew">
                         + Новая заявка
                     </button>
@@ -702,10 +786,14 @@
                     }).length;
                 }
 
+                var lastRows = [];
+
                 function renderList() {
                     var rows = tab === "mine"
                         ? all.filter(function (r) { return r.author === me; })
-                        : inbox();
+                        : tab === "approved"
+                          ? all.filter(function (r) { return r.status === "approved"; })
+                          : inbox();
                     var st = $("zStatus").value;
                     var q = $("zSearch").value.trim().toLowerCase();
                     if (st) rows = rows.filter(function (r) { return r.status === st; });
@@ -728,9 +816,11 @@
                     $("zInboxBadge").textContent = n;
 
                     $("zEmpty").hidden = rows.length > 0;
+                    lastRows = rows;
+                    $("zExport").hidden = tab !== "approved";
                     $("zEmpty").textContent = tab === "mine"
                         ? "Своих заявок нет — нажмите «Новая заявка»"
-                        : "Поданных заявок нет";
+                        : tab === "approved" ? "Утверждённых заявок пока нет" : "Поданных заявок нет";
 
                     $("zRows").innerHTML = rows.map(function (r) {
                         var d = r.doc || {};
@@ -740,8 +830,12 @@
                             : '<span class="z-sub">—</span>';
                         var s = Z.STATUS[r.status] || { label: r.status, tone: "gray" };
                         var wait = Z.waitingFor(profile, r, me);
+                        var rt = Z.route(d);
                         var chips = CHIP_ORDER.map(function (k) {
                             var on = !!Z.signedSlot(r, k);
+                            if (Z.ROUTE.indexOf(k) !== -1 && rt.indexOf(k) === -1) {
+                                return '<span class="z-chip off" title="Не требуется по маршруту">–</span>';
+                            }
                             return '<span class="z-chip' + (on ? " on" : "") +
                                 (wait.indexOf(k) !== -1 ? " me" : "") + '">' + CHIP[k] + "</span>";
                         }).join("");
@@ -822,6 +916,10 @@
                             fio: profile.name || "",
                             source: "",
                             spec: "",
+                            kind: "plan",
+                            // Согласующие по умолчанию — все; АХР и закупки можно снять
+                            route: Z.ROUTE.slice(),
+                            files: [],
                             rows: [{ name: "", unit: "", qty: "", price: "", period: "", purpose: "" }],
                         },
                     };
@@ -888,9 +986,17 @@
                             '<button type="button" class="z-primary" data-sign="' + slot.key + '" data-kind="ecp">🔏 ' +
                             (slot.key === "initiator" ? "Подписать ЭЦП и подать" : "Подписать ЭЦП") + "</button>" +
                             '<button type="button" class="z-link" data-sign="' + slot.key + '" data-kind="simple">без ЭЦП</button></span>';
+                    } else if (slot.key !== "initiator" && slot.key !== "director" &&
+                               Z.route(cur.doc).indexOf(slot.key) === -1) {
+                        right = '<span class="z-wait">не требуется — исключено из маршрута</span>';
                     } else {
+                        var nx = Z.nextSlot(cur);
                         right = '<span class="z-wait">' +
-                            (cur.status === "draft" || cur.status === "returned" ? "после подачи заявки" : "ожидает подписи") +
+                            (cur.status === "draft" || cur.status === "returned"
+                                ? "после подачи заявки"
+                                : nx && nx !== slot.key && cur.status === "submitted"
+                                  ? "ожидает: сначала подписывает " + esc(Z.ROUTE_LABEL[nx].toLowerCase())
+                                  : "ожидает подписи") +
                             "</span>";
                     }
                     var who = sig && (sig.name || (sig.cert && sig.cert.fio));
@@ -899,6 +1005,241 @@
                         (who ? "<small>" + esc(who) + (sig.title ? " · " + esc(sig.title) : "") + "</small>" : "<small>ФИО / роспись ____________________</small>") +
                         "</div><div>" + right + "</div></div>"
                     );
+                }
+
+                /* ── Маршрут согласования ────────────────────────── */
+                function routeHtml(ed) {
+                    var rt = Z.route(cur.doc);
+                    var nx = Z.nextSlot(cur);
+                    var step = function (k, lockedNote) {
+                        var on = k === "director" || rt.indexOf(k) !== -1;
+                        var cls = "z-step" + (on ? "" : " off") +
+                            (Z.signedSlot(cur, k) ? " done" : "") + (nx === k ? " next" : "");
+                        var ctl = ed && (k === "ahr" || k === "zakup")
+                            ? '<input type="checkbox" data-route="' + k + '"' + (on ? " checked" : "") +
+                              ' title="Снимите, если согласование не требуется" />'
+                            : "";
+                        return '<span class="' + cls + '">' + ctl + esc(Z.ROUTE_LABEL[k]) +
+                            (lockedNote ? ' <span class="z-sub">' + lockedNote + "</span>" : "") + "</span>";
+                    };
+                    return '<div class="z-route"><b>Маршрут согласования</b><div class="z-steps">' +
+                        '<span class="z-step' + (Z.signedSlot(cur, "initiator") ? " done" : "") + '">Инициатор</span>' +
+                        '<span class="z-arrow">→</span>' + step("ahr") +
+                        '<span class="z-arrow">→</span>' + step("zakup") +
+                        '<span class="z-arrow">→</span>' + step("economist", ed ? "обязательно" : "") +
+                        '<span class="z-arrow">→</span>' + step("director", ed ? "последним" : "") +
+                        "</div>" +
+                        (ed ? '<div class="z-sub" style="margin-top:6px">Если согласование зам. по АХР или закупок не нужно — снимите галочку. ' +
+                            "Экономист и директор — всегда. Подписывают строго по порядку.</div>" : "") +
+                        "</div>";
+                }
+
+                /* ── Вложения (ЦП/КП, служебная записка) ────────── */
+                var FILE_MAX = 15 * 1024 * 1024;
+                var FILE_TYPES = {
+                    pdf: "application/pdf",
+                    jpg: "image/jpeg",
+                    jpeg: "image/jpeg",
+                    png: "image/png",
+                    doc: "application/msword",
+                    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    xls: "application/vnd.ms-excel",
+                    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                };
+
+                function fileSize(n) {
+                    return n > 1048576 ? (n / 1048576).toFixed(1) + " МБ" : Math.max(1, Math.round(n / 1024)) + " КБ";
+                }
+
+                function filesHtml(ed) {
+                    var files = cur.doc.files || [];
+                    return '<div class="z-files"><b>Подтверждающие документы (ЦП/КП, служебная записка)</b>' +
+                        (files.length
+                            ? '<ul class="z-filelist">' + files.map(function (f, i) {
+                                return "<li>📎 " +
+                                    '<button type="button" class="z-link" data-file-open="' + i + '">' + esc(f.name) + "</button>" +
+                                    '<span class="z-sub">' + fileSize(f.size || 0) + "</span>" +
+                                    (ed ? '<button type="button" class="z-del-row" data-file-del="' + i + '" title="Убрать файл">✕</button>' : "") +
+                                    "</li>";
+                            }).join("") + "</ul>"
+                            : '<div class="z-sub" style="margin-bottom:6px">Документы не приложены</div>') +
+                        (ed ? '<label class="z-btn" style="display:inline-block">📎 Приложить файлы' +
+                            '<input type="file" id="zFileInput" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" /></label>' +
+                            ' <span class="z-sub">PDF, Word, Excel, JPG/PNG, до 15 МБ</span>' : "") +
+                        "</div>";
+                }
+
+                function bucket() {
+                    return window.finkaAuth.getClient().then(function (c) {
+                        return c.storage.from("zayavki");
+                    });
+                }
+
+                function fileError(err) {
+                    var m = String((err && (err.message || err.error)) || err || "");
+                    if (/bucket not found|not found/i.test(m)) {
+                        return "Вложения заработают после обновления базы: администратору нужно применить миграцию 0006.";
+                    }
+                    if (/row-level security|unauthorized|403/i.test(m)) return "Нет права прикладывать файлы к этой заявке.";
+                    if (/too large|exceeded|413/i.test(m)) return "Файл больше 15 МБ.";
+                    return "Файл не загружен: " + m;
+                }
+
+                function sha256file(file) {
+                    if (!window.crypto || !crypto.subtle || !file.arrayBuffer) return Promise.resolve("");
+                    return file.arrayBuffer()
+                        .then(function (buf) {
+                            return crypto.subtle.digest("SHA-256", buf);
+                        })
+                        .then(function (h) {
+                            return Array.prototype.map.call(new Uint8Array(h), function (x) {
+                                return ("0" + x.toString(16)).slice(-2);
+                            }).join("");
+                        });
+                }
+
+                function saveFiles() {
+                    return table()
+                        .then(function (t) {
+                            return t.update({ doc: Z.normalizeDoc(cur.doc) }).eq("id", cur.id).select("*").single();
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            var rows = cur.doc.rows;
+                            cur = res.data;
+                            if (!cur.doc.rows.length) cur.doc.rows = rows;
+                        });
+                }
+
+                function attach(fileList) {
+                    var list = Array.prototype.slice.call(fileList || []);
+                    if (!list.length || !editable()) return;
+                    var bad = list.filter(function (f) {
+                        var ext = (f.name.split(".").pop() || "").toLowerCase();
+                        return !FILE_TYPES[ext] || f.size > FILE_MAX;
+                    });
+                    if (bad.length) {
+                        showMsg("zDocMsg", "Не подходит: " + bad.map(function (f) { return f.name; }).join(", ") +
+                            ". Можно PDF, Word, Excel, JPG/PNG до 15 МБ.");
+                        return;
+                    }
+                    if ((cur.doc.files || []).length + list.length > 20) {
+                        showMsg("zDocMsg", "Не больше 20 файлов на заявку.");
+                        return;
+                    }
+                    // Файл кладётся в папку заявки — значит, она должна быть сохранена
+                    var start = !cur.id || dirty ? save() : Promise.resolve(true);
+                    start.then(function (okd) {
+                        if (!okd) return;
+                        lock(true);
+                        showMsg("zDocMsg", "Загружаем файлы…", true);
+                        cur.doc.files = cur.doc.files || [];
+                        return list.reduce(function (chain, f, i) {
+                            return chain.then(function () {
+                                var ext = f.name.split(".").pop().toLowerCase();
+                                // Имя в хранилище — латиницей: Storage не любит кириллицу в ключах
+                                var path = cur.id + "/" + Date.now() + "-" + i + "." + ext;
+                                return sha256file(f).then(function (hash) {
+                                    return bucket()
+                                        .then(function (b) {
+                                            return b.upload(path, f, { upsert: false, contentType: f.type || FILE_TYPES[ext] });
+                                        })
+                                        .then(function (res) {
+                                            if (res.error) throw res.error;
+                                            cur.doc.files.push({
+                                                name: f.name, path: path, size: f.size,
+                                                type: f.type || FILE_TYPES[ext], sha256: hash,
+                                            });
+                                        });
+                                });
+                            });
+                        }, Promise.resolve())
+                            .then(saveFiles)
+                            .then(function () {
+                                lock(false);
+                                showMsg("zDocMsg", "");
+                                renderDoc();
+                                toast("Файлы приложены", "success");
+                            })
+                            .catch(function (err) {
+                                lock(false);
+                                showMsg("zDocMsg", fileError(err));
+                                // То, что успело загрузиться, — тоже в заявку
+                                saveFiles().catch(function () {}).then(renderDoc);
+                            });
+                    });
+                }
+
+                function openFile(i) {
+                    var f = (cur.doc.files || [])[i];
+                    if (!f) return;
+                    bucket()
+                        .then(function (b) {
+                            return b.createSignedUrl(f.path, 600);
+                        })
+                        .then(function (res) {
+                            if (res.error || !res.data) throw res.error || new Error("нет ссылки");
+                            window.open(res.data.signedUrl, "_blank", "noopener");
+                        })
+                        .catch(function (err) {
+                            showMsg("zDocMsg", fileError(err));
+                        });
+                }
+
+                function removeFile(i) {
+                    var f = (cur.doc.files || [])[i];
+                    if (!f || !confirm("Убрать файл «" + f.name + "»?")) return;
+                    lock(true);
+                    bucket()
+                        .then(function (b) {
+                            return b.remove([f.path]);
+                        })
+                        .then(function (res) {
+                            if (res.error) throw res.error;
+                            cur.doc.files.splice(i, 1);
+                            return saveFiles();
+                        })
+                        .then(function () {
+                            lock(false);
+                            renderDoc();
+                        })
+                        .catch(function (err) {
+                            lock(false);
+                            showMsg("zDocMsg", fileError(err));
+                        });
+                }
+
+                /* ── Реестр утверждённых в Excel ────────────────── */
+                function exportApproved() {
+                    if (!window.XLSX) return toast("Excel недоступен", "error");
+                    var aoa = [[
+                        "№ заявки", "Дата", "Филиал", "Инициатор", "Должность", "Подразделение",
+                        "Вид заявки", "Источник финансирования", "Специфика", "№ п/п", "Наименование",
+                        "Ед. изм.", "Кол-во", "Цена за ед.", "Сумма", "Период", "Целесообразность",
+                        "Утверждена",
+                    ]];
+                    lastRows.forEach(function (r) {
+                        var d = r.doc || {};
+                        var dir = Z.signedSlot(r, "director");
+                        var city = r.branch === "nao" ? "ЦА" : Z.BRANCH_CITY[r.branch] || r.branch;
+                        (d.rows || []).forEach(function (it, i) {
+                            aoa.push([
+                                r.no, day(d.date), city, d.fio || "", d.position || "", d.initiator || "",
+                                Z.KINDS[d.kind] || Z.KINDS.plan, d.source || "", d.spec || "", i + 1, it.name,
+                                it.unit, Z.num(it.qty), Z.num(it.price), Z.rowTotal(it), it.period || "",
+                                it.purpose || "", dir ? stamp(dir.at) : "",
+                            ]);
+                        });
+                    });
+                    var ws = XLSX.utils.aoa_to_sheet(aoa);
+                    ws["!cols"] = [8, 11, 10, 28, 28, 20, 22, 26, 9, 6, 40, 8, 9, 13, 14, 16, 36, 16].map(function (w) {
+                        return { wch: w };
+                    });
+                    var wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Утверждённые");
+                    var t = new Date();
+                    XLSX.writeFile(wb, "Заявки_утверждённые_" + t.getFullYear() + "-" +
+                        String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0") + ".xlsx");
                 }
 
                 function renderDoc() {
@@ -910,6 +1251,20 @@
                     var sources = '<option value="">— не выбран —</option>' + Z.SOURCES.map(function (s) {
                         return "<option" + (s === d.source ? " selected" : "") + ">" + esc(s) + "</option>";
                     }).join("");
+
+                    var spec = d.spec || "";
+                    var known = Z.SPECS.some(function (x) { return x[0] === spec; });
+                    var specs = '<option value="">— не выбрана —</option>' +
+                        (spec && !known ? "<option selected>" + esc(spec) + "</option>" : "") +
+                        Z.SPECS.map(function (x) {
+                            return '<option value="' + x[0] + '"' + (x[0] === spec ? " selected" : "") + ">" +
+                                x[0] + " — " + esc(x[1]) + "</option>";
+                        }).join("");
+                    var kinds = Object.keys(Z.KINDS).map(function (k) {
+                        return '<option value="' + k + '"' + ((d.kind || "plan") === k ? " selected" : "") + ">" +
+                            esc(Z.KINDS[k]) + "</option>";
+                    }).join("");
+                    var specLabel = known ? spec + " — " + Z.SPECS.filter(function (x) { return x[0] === spec; })[0][1] : spec;
 
                     var html =
                         '<div class="z-appx">Приложение № 2<br>Некоммерческое акционерное общество<br>' +
@@ -927,7 +1282,12 @@
                         '<div class="z-line"><b>ФИО:</b> ' + field("fio") + "</div>" +
                         '<div class="z-line z-sys"><b>Источник финансирования:</b> ' +
                         (ed ? '<select data-f="source">' + sources + "</select>" : '<span class="z-val">' + esc(d.source || "—") + "</span>") +
-                        " <b>Специфика:</b> " + field("spec", "напр. 149") + "</div>" +
+                        "</div>" +
+                        '<div class="z-line z-sys"><b>Вид заявки:</b> ' +
+                        (ed ? '<select data-f="kind">' + kinds + "</select>" : '<span class="z-val">' + esc(Z.KINDS[d.kind] || Z.KINDS.plan) + "</span>") +
+                        " <b>Специфика:</b> " +
+                        (ed ? '<select data-f="spec">' + specs + "</select>" : '<span class="z-val">' + esc(specLabel || "—") + "</span>") +
+                        "</div>" +
                         '<table class="z-grid" data-uk-free><thead><tr>' +
                         "<th style=\"width:38px\">№ п/п</th>" +
                         "<th style=\"width:24%\">Наименование товаров, работ и услуг (изложить краткое описание, согласно представленных подтверждающих документов (ЦП/КП))</th>" +
@@ -943,6 +1303,8 @@
                         '<td class="r itogo" id="zTotal">' + Z.money(Z.docTotal(d)) + "</td><td></td><td></td>" +
                         (ed ? '<td class="x"></td>' : "") + "</tr></tfoot></table>" +
                         (ed ? '<button type="button" class="z-btn z-addrow" id="zAddRow">+ Добавить строку</button>' : "") +
+                        filesHtml(ed) +
+                        routeHtml(ed) +
                         '<div class="z-signs">' +
                         "<h4>Утверждаю:</h4>" + slotHtml(Z.SLOTS[0]) +
                         (city ? '<div class="z-sub" style="font-family:inherit;font-size:14px;color:#000">НАО «Республиканская физико-математическая школа» в г. ' + esc(city) + "</div>" : "") +
@@ -1019,6 +1381,20 @@
                     dirty = true;
                 });
                 $("zPaper").addEventListener("change", function (e) {
+                    if (e.target.id === "zFileInput") {
+                        attach(e.target.files);
+                        e.target.value = "";
+                        return;
+                    }
+                    var rk = e.target.getAttribute("data-route");
+                    if (rk) {
+                        var rt = Z.route(cur.doc).filter(function (k) { return k !== rk; });
+                        if (e.target.checked) rt.push(rk);
+                        cur.doc.route = Z.route({ route: rt });
+                        dirty = true;
+                        renderDoc();
+                        return;
+                    }
                     if (e.target.tagName === "SELECT" && e.target.getAttribute("data-f")) {
                         cur.doc[e.target.getAttribute("data-f")] = e.target.value;
                         dirty = true;
@@ -1039,6 +1415,10 @@
                         if (!cur.doc.rows.length) cur.doc.rows.push({ name: "", unit: "", qty: "", price: "", period: "", purpose: "" });
                         dirty = true;
                         renderDoc();
+                    } else if (t.hasAttribute("data-file-open")) {
+                        openFile(+t.getAttribute("data-file-open"));
+                    } else if (t.hasAttribute("data-file-del")) {
+                        removeFile(+t.getAttribute("data-file-del"));
                     } else if (t.hasAttribute("data-sign")) {
                         sign(t.getAttribute("data-sign"), t.getAttribute("data-kind"));
                     }
@@ -1168,6 +1548,10 @@
                         var errs = Z.validate(cur.doc);
                         if (errs.length) {
                             showMsg("zDocMsg", "Заявку нельзя подать: " + errs.join("; "));
+                            return;
+                        }
+                        if (!(cur.doc.files || []).length && !confirm(
+                            "Не приложены подтверждающие документы (ЦП/КП, служебная записка).\n\nПодать заявку без них?")) {
                             return;
                         }
                     }
@@ -1309,6 +1693,7 @@
                     });
                 });
                 $("zStatus").addEventListener("change", renderList);
+                $("zExport").addEventListener("click", exportApproved);
                 $("zSearch").addEventListener("input", renderList);
                 $("zNew").addEventListener("click", function () {
                     openDoc(blank());
@@ -1341,6 +1726,9 @@
                         }[profile.signer] || profile.signer) + "»" : "");
                     var reviewer = Z.isReviewer(profile);
                     document.querySelector('.z-tab[data-tab="inbox"]').hidden = !reviewer;
+                    // Папка экономиста: утверждённые заявки видят бюджетные роли
+                    document.querySelector('.z-tab[data-tab="approved"]').hidden =
+                        ["admin", "view", "edit", "limited"].indexOf(profile.roleKey) === -1;
                     // Директору не подавать заявки, а утверждать
                     if (profile.signer === "director") $("zNew").hidden = true;
 

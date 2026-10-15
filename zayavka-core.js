@@ -51,6 +51,40 @@
         "Депозит",
     ];
 
+    /* Маршрут согласования (решение финотдела 15.10.2026): согласующие
+       заданы заранее и идут строго по порядку — зам. по АХР → закупки →
+       экономист, директор последним. АХР и закупки инициатор может
+       исключить («не требуется»), экономист обязателен. Зеркало
+       budget.request_route / route_check (миграция 0006). */
+    var ROUTE = ["ahr", "zakup", "economist"];
+    var ROUTE_LABEL = {
+        ahr: "Зам. директора по АХР",
+        zakup: "Специалист по закупкам",
+        economist: "Экономист",
+        director: "Директор",
+    };
+
+    // Вид заявки (матрица согласования Алматы, раздел А)
+    var KINDS = {
+        plan: "Планирование бюджета на следующий год",
+        correction: "Корректировка бюджета (внеплановая потребность)",
+    };
+
+    // Специфики, по которым обычно идут закупки (форма 4-20)
+    var SPECS = [
+        ["141", "Приобретение продуктов питания"],
+        ["142", "Приобретение лекарственных средств и изделий медицинского назначения"],
+        ["144", "Приобретение топлива, горюче-смазочных материалов"],
+        ["149", "Приобретение прочих запасов"],
+        ["151", "Оплата коммунальных услуг"],
+        ["152", "Оплата услуг связи"],
+        ["159", "Оплата прочих услуг и работ"],
+        ["161", "Командировки и служебные разъезды внутри страны"],
+        ["162", "Командировки и служебные разъезды за пределы страны"],
+        ["169", "Прочие текущие затраты"],
+        ["414", "Приобретение машин, оборудования, инструментов, инвентаря"],
+    ];
+
     var BRANCH_CITY = {
         nao: "",
         almaty: "Алматы",
@@ -104,6 +138,31 @@
     /* Приводит форму к одному виду: лишние поля отбрасываются, пустые
        строки таблицы убираются. Именно это и подписывается, поэтому
        результат должен быть одинаковым при каждом вызове. */
+    // Маршрут заявки: согласующие по порядку, экономист — всегда
+    function route(doc) {
+        var r = doc && doc.route;
+        return ROUTE.filter(function (k) {
+            return k === "economist" || !Array.isArray(r) || r.indexOf(k) !== -1;
+        });
+    }
+
+    function normalizeFiles(files) {
+        return (Array.isArray(files) ? files : [])
+            .filter(function (f) {
+                return f && f.path && f.name;
+            })
+            .slice(0, 20)
+            .map(function (f) {
+                return {
+                    name: str(f.name, 200),
+                    path: str(f.path, 400),
+                    size: Math.round(num(f.size)),
+                    type: str(f.type, 120),
+                    sha256: str(f.sha256, 64),
+                };
+            });
+    }
+
     function normalizeDoc(doc, opts) {
         doc = doc || {};
         var year = (opts && opts.year) || new Date().getFullYear() + 1;
@@ -130,6 +189,9 @@
             fio: str(doc.fio, 200),
             source: str(doc.source, 200),
             spec: str(doc.spec, 50),
+            kind: KINDS[doc.kind] ? doc.kind : "plan",
+            route: route(doc),
+            files: normalizeFiles(doc.files),
             rows: rows,
         };
     }
@@ -207,6 +269,15 @@
         return p.branchKey === b;
     }
 
+    // Чья подпись следующая: первая неподписанная графа маршрута, затем
+    // директор. Пусто — заявка не подана или уже утверждена
+    function nextSlot(req) {
+        if (!req || !signedSlot(req, "initiator")) return "";
+        var rt = route(req.doc).concat(["director"]);
+        for (var i = 0; i < rt.length; i++) if (!signedSlot(req, rt[i])) return rt[i];
+        return "";
+    }
+
     // Зеркало budget.can_sign + правила триггера
     function canSign(slot, p, req, uid) {
         if (!p || !req || signedSlot(req, slot)) return false;
@@ -215,6 +286,8 @@
         }
         if (req.status !== "submitted" && req.status !== "approved") return false;
         if (!signedSlot(req, "initiator")) return false;
+        // Строго по маршруту: только следующая по порядку графа
+        if (nextSlot(req) !== slot) return false;
         if (slot === "economist") {
             return (p.roleKey === "edit" || p.signer === "economist") && readsBranch(p, req.branch);
         }
@@ -405,6 +478,12 @@
         SLOTS: SLOTS,
         STATUS: STATUS,
         SOURCES: SOURCES,
+        ROUTE: ROUTE,
+        ROUTE_LABEL: ROUTE_LABEL,
+        KINDS: KINDS,
+        SPECS: SPECS,
+        route: route,
+        nextSlot: nextSlot,
         BRANCH_CITY: BRANCH_CITY,
         num: num,
         money: money,

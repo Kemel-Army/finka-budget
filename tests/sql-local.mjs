@@ -9,13 +9,7 @@
  * Supabase-окружение имитируется минимально: роли anon/authenticated,
  * auth.uid() из request.jwt.claims — так же, как его читает PostgREST.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MIG = path.join(ROOT, "supabase", "migrations");
+import { supabaseDb, asUser } from "./pg-supabase.mjs";
 
 let total = 0;
 let failed = 0;
@@ -25,27 +19,7 @@ function ok(label, cond, extra) {
     console.log(`   ${cond ? "OK  " : "FAIL"} ${label}${!cond && extra ? " — " + extra : ""}`);
 }
 
-const db = new PGlite();
-
-await db.exec(`
-    create role anon nologin;
-    create role authenticated nologin;
-    create schema auth;
-    create function auth.uid() returns uuid language sql stable as $$
-        select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
-    $$;
-    grant usage on schema auth to authenticated, anon;
-    grant execute on function auth.uid() to authenticated, anon;
-`);
-
-for (const f of fs.readdirSync(MIG).filter((n) => n.endsWith(".sql")).sort()) {
-    try {
-        await db.exec(fs.readFileSync(path.join(MIG, f), "utf8"));
-        ok(`миграция ${f}`, true);
-    } catch (e) {
-        ok(`миграция ${f}`, false, e.message);
-    }
-}
+const db = await supabaseDb((f, err) => ok(`миграция ${f}`, !err, err && err.message));
 
 /* ── Учётки ──────────────────────────────────────────────────────── */
 let n = 0;
@@ -71,19 +45,7 @@ const U = {
     stranger: user("abai@x", {}),
 };
 
-async function as(u, sql, params = []) {
-    try {
-        return await db.transaction(async (tx) => {
-            await tx.exec("set local role authenticated");
-            await tx.query("select set_config('request.jwt.claims', $1, true)", [
-                JSON.stringify(u),
-            ]);
-            return { rows: (await tx.query(sql, params)).rows };
-        });
-    } catch (e) {
-        return { error: e.message, rows: [] };
-    }
-}
+const as = (u, sql, params = []) => asUser(db, u, sql, params);
 
 // Подписи через PostgREST — «простые»: ЭЦП из браузера база не принимает
 // (миграция 0005), её пишет только budget.add_ecp_signature
@@ -228,7 +190,10 @@ const RPC = "select * from budget.add_ecp_signature($1, $2::jsonb, $3)";
 const ecp = (slot, iin = "123456789012") =>
     JSON.stringify({ slot, kind: "ecp", cms: "MIIB", cert: { iin, fio: "ТЕСТОВ ТЕСТ" }, verified: { by: "NCANode" } });
 
-r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [doc]);
+// Маршрут «только экономист» (0006): графы АХР и закупок не нужны
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [
+    JSON.stringify({ ...JSON.parse(doc), route: ["economist"] }),
+]);
 const id4 = r.rows[0].id;
 r = await as(U.ini, RPC, [id4, ecp("initiator"), "не тот секрет"]);
 ok("RPC с чужим секретом — отказ", !!r.error);
@@ -237,18 +202,84 @@ ok("RPC с секретом сервера — подпись ЭЦП приня�
     r.rows[0] && r.rows[0].status === "submitted" && r.rows[0].signatures[0].kind === "ecp", r.error);
 r = await as(U.ini, RPC, [id4, ecp("ahr"), SECRET]);
 ok("и через RPC права на графу проверяет триггер", !!r.error);
-r = await as(U.ahr, SIGN, [id4, JSON.stringify([{ slot: "ahr", kind: "simple", cms: "MIIB", cert: { iin: "1" } }])]);
+r = await as(U.ahr, SIGN, [id4, JSON.stringify([{ slot: "ahr", kind: "simple" }])]);
+ok("АХР исключён из маршрута — его подпись не нужна и не принимается", /исключена из маршрута/.test(r.error || ""), r.error);
+r = await as(U.eco, SIGN, [id4, JSON.stringify([{ slot: "economist", kind: "simple", cms: "MIIB", cert: { iin: "1" } }])]);
 ok("отметка без ЭЦП не тащит за собой «сертификат»",
     r.rows[0] && !("cert" in r.rows[0].signatures[1]) && !("cms" in r.rows[0].signatures[1]), r.error);
+// Экономист расписался отметкой — для проверки ИИН нужна свежая заявка
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [
+    JSON.stringify({ ...JSON.parse(doc), route: ["economist"] }),
+]);
+const id5 = r.rows[0].id;
+await as(U.ini, SIGN, [id5, sig("initiator")]);
 const bound = user("bound@x", { role: "edit", branch: "astana", iin: "999999999999" });
-r = await as(bound, RPC, [id4, ecp("economist", "123456789012"), SECRET]);
+r = await as(bound, RPC, [id5, ecp("economist", "123456789012"), SECRET]);
 ok("ИИН учётки и сертификата не совпали — отказ", /ИИН/.test(r.error || ""), r.error);
-r = await as(bound, RPC, [id4, ecp("economist", "999999999999"), SECRET]);
+r = await as(bound, RPC, [id5, ecp("economist", "999999999999"), SECRET]);
 ok("свой ключ — принят", !r.error, r.error);
 r = await as(U.eco, `select * from budget.ecp_config`);
 ok("хеш секрета пользователям не виден", !!r.error);
 r = await as(U.eco, `select budget.ecp_secret_ok($1) ok`, ["x".repeat(48)]);
 ok("перебор секрета ничего не даёт", r.rows[0] && r.rows[0].ok === false, r.error);
+
+console.log("\n── Маршрут и порядок (0006) ──");
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [doc]);
+const id6 = r.rows[0].id;
+await as(U.ini, SIGN, [id6, sig("initiator")]);
+r = await as(U.eco, SIGN, [id6, sig("economist")]);
+ok("экономист раньше АХР и закупок — нельзя", /Сначала подписывает зам\. директора по АХР/.test(r.error || ""), r.error);
+r = await as(U.zak, SIGN, [id6, sig("zakup")]);
+ok("закупки раньше АХР — нельзя", /Сначала подписывает зам/.test(r.error || ""), r.error);
+r = await as(U.dir, SIGN, [id6, sig("director")]);
+ok("директор раньше согласующих — нельзя", !!r.error, r.error);
+r = await as(U.ahr, SIGN, [id6, sig("ahr")]);
+ok("АХР первым — можно", !r.error, r.error);
+r = await as(U.eco, SIGN, [id6, sig("economist")]);
+ok("экономист до закупок — нельзя", /специалист по закупкам/.test(r.error || ""), r.error);
+await as(U.zak, SIGN, [id6, sig("zakup")]);
+await as(U.eco, SIGN, [id6, sig("economist")]);
+r = await as(U.dir, SIGN, [id6, sig("director")]);
+ok("директор последним — утверждена", r.rows[0] && r.rows[0].status === "approved", r.error);
+
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [
+    JSON.stringify({ ...JSON.parse(doc), route: ["zakup", "boss"] }),
+]);
+ok("в маршруте только АХР, закупки, экономист", /Маршрут согласования/.test(r.error || ""), r.error);
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [
+    JSON.stringify({ ...JSON.parse(doc), route: [] }),
+]);
+const id7 = r.rows[0] && r.rows[0].id;
+ok("пустой маршрут — экономист остаётся обязательным", !!id7, r.error);
+await as(U.ini, SIGN, [id7, sig("initiator")]);
+r = await as(U.dir, SIGN, [id7, sig("director")]);
+ok("…и директор ждёт экономиста", /Сначала подписывает экономист/.test(r.error || ""), r.error);
+r = await as(U.ini, `update budget.requests set doc = jsonb_set(doc, '{route}', '["ahr","zakup","economist"]') where id = $1`, [id7]);
+ok("после подписи инициатора маршрут не поменять", !!r.error);
+
+console.log("\n── Вложения (0006) ──");
+r = await as(U.ini, `insert into budget.requests (branch, doc) values ('astana', $1) returning id`, [doc]);
+const id8 = r.rows[0].id;
+const PUT = `insert into storage.objects (bucket_id, name) values ('zayavki', $1) returning name`;
+r = await as(U.ini, PUT, [id8 + "/kp.pdf"]);
+ok("автор прикладывает файл к черновику", !r.error, r.error);
+r = await as(U.ini2, PUT, [id8 + "/chuzhoi.pdf"]);
+ok("к чужой заявке файл не приложить", !!r.error);
+r = await as(U.ini, PUT, ["00000000-0000-0000-0000-000000000000/x.pdf"]);
+ok("к несуществующей заявке — нельзя", !!r.error);
+r = await as(U.eco, `select name from storage.objects where bucket_id = 'zayavki'`);
+ok("файлы черновика экономист не видит", !r.rows.some((x) => x.name.startsWith(id8)));
+await as(U.ini, SIGN, [id8, sig("initiator")]);
+r = await as(U.eco, `select name from storage.objects where bucket_id = 'zayavki'`);
+ok("файлы поданной заявки экономист видит", r.rows.some((x) => x.name === id8 + "/kp.pdf"), r.error);
+r = await as(U.ini2, `select name from storage.objects where bucket_id = 'zayavki'`);
+ok("другой инициатор чужие файлы не видит", !r.rows.length);
+r = await as(U.ini, PUT, [id8 + "/posle.pdf"]);
+ok("после подписи файлы не добавить", !!r.error);
+r = await as(U.ini, `delete from storage.objects where name = $1 returning name`, [id8 + "/kp.pdf"]);
+ok("после подписи файлы не удалить", !r.rows.length);
+r = await as(U.alaEco, `select name from storage.objects where bucket_id = 'zayavki'`);
+ok("Алматы файлы Астаны не видит", !r.rows.length);
 
 r = await as(U.stranger, `select count(*)::int c from budget.requests`);
 ok("посторонняя учётка ничего не видит", r.rows[0] && r.rows[0].c === 0, r.error);

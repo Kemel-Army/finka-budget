@@ -74,11 +74,32 @@ const sent = { author: "me", status: "submitted", branch: "astana", signatures: 
 eq("автор подписывает свой черновик", Z.canSign("initiator", ini, draft, "me"), true);
 eq("чужой не подписывает за инициатора", Z.canSign("initiator", ini, draft, "other"), false);
 eq("черновик не согласуют", Z.canSign("economist", eco, draft, "x"), false);
-eq("экономист филиала", Z.canSign("economist", eco, sent, "x"), true);
-eq("экономист ЦА", Z.canSign("economist", naoEco, sent, "x"), true);
-eq("экономист Алматы — нет", Z.canSign("economist", alaEco, sent, "x"), false);
-eq("директор — утверждает", Z.canSign("director", dir, sent, "x"), true);
+// Маршрут «только экономист»: экономист — следующий после инициатора
+const onlyEco = { ...sent, doc: { route: ["economist"] } };
+eq("экономист филиала", Z.canSign("economist", eco, onlyEco, "x"), true);
+eq("экономист ЦА", Z.canSign("economist", naoEco, onlyEco, "x"), true);
+eq("экономист Алматы — нет", Z.canSign("economist", alaEco, onlyEco, "x"), false);
+eq("директор — до экономиста нельзя", Z.canSign("director", dir, onlyEco, "x"), false);
+const ecoSigned = { ...onlyEco, signatures: [{ slot: "initiator" }, { slot: "economist" }] };
+eq("директор — после экономиста утверждает", Z.canSign("director", dir, ecoSigned, "x"), true);
 eq("АХР ждёт своей подписи", Z.waitingFor(ahr, sent, "x"), ["ahr"]);
+
+console.log("\n── Маршрут согласования ──");
+eq("по умолчанию — АХР, закупки, экономист", Z.route({}), ["ahr", "zakup", "economist"]);
+eq("АХР и закупки исключены — остаётся экономист", Z.route({ route: [] }), ["economist"]);
+eq("порядок — всегда канонический", Z.route({ route: ["economist", "ahr"] }), ["ahr", "economist"]);
+eq("мусор в маршруте отбрасывается", Z.route({ route: ["boss", "zakup"] }), ["zakup", "economist"]);
+eq("полный маршрут: первым ждёт АХР", Z.nextSlot(sent), "ahr");
+eq("экономист в полном маршруте раньше времени — нет", Z.canSign("economist", eco, sent, "x"), false);
+const afterAhr = { ...sent, signatures: [{ slot: "initiator" }, { slot: "ahr" }] };
+eq("после АХР ждём закупки", Z.nextSlot(afterAhr), "zakup");
+eq("все согласовали — ждём директора", Z.nextSlot({ ...sent, signatures: ["initiator", "ahr", "zakup", "economist"].map((x) => ({ slot: x })) }), "director");
+eq("не подана — следующего нет", Z.nextSlot(draft), "");
+eq("маршрут попадает в подписываемый текст", JSON.parse(Z.signedText({ id: "a", no: 1, branch: "astana", doc: { route: [] } })).doc.route, ["economist"]);
+const fd = Z.normalizeDoc({ kind: "correction", files: [{ name: "КП.pdf", path: "a/b.pdf", size: "1200", sha256: "ab", junk: 1 }, { name: "без пути" }] });
+eq("вложения: только с путём, лишнее отброшено", fd.files, [{ name: "КП.pdf", path: "a/b.pdf", size: 1200, type: "", sha256: "ab" }]);
+eq("вид заявки — корректировка", fd.kind, "correction");
+eq("неизвестный вид — планирование", Z.normalizeDoc({ kind: "x" }).kind, "plan");
 eq("правка подписанной — нет", Z.canEdit(ini, sent, "me"), false);
 eq("отозвать, пока подписал только автор", Z.canWithdraw(ini, sent, "me"), true);
 eq("отозвать после согласующего — нет",
