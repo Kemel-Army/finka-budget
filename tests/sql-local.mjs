@@ -302,6 +302,22 @@ ok("без входа файлы заявок не видны", !r.error && !r.r
 r = await asAnon(`select name from storage.objects where bucket_id = 'homework'`);
 ok("соседнему сервису (abai.live) ничего не сломали", r.rows.length === 1, r.error);
 
+console.log("\n── Листы бюджета (0008) ──");
+r = await as(U.eco, `insert into budget.kv (branch, key, value) values ('astana', 'pu_fot_almaty', '{"rows":[1]}') returning key`);
+ok("экономист пишет лист", !r.error, r.error);
+r = await as(U.eco, `select key from budget.kv where branch = 'astana'`);
+ok("экономист читает лист", r.rows.length === 1);
+r = await as(U.ini, `select key from budget.kv`);
+ok("инициатор листы бюджета не читает", !r.error && !r.rows.length, r.error);
+r = await as(U.ahr, `select key from budget.kv`);
+ok("инициатор-подписант (АХР) тоже", !r.rows.length);
+r = await as(U.ini, `select key from budget.kv_audit`);
+ok("и журнал правок не читает", !r.rows.length);
+r = await as(U.dir, `select key from budget.kv where branch = 'astana'`);
+ok("директор (просмотр) читает", r.rows.length === 1);
+r = await as(U.ahr, `select id from budget.requests where status <> 'draft'`);
+ok("а поданные заявки АХР по-прежнему видит", r.rows.length > 0);
+
 r = await as(U.stranger, `select count(*)::int c from budget.requests`);
 ok("посторонняя учётка ничего не видит", r.rows[0] && r.rows[0].c === 0, r.error);
 

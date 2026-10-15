@@ -136,7 +136,9 @@
             canEdit: false,
             canImport: false,
             canExport: false,
-            pages: ["index.html", "dashboard.html", "zayavki.html"].concat(PAGES.pu),
+            // Только заявки: листы бюджета (ФОТ, штатное, планы) инициатору
+            // не нужны и закрыты и здесь, и в базе (миграция 0008)
+            pages: ["index.html", "zayavki.html"],
         },
     };
 
@@ -923,6 +925,12 @@
     /* ── Главный сценарий ──────────────────────────────────────── */
     function applyPolicy(state) {
         var profile = state.profile;
+
+        // Инициатору на главной показывать нечего — сразу к заявкам
+        if (profile.roleKey === "initiator" && currentPage === HOME_PAGE) {
+            location.replace("zayavki.html");
+            return;
+        }
 
         if (!canOpen(profile, currentPage)) {
             renderDenied(profile);
