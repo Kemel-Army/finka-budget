@@ -280,6 +280,27 @@ r = await as(U.ini, `delete from storage.objects where name = $1 returning name`
 ok("после подписи файлы не удалить", !r.rows.length);
 r = await as(U.alaEco, `select name from storage.objects where bucket_id = 'zayavki'`);
 ok("Алматы файлы Астаны не видит", !r.rows.length);
+r = await as(U.ini, `update storage.objects set name = name || '.bak' where bucket_id = 'zayavki' returning name`);
+ok("файлы заявок не перезаписать", !r.rows.length);
+
+// Без входа (anon): файлы заявок закрыты, а чужие корзины работают как раньше
+await db.exec(`insert into storage.buckets (id, name, public) values ('homework', 'homework', true)
+               on conflict do nothing;
+               insert into storage.objects (bucket_id, name) values ('homework', 'hw/1.pdf');`);
+async function asAnon(sql) {
+    try {
+        return await db.transaction(async (tx) => {
+            await tx.exec("set local role anon");
+            return { rows: (await tx.query(sql)).rows };
+        });
+    } catch (e) {
+        return { error: e.message, rows: [] };
+    }
+}
+r = await asAnon(`select name from storage.objects where bucket_id = 'zayavki'`);
+ok("без входа файлы заявок не видны", !r.error && !r.rows.length, r.error);
+r = await asAnon(`select name from storage.objects where bucket_id = 'homework'`);
+ok("соседнему сервису (abai.live) ничего не сломали", r.rows.length === 1, r.error);
 
 r = await as(U.stranger, `select count(*)::int c from budget.requests`);
 ok("посторонняя учётка ничего не видит", r.rows[0] && r.rows[0].c === 0, r.error);

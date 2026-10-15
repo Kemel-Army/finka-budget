@@ -43,8 +43,17 @@ export const SUPABASE_BASE = `
         unique (bucket_id, name)
     );
     alter table storage.objects enable row level security;
-    grant usage on schema storage to authenticated;
-    grant select, insert, delete on storage.objects to authenticated;
+    grant usage on schema storage to authenticated, anon;
+    grant select, insert, update, delete on storage.objects to authenticated;
+    grant select on storage.objects to anon;
+
+    -- Как в боевом проекте: соседний сервис (abai.live) открыл хранилище
+    -- широкими permissive-политиками. Политики складываются через ИЛИ, так
+    -- что любые наши ограничения обязаны быть restrictive (миграция 0007)
+    create policy "Enable read access for all users" on storage.objects
+        for select to public using (true);
+    create policy "Enable insert for authenticated users only" on storage.objects
+        for insert to authenticated with check (true);
 `;
 
 export function migrationFiles() {
